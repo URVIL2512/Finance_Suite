@@ -1,0 +1,125 @@
+import mongoose from 'mongoose';
+
+const revenueSchema = new mongoose.Schema(
+  {
+    clientName: {
+      type: String,
+      required: [true, 'Please add a client name'],
+    },
+    country: {
+      type: String,
+      enum: ['India', 'USA', 'Canada', 'Australia'],
+      required: [true, 'Please select a country'],
+    },
+    service: {
+      type: String,
+      enum: [
+        'Website Design',
+        'B2B Sales Consulting',
+        'Outbound Lead Generation',
+        'Social Media Marketing',
+        'SEO',
+        'TeleCalling',
+        'Other Services',
+      ],
+      required: [true, 'Please select a service'],
+    },
+    engagementType: {
+      type: String,
+      enum: ['One Time', 'Recurring'],
+      required: [true, 'Please select engagement type'],
+    },
+    invoiceNumber: {
+      type: String,
+      default: '',
+    },
+    invoiceDate: {
+      type: Date,
+      default: Date.now,
+    },
+    invoiceAmount: {
+      type: Number,
+      required: [true, 'Please add invoice amount'],
+      default: 0,
+    },
+    gstPercentage: {
+      type: Number,
+      default: 0,
+    },
+    gstAmount: {
+      type: Number,
+      default: 0,
+    },
+    tdsPercentage: {
+      type: Number,
+      default: 0,
+    },
+    tdsAmount: {
+      type: Number,
+      default: 0,
+    },
+    remittanceCharges: {
+      type: Number,
+      default: 0,
+    },
+    receivedAmount: {
+      type: Number,
+      default: 0,
+    },
+    dueAmount: {
+      type: Number,
+      default: 0,
+    },
+    month: {
+      type: String,
+      required: true,
+      enum: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'],
+    },
+    year: {
+      type: Number,
+      required: [true, 'Please add a year'],
+    },
+    invoiceUrl: {
+      type: String,
+      default: '',
+    },
+    bankAccount: {
+      type: String,
+      default: '',
+    },
+    invoiceGenerated: {
+      type: Boolean,
+      default: false,
+    },
+    invoiceId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Invoice',
+      default: null,
+    },
+    user: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+      required: true,
+    },
+  },
+  {
+    timestamps: true,
+  }
+);
+
+// Index for faster queries
+revenueSchema.index({ year: 1, month: 1 });
+revenueSchema.index({ country: 1 });
+revenueSchema.index({ service: 1 });
+revenueSchema.index({ user: 1 });
+
+// Calculate due amount before saving
+revenueSchema.pre('save', function (next) {
+  this.dueAmount = this.invoiceAmount - this.receivedAmount;
+  next();
+});
+
+const Revenue = mongoose.model('Revenue', revenueSchema);
+
+export default Revenue;
+

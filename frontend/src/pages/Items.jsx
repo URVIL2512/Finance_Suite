@@ -1,0 +1,249 @@
+import { useState, useEffect } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
+import { format } from 'date-fns';
+import { itemAPI } from '../services/api';
+import ItemForm from '../components/ItemForm';
+import ActionDropdown from '../components/ActionDropdown';
+
+const Items = () => {
+  const navigate = useNavigate();
+  const location = useLocation();
+  
+  // Check if we came from invoice page and should return after creating item
+  const returnPath = location.state?.returnTo;
+  const returnState = location.state?.returnState;
+  
+  const [showForm, setShowForm] = useState(false);
+  const [editingItem, setEditingItem] = useState(null);
+  const [items, setItems] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetchItems();
+  }, []);
+
+  // Auto-show form if coming from invoice page
+  useEffect(() => {
+    if (returnPath && !showForm && !editingItem) {
+      setShowForm(true);
+    }
+  }, [returnPath]);
+
+
+  const fetchItems = async () => {
+    try {
+      setLoading(true);
+      const response = await itemAPI.getAll();
+      setItems(response.data);
+    } catch (error) {
+      console.error('Error fetching items:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSubmit = async (formData) => {
+    try {
+      if (editingItem) {
+        await itemAPI.update(editingItem._id, formData);
+        alert('Item updated successfully!');
+        handleCancel();
+        fetchItems();
+      } else {
+        await itemAPI.create(formData);
+        alert('Item created successfully!');
+        
+        // If we came from invoice page, return there after creating item
+        if (returnPath && (returnPath === '/invoices' || returnPath === '/sales')) {
+          fetchItems();
+          // Small delay to ensure item is saved before navigating
+          setTimeout(() => {
+            try {
+              navigate(returnPath, { 
+                state: returnState || { showInvoiceForm: true },
+                replace: false
+              });
+            } catch (error) {
+              console.error('Navigation error after save:', error);
+              // Fallback: close form and navigate to invoices page
+              setShowForm(false);
+              setEditingItem(null);
+              navigate('/invoices');
+            }
+          }, 100);
+          return;
+        } else {
+          handleCancel();
+          fetchItems();
+        }
+      }
+    } catch (error) {
+      console.error('Error saving item:', error);
+      const errorMessage = error.response?.data?.message || 'Failed to save item';
+      alert(`Error: ${errorMessage}`);
+    }
+  };
+
+  const handleCancel = () => {
+    // If we came from invoice page, return there when canceling
+    if (returnPath && (returnPath === '/invoices' || returnPath === '/sales')) {
+      console.log('🔄 Canceling item form - navigating back to:', returnPath);
+      console.log('Return state:', returnState);
+      
+      // Close the form first
+      setShowForm(false);
+      setEditingItem(null);
+      
+      // Then navigate back with state
+      try {
+        navigate(returnPath, { 
+          state: returnState || { showInvoiceForm: true },
+          replace: false
+        });
+      } catch (error) {
+        console.error('Navigation error on cancel:', error);
+        // Fallback: navigate without state
+        navigate(returnPath);
+      }
+      return;
+    }
+    
+    // Normal cancel - just close the form
+    setShowForm(false);
+    setEditingItem(null);
+  };
+
+  const handleEdit = (item) => {
+    setEditingItem(item);
+    setShowForm(true);
+  };
+
+  const handleDelete = async (id) => {
+    if (window.confirm('Are you sure you want to delete this item?')) {
+      try {
+        await itemAPI.delete(id);
+        alert('Item deleted successfully!');
+        fetchItems();
+      } catch (error) {
+        console.error('Error deleting item:', error);
+        alert('Failed to delete item');
+      }
+    }
+  };
+
+  return (
+    <div className="animate-fade-in">
+      <div className="mb-6 flex justify-between items-center">
+        <div>
+          <h1 className="page-header">
+            Items Management
+          </h1>
+          <p className="page-subtitle">Manage products and services for invoices</p>
+        </div>
+        {!showForm && (
+          <button
+            onClick={() => setShowForm(true)}
+            className="btn-primary flex items-center space-x-2"
+          >
+            <span>+</span>
+            <span>New Item</span>
+          </button>
+        )}
+      </div>
+
+      {showForm && (
+        <ItemForm
+          item={editingItem}
+          onSubmit={handleSubmit}
+          onCancel={handleCancel}
+        />
+      )}
+
+      {!showForm && (
+        <>
+          {loading ? (
+            <div className="text-center py-12">
+              <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-finance-blue"></div>
+              <p className="mt-4 text-slate-600 font-medium">Loading items...</p>
+            </div>
+          ) : items.length === 0 ? (
+            <div className="card-gradient p-8 text-center">
+              <h2 className="text-2xl font-bold text-gray-800 mb-4">Items</h2>
+              <p className="text-gray-600 mb-6">No items created yet. Click "New Item" to get started.</p>
+            </div>
+          ) : (
+            <div className="card-gradient overflow-hidden">
+              <div className="overflow-x-auto">
+                <table className="min-w-full divide-y divide-gray-200">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Type</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Unit</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Selling Price</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Cost Price</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Sellable</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Purchasable</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Created At</th>
+                      <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="bg-white divide-y divide-gray-200">
+                    {items.map((item) => (
+                      <tr key={item._id} className="hover:bg-gray-50">
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <span className={`px-2 py-1 text-xs font-semibold rounded-full ${
+                            item.type === 'Service' 
+                              ? 'bg-blue-100 text-blue-800' 
+                              : 'bg-green-100 text-green-800'
+                          }`}>
+                            {item.type}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{item.name}</td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{item.unit || '-'}</td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                          {item.sellable ? `INR ${item.sellingPrice?.toFixed(2) || '0.00'}` : '-'}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                          {item.purchasable ? `INR ${item.costPrice?.toFixed(2) || '0.00'}` : '-'}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          {item.sellable ? (
+                            <span className="text-green-600 font-semibold">Yes</span>
+                          ) : (
+                            <span className="text-gray-400">No</span>
+                          )}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          {item.purchasable ? (
+                            <span className="text-green-600 font-semibold">Yes</span>
+                          ) : (
+                            <span className="text-gray-400">No</span>
+                          )}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                          {item.createdAt ? format(new Date(item.createdAt), 'dd/MM/yyyy') : '-'}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                          <div className="flex justify-end">
+                            <ActionDropdown
+                              onEdit={() => handleEdit(item)}
+                              onDelete={() => handleDelete(item._id)}
+                            />
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  );
+};
+
+export default Items;

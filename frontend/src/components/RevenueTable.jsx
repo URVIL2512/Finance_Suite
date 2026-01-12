@@ -1,0 +1,198 @@
+import { format } from 'date-fns';
+import { useState } from 'react';
+
+const RevenueTable = ({ revenue }) => {
+  const [viewMode, setViewMode] = useState('pivot'); // 'pivot' or 'list'
+
+  if (revenue.length === 0) {
+    return null;
+  }
+
+  const months = ['Oct', 'Nov', 'Dec', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep'];
+
+  // Group revenue by client
+  const clientRevenueMap = {};
+  revenue.forEach((rev) => {
+    const key = `${rev.clientName}_${rev.service}_${rev.country}`;
+    if (!clientRevenueMap[key]) {
+      clientRevenueMap[key] = {
+        clientName: rev.clientName,
+        service: rev.service,
+        country: rev.country,
+        months: {},
+        total: 0,
+        ids: [], // Store all IDs for this group
+        entries: [], // Store all revenue entries for this group
+      };
+    }
+    clientRevenueMap[key].months[rev.month] = (clientRevenueMap[key].months[rev.month] || 0) + (rev.invoiceAmount || 0);
+    clientRevenueMap[key].total += rev.invoiceAmount || 0;
+    clientRevenueMap[key].ids.push(rev._id);
+    clientRevenueMap[key].entries.push(rev);
+  });
+
+  const clients = Object.values(clientRevenueMap);
+
+  if (viewMode === 'pivot') {
+    return (
+      <div className="card overflow-hidden">
+        <div className="flex justify-between items-center p-6 border-b border-gray-200 bg-gradient-to-r from-gray-50 to-white">
+          <h2 className="text-xl font-bold text-gray-900">Client-wise Monthly Revenue</h2>
+          <button
+            onClick={() => setViewMode('list')}
+            className="px-4 py-2 text-sm font-semibold bg-white border-2 border-gray-300 hover:border-gray-400 rounded-lg hover:bg-gray-50 transition-all duration-200"
+          >
+            Switch to List View
+          </button>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="min-w-full divide-y divide-gray-200">
+            <thead className="table-header">
+              <tr>
+                <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider border-r border-white/20">
+                  Client
+                </th>
+                <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider border-r border-white/20">
+                  Service
+                </th>
+                <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider border-r border-white/20">
+                  Country
+                </th>
+                {months.map((month) => (
+                  <th
+                    key={month}
+                    className="px-3 py-3 text-center text-xs font-medium uppercase tracking-wider border-r border-white/20"
+                  >
+                    {month}
+                  </th>
+                ))}
+                <th className="px-4 py-3 text-center text-xs font-medium uppercase tracking-wider">
+                Total
+              </th>
+              </tr>
+            </thead>
+            <tbody className="bg-white divide-y divide-gray-200">
+              {clients.map((client, idx) => (
+                <tr key={idx} className="hover:bg-gray-50">
+                  <td className="px-4 py-3 whitespace-nowrap text-sm font-medium text-gray-900 border-r">
+                    {client.clientName}
+                  </td>
+                  <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900 border-r">
+                    {client.service}
+                  </td>
+                  <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900 border-r">
+                    {client.country}
+                  </td>
+                  {months.map((month) => (
+                    <td
+                      key={month}
+                      className="px-3 py-3 whitespace-nowrap text-sm text-gray-900 text-right border-r"
+                    >
+                      {client.months[month] ? `₹${client.months[month].toLocaleString('en-IN', { minimumFractionDigits: 2 })}` : '-'}
+                    </td>
+                  ))}
+                  <td className="px-4 py-3 whitespace-nowrap text-sm font-semibold text-gray-900 text-right">
+                    ₹{client.total.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                  </td>
+                </tr>
+              ))}
+              {/* Total Row */}
+              <tr className="bg-finance-blue/10 font-semibold">
+                <td colSpan={3} className="px-4 py-3 text-sm text-gray-900 border-r">
+                  Total
+                </td>
+                {months.map((month) => {
+                  const monthTotal = clients.reduce((sum, client) => sum + (client.months[month] || 0), 0);
+                  return (
+                    <td
+                      key={month}
+                      className="px-3 py-3 whitespace-nowrap text-sm text-gray-900 text-right border-r"
+                    >
+                      ₹{monthTotal.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                    </td>
+                  );
+                })}
+                <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900 text-right">
+                  ₹{clients.reduce((sum, client) => sum + client.total, 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    );
+  }
+
+  // List View
+  return (
+    <div className="card overflow-hidden">
+      <div className="flex justify-between items-center p-6 border-b border-gray-200 bg-gradient-to-r from-gray-50 to-white">
+        <h2 className="text-xl font-bold text-gray-900">Revenue List</h2>
+        <button
+          onClick={() => setViewMode('pivot')}
+          className="px-4 py-2 text-sm font-semibold bg-white border-2 border-gray-300 hover:border-gray-400 rounded-lg hover:bg-gray-50 transition-all duration-200"
+        >
+          Switch to Pivot View
+        </button>
+      </div>
+      <div className="overflow-x-auto">
+        <table className="min-w-full divide-y divide-gray-200">
+            <thead className="table-header">
+              <tr>
+                <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider border-r border-white/20">
+                Date
+              </th>
+              <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider border-r border-white/20">
+                Client
+              </th>
+              <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider border-r border-white/20">
+                Country
+              </th>
+              <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider border-r border-white/20">
+                Service
+              </th>
+              <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider border-r border-white/20">
+                Invoice Amount
+              </th>
+              <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider border-r border-white/20">
+                Received
+              </th>
+              <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider">
+                Due
+              </th>
+            </tr>
+          </thead>
+          <tbody className="bg-white divide-y divide-gray-200">
+            {revenue.map((rev) => (
+              <tr key={rev._id} className="hover:bg-gray-50">
+                <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
+                  {format(new Date(rev.invoiceDate), 'dd/MM/yyyy')}
+                </td>
+                <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
+                  {rev.clientName}
+                </td>
+                <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
+                  {rev.country}
+                </td>
+                <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
+                  {rev.service}
+                </td>
+                <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
+                  ₹{rev.invoiceAmount?.toLocaleString('en-IN', { minimumFractionDigits: 2 }) || '0.00'}
+                </td>
+                <td className="px-4 py-4 whitespace-nowrap text-sm text-green-600">
+                  ₹{rev.receivedAmount?.toLocaleString('en-IN', { minimumFractionDigits: 2 }) || '0.00'}
+                </td>
+                <td className="px-4 py-4 whitespace-nowrap text-sm font-semibold text-red-600">
+                  ₹{rev.dueAmount?.toLocaleString('en-IN', { minimumFractionDigits: 2 }) || '0.00'}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+};
+
+export default RevenueTable;
