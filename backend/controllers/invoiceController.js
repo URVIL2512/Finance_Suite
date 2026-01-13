@@ -339,6 +339,20 @@ export const createInvoice = async (req, res) => {
       year = currentDate.getFullYear();
     }
 
+    // Determine currency (use currencyInput if provided, otherwise default to INR)
+    const currency = currencyInput || 'INR';
+    
+    // Check if foreign client (currency ≠ INR OR country ≠ India)
+    // Export of Services: GST = 0%, TDS = 0, TCS = 0
+    const isForeignClient = (currency !== 'INR') || (country && country !== 'India');
+    
+    // Force GST, TDS, TCS to 0 for foreign clients (Export of Services)
+    if (isForeignClient) {
+      gstPercent = 0;
+      tdsPercent = 0;
+      tcsPercent = 0;
+    }
+
     // Calculate GST on Items Total - Use place of supply for GST calculation
     // Rules: Outside India = 0% GST, Gujarat = CGST+SGST (9%+9%), Other Indian States = IGST (18%)
     const { cgst, sgst, igst, totalGst, gstType } = calculateGST(
@@ -351,13 +365,12 @@ export const createInvoice = async (req, res) => {
     );
 
     // Calculate TDS on Items Total
-    // Rules: Outside India = 0% TDS, Indian States = 10% (or user input)
-    const isOutsideIndia = country && country !== 'India';
-    const tdsAmount = isOutsideIndia ? 0 : calculateTDS(baseAmountValue, tdsPercent);
+    // Rules: Foreign clients (currency ≠ INR OR country ≠ India) = 0% TDS, Indian States = 10% (or user input)
+    const tdsAmount = isForeignClient ? 0 : calculateTDS(baseAmountValue, tdsPercent);
 
     // Calculate TCS on Items Total
-    // Rules: Outside India = 0% TCS, Indian States = Rare (or user input)
-    const tcsAmount = isOutsideIndia ? 0 : calculateTCS(baseAmountValue, tcsPercent || 0);
+    // Rules: Foreign clients (currency ≠ INR OR country ≠ India) = 0% TCS, Indian States = Rare (or user input)
+    const tcsAmount = isForeignClient ? 0 : calculateTCS(baseAmountValue, tcsPercent || 0);
 
     // Calculate invoice amounts
     // Sub Total = Items Total (Base Amount)
@@ -413,10 +426,6 @@ export const createInvoice = async (req, res) => {
     // Generate invoice number
     const invoiceNumber = await generateInvoiceNumber();
 
-    // Determine currency and exchange rate
-    const currency = currencyInput || (country === 'India' ? 'INR' : 
-                     country === 'USA' ? 'USD' :
-                     country === 'Canada' ? 'CAD' : 'AUD');
     // Default exchange rates if not provided (matching frontend defaults)
     const defaultExchangeRates = {
       'USD': 90.13,  // 1 USD = 90.13 INR (matches frontend)
@@ -425,13 +434,19 @@ export const createInvoice = async (req, res) => {
       'INR': 1
     };
     
-    let exchangeRate = currency === 'INR' ? 1 : (parseFloat(exchangeRateInput) || defaultExchangeRates[currency] || 90);
-    // If exchange rate is still 1 for non-INR, use default
-    if (currency !== 'INR' && exchangeRate === 1) {
-      exchangeRate = defaultExchangeRates[currency] || 90;
-      console.log(`⚠️ Exchange rate not provided for ${currency}, using default: ${exchangeRate}`);
+    let exchangeRate = currency === 'INR' ? 1 : (parseFloat(exchangeRateInput) || defaultExchangeRates[currency] || 90.13);
+    
+    // For foreign currency invoices, exchange rate is mandatory
+    if (currency !== 'INR') {
+      if (exchangeRate === 1 && !exchangeRateInput) {
+        exchangeRate = defaultExchangeRates[currency] || 90.13;
+        console.log(`⚠️ Exchange rate not provided for ${currency}, using default: ${exchangeRate}`);
+      }
     }
-    const inrEquivalent = invoiceTotal * exchangeRate;
+    
+    // Calculate INR equivalent (mandatory for foreign currency invoices)
+    // Use receivableAmount for INR equivalent calculation (amount after deductions)
+    const inrEquivalent = currency !== 'INR' ? (receivableAmount * exchangeRate) : 0;
 
     // Create invoice items - use provided items array or create single item
     let invoiceItems = [];
@@ -890,11 +905,18 @@ export const updateInvoice = async (req, res) => {
     let newTcsPercent = invoice.tcsPercentage || 0;
     let newRemittance = invoice.remittanceCharges || 0;
     
+    // Get current currency (from request or invoice)
+    const currentCurrency = currency !== undefined ? currency : (invoice.currencyDetails?.invoiceCurrency || invoice.currency || 'INR');
+    
     // Track if country or place of supply changed (affects GST calculation)
     const originalCountry = invoice.clientDetails?.country || 'India';
+    const updatedCountry = clientCountry !== undefined ? clientCountry : originalCountry;
     const originalPlaceOfSupply = invoice.clientDetails?.placeOfSupply || '';
     const countryChanged = clientCountry !== undefined && clientCountry !== originalCountry;
     const placeOfSupplyChanged = placeOfSupply !== undefined && placeOfSupply !== originalPlaceOfSupply;
+    
+    // Check if foreign client (currency ≠ INR OR country ≠ India)
+    const isForeignClient = (currentCurrency !== 'INR') || (updatedCountry && updatedCountry !== 'India');
     
     if (baseAmount !== undefined && parseFloat(baseAmount) !== newBaseAmount) {
       newBaseAmount = parseFloat(baseAmount);
@@ -1001,11 +1023,11 @@ export const updateInvoice = async (req, res) => {
         COMPANY_STATE
       );
       
-      // Calculate TDS on Items Total
-      const tdsAmount = calculateTDS(newBaseAmount, newTdsPercent);
+      // Calculate TDS on Items Total (0 for foreign clients)
+      const tdsAmount = isForeignClient ? 0 : calculateTDS(newBaseAmount, newTdsPercent);
       
-      // Calculate TCS on Items Total
-      const tcsAmount = calculateTCS(newBaseAmount, newTcsPercent);
+      // Calculate TCS on Items Total (0 for foreign clients)
+      const tcsAmount = isForeignClient ? 0 : calculateTCS(newBaseAmount, newTcsPercent);
       
       // Calculate invoice amounts
       // GST = Items Total × GST %
@@ -1039,6 +1061,27 @@ export const updateInvoice = async (req, res) => {
         invoiceTotal,
         receivableAmount,
       };
+      
+      // Update INR equivalent for foreign currency invoices
+      if (currentCurrency !== 'INR') {
+        const exchangeRateValue = exchangeRate !== undefined ? parseFloat(exchangeRate) : (invoice.currencyDetails?.exchangeRate || invoice.exchangeRate || 90.13);
+        const defaultExchangeRates = {
+          'USD': 90.13,
+          'CAD': 67,
+          'AUD': 60,
+          'INR': 1
+        };
+        const finalExchangeRate = exchangeRateValue === 1 ? (defaultExchangeRates[currentCurrency] || 90.13) : exchangeRateValue;
+        invoice.currencyDetails = invoice.currencyDetails || {};
+        invoice.currencyDetails.invoiceCurrency = currentCurrency;
+        invoice.currencyDetails.exchangeRate = finalExchangeRate;
+        invoice.currencyDetails.inrEquivalent = receivableAmount * finalExchangeRate;
+      } else {
+        // For INR invoices, INR equivalent is 0
+        invoice.currencyDetails = invoice.currencyDetails || {};
+        invoice.currencyDetails.invoiceCurrency = 'INR';
+        invoice.currencyDetails.inrEquivalent = 0;
+      }
       
       // Update items if provided, otherwise update first item
       if (itemsInput && Array.isArray(itemsInput) && itemsInput.length > 0) {
@@ -1196,13 +1239,29 @@ export const updateInvoice = async (req, res) => {
       invoice.currency = currency;
       invoice.currencyDetails = invoice.currencyDetails || {};
       invoice.currencyDetails.invoiceCurrency = currency;
+      
+      // Update INR equivalent if currency changed
+      if (currency !== 'INR' && invoice.amountDetails?.receivableAmount) {
+        const exchangeRateValue = exchangeRate !== undefined ? parseFloat(exchangeRate) : (invoice.currencyDetails?.exchangeRate || 90.13);
+        const defaultExchangeRates = {
+          'USD': 90.13,
+          'CAD': 67,
+          'AUD': 60,
+          'INR': 1
+        };
+        const finalExchangeRate = exchangeRateValue === 1 ? (defaultExchangeRates[currency] || 90.13) : exchangeRateValue;
+        invoice.currencyDetails.exchangeRate = finalExchangeRate;
+        invoice.currencyDetails.inrEquivalent = invoice.amountDetails.receivableAmount * finalExchangeRate;
+      } else if (currency === 'INR') {
+        invoice.currencyDetails.inrEquivalent = 0;
+      }
     }
-    if (exchangeRate !== undefined) {
+    if (exchangeRate !== undefined && currency !== 'INR') {
       invoice.exchangeRate = parseFloat(exchangeRate) || 1;
       invoice.currencyDetails = invoice.currencyDetails || {};
       invoice.currencyDetails.exchangeRate = parseFloat(exchangeRate) || 1;
-      if (invoice.amountDetails?.invoiceTotal) {
-        invoice.currencyDetails.inrEquivalent = invoice.amountDetails.invoiceTotal * (parseFloat(exchangeRate) || 1);
+      if (invoice.amountDetails?.receivableAmount) {
+        invoice.currencyDetails.inrEquivalent = invoice.amountDetails.receivableAmount * (parseFloat(exchangeRate) || 1);
       }
     }
 
