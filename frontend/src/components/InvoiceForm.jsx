@@ -316,7 +316,7 @@ const InvoiceForm = ({ invoice, customers = [], onSubmit, onCancel, onCustomerAd
     }
   }, [openGstDropdown, openTdsDropdown, openTcsDropdown]);
 
-  // Clear tax fields when country is not India
+  // Clear tax fields when country is not India OR currency is not INR
   useEffect(() => {
     if (formData.clientCountry && formData.clientCountry !== 'India') {
       setFormData(prev => ({
@@ -327,6 +327,22 @@ const InvoiceForm = ({ invoice, customers = [], onSubmit, onCancel, onCustomerAd
       }));
     }
   }, [formData.clientCountry]);
+
+  // Clear tax fields when currency is not INR (Export of Services)
+  useEffect(() => {
+    if (formData.currency && formData.currency !== 'INR') {
+      setFormData(prev => ({
+        ...prev,
+        gstPercentage: '',
+        tdsPercentage: '',
+        tcsPercentage: '',
+      }));
+      // Close any open dropdowns
+      setOpenGstDropdown(false);
+      setOpenTdsDropdown(false);
+      setOpenTcsDropdown(false);
+    }
+  }, [formData.currency]);
 
   // Helper function to format billing address
   const formatBillingAddress = (billingAddress) => {
@@ -833,8 +849,8 @@ const InvoiceForm = ({ invoice, customers = [], onSubmit, onCancel, onCustomerAd
     let sgst = 0;
     let igst = 0;
     
-    if (!isOutsideIndia && gstPercentage > 0) {
-      // Calculate GST only for Indian clients
+    if (!isForeignClient && gstPercentage > 0) {
+      // Calculate GST only for INR currency and Indian clients
       totalGst = (baseAmount * gstPercentage) / 100;
       
       // Determine GST type based on place of supply
@@ -861,10 +877,10 @@ const InvoiceForm = ({ invoice, customers = [], onSubmit, onCancel, onCustomerAd
     }
 
     // Calculate TDS and TCS
-    // Outside India: TDS = 0, TCS = 0
-    // Indian states: TDS = 10% (or user input), TCS = Rare (or user input)
-    const tdsAmount = isOutsideIndia ? 0 : (baseAmount * tdsPercentage) / 100;
-    const tcsAmount = isOutsideIndia ? 0 : (baseAmount * tcsPercentage) / 100;
+    // Foreign clients (Currency ≠ INR OR Country ≠ India): TDS = 0, TCS = 0
+    // Indian clients with INR: TDS = 10% (or user input), TCS = Rare (or user input)
+    const tdsAmount = isForeignClient ? 0 : (baseAmount * tdsPercentage) / 100;
+    const tcsAmount = isForeignClient ? 0 : (baseAmount * tcsPercentage) / 100;
 
     // Sub Total = Base Amount (Items Total)
     const subTotal = baseAmount;
@@ -1866,21 +1882,31 @@ const InvoiceForm = ({ invoice, customers = [], onSubmit, onCancel, onCustomerAd
                               : parseFloat(formData.gstPercentage) || '')
                           : ''}
                         onChange={handleChange}
-                        onFocus={() => setOpenGstDropdown(true)}
+                        onFocus={() => {
+                          if (formData.currency === 'INR') {
+                            setOpenGstDropdown(true);
+                          }
+                        }}
                         step="0.01"
                         placeholder="Select GST %"
-                        className="input-field-compact pr-8"
+                        disabled={formData.currency !== 'INR'}
+                        className={`input-field-compact pr-8 ${formData.currency !== 'INR' ? 'bg-gray-100 cursor-not-allowed opacity-60' : ''}`}
                       />
                       <button
                         type="button"
-                        onClick={() => setOpenGstDropdown(!openGstDropdown)}
-                        className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                        onClick={() => {
+                          if (formData.currency === 'INR') {
+                            setOpenGstDropdown(!openGstDropdown);
+                          }
+                        }}
+                        disabled={formData.currency !== 'INR'}
+                        className={`absolute right-2 top-1/2 -translate-y-1/2 ${formData.currency !== 'INR' ? 'text-gray-300 cursor-not-allowed' : 'text-gray-400 hover:text-gray-600'}`}
                       >
                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                         </svg>
                       </button>
-                      {openGstDropdown && (
+                      {openGstDropdown && formData.currency === 'INR' && (
                         <div 
                           className="absolute z-50 w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg max-h-60 overflow-auto"
                           onMouseDown={(e) => e.stopPropagation()}
@@ -1931,23 +1957,33 @@ const InvoiceForm = ({ invoice, customers = [], onSubmit, onCancel, onCustomerAd
                         name="tdsPercentage"
                         value={formData.tdsPercentage || ''}
                         onChange={handleChange}
-                        onFocus={() => setOpenTdsDropdown(true)}
+                        onFocus={() => {
+                          if (formData.currency === 'INR') {
+                            setOpenTdsDropdown(true);
+                          }
+                        }}
                         step="0.01"
                         min="0"
                         max="100"
                         placeholder="Select TDS %"
-                        className="input-field-compact pr-8"
+                        disabled={formData.currency !== 'INR'}
+                        className={`input-field-compact pr-8 ${formData.currency !== 'INR' ? 'bg-gray-100 cursor-not-allowed opacity-60' : ''}`}
                       />
                       <button
                         type="button"
-                        onClick={() => setOpenTdsDropdown(!openTdsDropdown)}
-                        className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                        onClick={() => {
+                          if (formData.currency === 'INR') {
+                            setOpenTdsDropdown(!openTdsDropdown);
+                          }
+                        }}
+                        disabled={formData.currency !== 'INR'}
+                        className={`absolute right-2 top-1/2 -translate-y-1/2 ${formData.currency !== 'INR' ? 'text-gray-300 cursor-not-allowed' : 'text-gray-400 hover:text-gray-600'}`}
                       >
                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                         </svg>
                       </button>
-                      {openTdsDropdown && (
+                      {openTdsDropdown && formData.currency === 'INR' && (
                         <div 
                           className="absolute z-50 w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg max-h-60 overflow-auto"
                           onMouseDown={(e) => e.stopPropagation()}
@@ -2002,17 +2038,27 @@ const InvoiceForm = ({ invoice, customers = [], onSubmit, onCancel, onCustomerAd
                       name="tcsPercentage"
                       value={formData.tcsPercentage || ''}
                       onChange={handleChange}
-                      onFocus={() => setOpenTcsDropdown(true)}
+                      onFocus={() => {
+                        if (formData.currency === 'INR') {
+                          setOpenTcsDropdown(true);
+                        }
+                      }}
                       step="0.01"
                       min="0"
                       max="100"
                       placeholder="Select TCS %"
-                      className="input-field-compact pr-8"
+                      disabled={formData.currency !== 'INR'}
+                      className={`input-field-compact pr-8 ${formData.currency !== 'INR' ? 'bg-gray-100 cursor-not-allowed opacity-60' : ''}`}
                     />
                     <button
                       type="button"
-                      onClick={() => setOpenTcsDropdown(!openTcsDropdown)}
-                      className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                      onClick={() => {
+                        if (formData.currency === 'INR') {
+                          setOpenTcsDropdown(!openTcsDropdown);
+                        }
+                      }}
+                      disabled={formData.currency !== 'INR'}
+                      className={`absolute right-2 top-1/2 -translate-y-1/2 ${formData.currency !== 'INR' ? 'text-gray-300 cursor-not-allowed' : 'text-gray-400 hover:text-gray-600'}`}
                     >
                       <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
@@ -2076,7 +2122,10 @@ const InvoiceForm = ({ invoice, customers = [], onSubmit, onCancel, onCustomerAd
                 </select>
               </div>
               <div>
-                <label className="form-label">Exchange Rate</label>
+                <label className="form-label">
+                  Exchange Rate
+                  {formData.currency !== 'INR' && <span className="text-red-500 ml-1">*</span>}
+                </label>
                 <input
                   type="number"
                   name="exchangeRate"
@@ -2084,6 +2133,7 @@ const InvoiceForm = ({ invoice, customers = [], onSubmit, onCancel, onCustomerAd
                   onChange={handleChange}
                   step="0.01"
                   placeholder="1"
+                  required={formData.currency !== 'INR'}
                   className="input-field-compact"
                 />
               </div>
