@@ -371,3 +371,21 @@ Website: www.kology.co
   }
 };
 
+/**
+ * Test SMTP connection
+ * @returns {Promise} Test result
+ */
+export const testSMTPConnection = async () => {
+  try {
+    const transporter = createTransporter();
+    await transporter.verify();
+    console.log('SMTP ready');
+    return {
+      success: true,
+      message: 'SMTP connection verified successfully',
+    };
+  } catch (error) {
+    console.error('SMTP connection test failed:', error);
+    throw error;
+  }
+};
