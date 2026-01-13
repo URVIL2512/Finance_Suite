@@ -182,11 +182,23 @@ SMTP_SECURE=false
 
 ## Troubleshooting
 
+### Connection Timeout Error (`ETIMEDOUT`)
+
+**If you see:** `Error: Connection timeout` or `code: 'ETIMEDOUT'`
+
+**Cause:** Render's free tier blocks outbound SMTP connections on ports 465 and 587.
+
+**Solution:** 
+- **Recommended:** Upgrade to Render's paid plan (Starter: $7/month) - See `RENDER_SMTP_TIMEOUT_FIX.md` for details
+- **Alternative:** Use an email API service (SendGrid, Mailgun) instead of SMTP
+
 ### Email Still Not Working?
 
 1. **Check Render Logs:**
    - Look for specific error messages
    - Errors will tell you exactly what's wrong
+   - `ETIMEDOUT` = Render free tier blocking SMTP (see above)
+   - `EAUTH` = Authentication error (check App Password)
 
 2. **Verify Variables:**
    - Go to Environment tab
