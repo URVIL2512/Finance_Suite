@@ -31,7 +31,7 @@ export const getClientLedger = async (req, res) => {
       'clientDetails.name': { $regex: customerName, $options: 'i' },
       user: req.user._id,
     })
-      .select('invoiceNumber invoiceDate grandTotal status')
+      .select('invoiceNumber invoiceDate grandTotal amountDetails currencyDetails currency exchangeRate status')
       .sort({ invoiceDate: 1, createdAt: 1 }) // Sort by date ascending for chronological order
       .lean();
 
@@ -51,13 +51,42 @@ export const getClientLedger = async (req, res) => {
     // Combine invoices and payments into a single ledger array
     const ledgerEntries = [];
 
-    // Add invoice entries (Debit)
+    // Default exchange rates if not provided
+    const defaultExchangeRates = {
+      'USD': 90.13,  // 1 USD = 90.13 INR (matches frontend)
+      'CAD': 67,     // 1 CAD = 67 INR
+      'AUD': 60,     // 1 AUD = 60 INR
+      'INR': 1
+    };
+
+    // Add invoice entries (Debit) - Convert to INR
     invoices.forEach((invoice) => {
+      // Get invoice currency and amounts
+      const invoiceCurrency = invoice.currencyDetails?.invoiceCurrency || invoice.currency || 'INR';
+      const receivableAmount = invoice.amountDetails?.receivableAmount || invoice.grandTotal || 0;
+      const isNonINR = invoiceCurrency !== 'INR';
+      
+      // Convert to INR if needed
+      let debitAmount = receivableAmount;
+      if (isNonINR) {
+        // Check if INR equivalent is already calculated
+        const inrEquivalent = invoice.currencyDetails?.inrEquivalent || 0;
+        const exchangeRate = invoice.currencyDetails?.exchangeRate || invoice.exchangeRate || defaultExchangeRates[invoiceCurrency] || 90.13;
+        
+        if (inrEquivalent > 0) {
+          // Use pre-calculated INR equivalent
+          debitAmount = inrEquivalent;
+        } else {
+          // Calculate using exchange rate
+          debitAmount = receivableAmount * exchangeRate;
+        }
+      }
+      
       ledgerEntries.push({
         date: new Date(invoice.invoiceDate),
         refNo: invoice.invoiceNumber,
         type: 'Invoice',
-        debit: invoice.grandTotal || 0,
+        debit: Math.round(debitAmount * 100) / 100, // Round to 2 decimal places
         credit: 0,
         invoiceId: invoice._id,
         paymentId: null,
@@ -101,9 +130,9 @@ export const getClientLedger = async (req, res) => {
       };
     });
 
-    // Calculate summary
-    const totalDebit = invoices.reduce((sum, inv) => sum + (inv.grandTotal || 0), 0);
-    const totalCredit = payments.reduce((sum, pay) => sum + (pay.amountReceived || 0), 0);
+    // Calculate summary (all amounts are already in INR from ledger entries)
+    const totalDebit = ledgerEntries.reduce((sum, entry) => sum + (entry.debit || 0), 0);
+    const totalCredit = ledgerEntries.reduce((sum, entry) => sum + (entry.credit || 0), 0);
     const closingBalance = Math.round((totalDebit - totalCredit) * 100) / 100;
 
     res.json({
