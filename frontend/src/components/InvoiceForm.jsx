@@ -838,10 +838,10 @@ const InvoiceForm = ({ invoice, customers = [], onSubmit, onCancel, onCustomerAd
     const remittanceCharges = parseFloat(formData.remittanceCharges) || 0;
 
     // Determine client location rules:
-    // - Outside India: GST = 0%, TDS = 0, TCS = 0
-    // - Gujarat: CGST + SGST (9% + 9% = 18%), TDS = 10%, TCS = Rare
-    // - Other Indian State: IGST (18%), TDS = 10%, TCS = Rare
-    const isOutsideIndia = formData.clientCountry && formData.clientCountry !== 'India';
+    // - Currency ≠ INR OR Country ≠ India: GST = 0%, TDS = 0, TCS = 0 (Export of Services)
+    // - Currency = INR AND Country = India, Gujarat: CGST + SGST (9% + 9% = 18%), TDS = 10%, TCS = Rare
+    // - Currency = INR AND Country = India, Other State: IGST (18%), TDS = 10%, TCS = Rare
+    const isForeignClient = (formData.currency && formData.currency !== 'INR') || (formData.clientCountry && formData.clientCountry !== 'India');
     
     // Calculate GST based on location
     let totalGst = 0;
