@@ -47,7 +47,9 @@ const connectDB = async () => {
     console.error('2. .env file exists with MONGODB_URI');
     console.error('3. MONGODB_URI is correct and accessible');
     console.error('4. Network connectivity is available');
-    process.exit(1);
+    // Don't exit process - let server continue running for health checks
+    // The error will be caught by the server.js catch block
+    throw error;
   }
 };
 

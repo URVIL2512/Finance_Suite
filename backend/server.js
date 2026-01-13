@@ -102,13 +102,24 @@ import connectDB from './config/db.js';
 
 const PORT = process.env.PORT || 5000;
 
-connectDB().then(() => {
-  app.listen(PORT, () => {
-    console.log(`Server running on port ${PORT}`);
-    // Start recurring invoice scheduler
-    startRecurringInvoiceScheduler();
-    // Start recurring expense scheduler
-    startRecurringExpenseScheduler();
-  });
+// Start server immediately (for Render health checks)
+// Database connection happens in background
+app.listen(PORT, '0.0.0.0', () => {
+  console.log(`Server running on port ${PORT}`);
+  
+  // Connect to database in background (non-blocking)
+  connectDB()
+    .then(() => {
+      console.log('✅ Database connection established');
+      // Start recurring invoice scheduler after DB connection
+      startRecurringInvoiceScheduler();
+      // Start recurring expense scheduler after DB connection
+      startRecurringExpenseScheduler();
+    })
+    .catch((error) => {
+      console.error('❌ Database connection failed (server still running):', error.message);
+      // Server continues running even if DB connection fails
+      // This allows Render health checks to pass
+    });
 });
 
