@@ -1,5 +1,6 @@
 import Payment from '../models/Payment.js';
 import Invoice from '../models/Invoice.js';
+import Customer from '../models/Customer.js';
 import { sendPaymentSlipEmail } from '../utils/emailService.js';
 import { generatePaymentNumber } from '../utils/paymentNumberGenerator.js';
 
@@ -265,7 +266,7 @@ export const createPayment = async (req, res) => {
           } else {
             // Max retries reached
             console.error('Failed to create payment after max retries:', createError);
-            return res.status(500).json({ 
+            return res.status(400).json({ 
               message: 'Payment creation failed due to duplicate payment number. Please try again.',
               error: 'E11000_DUPLICATE_PAYMENT_NUMBER'
             });
@@ -376,6 +377,26 @@ export const createPayment = async (req, res) => {
       keyPattern: error.keyPattern,
       stack: error.stack
     });
+
+    // Handle duplicate key errors (should be 400, not 500)
+    if (error.code === 11000 && error.keyPattern?.paymentNumber) {
+      return res.status(400).json({
+        message: 'Payment creation failed due to duplicate payment number. Please try again.',
+        error: 'E11000_DUPLICATE_PAYMENT_NUMBER',
+        errorCode: error.code,
+      });
+    }
+
+    // Handle validation errors
+    if (error.name === 'ValidationError') {
+      const messages = Object.values(error.errors).map(err => err.message);
+      return res.status(400).json({
+        message: messages.join(', ') || 'Validation error',
+        errors: error.errors,
+      });
+    }
+
+    // Generic server error
     res.status(500).json({
       message: error.message || 'Failed to create payment',
       error: process.env.NODE_ENV === 'development' ? error.stack : undefined,
