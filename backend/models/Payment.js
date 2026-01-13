@@ -5,7 +5,6 @@ const paymentSchema = new mongoose.Schema(
     paymentNumber: {
       type: String,
       required: true,
-      unique: true,
     },
     invoice: {
       type: mongoose.Schema.Types.ObjectId,
@@ -97,7 +96,8 @@ const paymentSchema = new mongoose.Schema(
 );
 
 // Indexes
-paymentSchema.index({ paymentNumber: 1 });
+// Compound unique index: paymentNumber + user (payment numbers are unique per user)
+paymentSchema.index({ paymentNumber: 1, user: 1 }, { unique: true });
 paymentSchema.index({ invoice: 1 });
 paymentSchema.index({ customer: 1 });
 paymentSchema.index({ user: 1 });
