@@ -93,6 +93,8 @@ FRONTEND_URL=https://finance-suite-livid.vercel.app
 MONGODB_URI=your_mongodb_connection_string
 JWT_SECRET=your_jwt_secret
 NODE_ENV=production
+SMTP_USER=your-email@gmail.com (for email functionality)
+SMTP_PASSWORD=your-gmail-app-password (for email functionality)
 ```
 
 ---
