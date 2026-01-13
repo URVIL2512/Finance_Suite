@@ -1174,12 +1174,24 @@ export const updateInvoice = async (req, res) => {
         const tcsPercent = invoice.tcsPercentage || 0;
         const remittance = invoice.remittanceCharges || 0;
         
-        // Calculate TDS/TCS first
-        // Rules: Outside India = 0% TDS/TCS, Indian States = 10% TDS (or user input), TCS Rare (or user input)
+        // Get currency for foreign client check
+        const invoiceCurrencyForUpdate = currency !== undefined ? currency : (invoice.currencyDetails?.invoiceCurrency || invoice.currency || 'INR');
         const invoiceCountry = country !== undefined ? country : invoice.clientDetails?.country || 'India';
-        const isOutsideIndia = invoiceCountry && invoiceCountry !== 'India';
-        const tdsAmount = isOutsideIndia ? 0 : calculateTDS(itemsBaseAmount, tdsPercent);
-        const tcsAmount = isOutsideIndia ? 0 : calculateTCS(itemsBaseAmount, tcsPercent);
+        
+        // Check if foreign client (currency ≠ INR OR country ≠ India)
+        const isForeignClientItems = (invoiceCurrencyForUpdate !== 'INR') || (invoiceCountry && invoiceCountry !== 'India');
+        
+        // Force GST, TDS, TCS to 0 for foreign clients (Export of Services)
+        if (isForeignClientItems) {
+          gstPercent = 0;
+          tdsPercent = 0;
+          tcsPercent = 0;
+        }
+        
+        // Calculate TDS/TCS first
+        // Rules: Foreign clients (currency ≠ INR OR country ≠ India) = 0% TDS/TCS, Indian States = 10% TDS (or user input), TCS Rare (or user input)
+        const tdsAmount = isForeignClientItems ? 0 : calculateTDS(itemsBaseAmount, tdsPercent);
+        const tcsAmount = isForeignClientItems ? 0 : calculateTCS(itemsBaseAmount, tcsPercent);
         
         // Calculate GST on Base Amount (Items Total) - Use place of supply for GST calculation
         // Rules: Outside India = 0% GST, Gujarat = CGST+SGST (9%+9%), Other Indian States = IGST (18%)
