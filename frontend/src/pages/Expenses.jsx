@@ -3,6 +3,9 @@ import { expenseAPI, recurringExpenseAPI } from '../services/api';
 import ExpenseForm from '../components/ExpenseForm';
 import ExpenseTable from '../components/ExpenseTable';
 import RecurringExpenseModal from '../components/RecurringExpenseModal';
+import ViewExpenseModal from '../components/ViewExpenseModal';
+import { exportExpensesToExcel, exportExpensesToPDF } from '../utils/expenseExports';
+import { getAuthToken } from '../utils/auth';
 
 const Expenses = () => {
   const [expenses, setExpenses] = useState([]);
@@ -11,9 +14,11 @@ const Expenses = () => {
   const [editingExpense, setEditingExpense] = useState(null);
   const [selectedExpenses, setSelectedExpenses] = useState([]);
   const [showRecurringModal, setShowRecurringModal] = useState(false);
+  const [viewingExpense, setViewingExpense] = useState(null);
   const [filters, setFilters] = useState({
+    month: '',
     category: '',
-    operationType: '',
+    department: '',
   });
   const [showFilters, setShowFilters] = useState(false);
 
@@ -25,8 +30,9 @@ const Expenses = () => {
     try {
       setLoading(true);
       const params = {};
+      if (filters.month) params.month = filters.month;
       if (filters.category) params.category = filters.category;
-      if (filters.operationType) params.operationType = filters.operationType;
+      if (filters.department) params.department = filters.department;
 
       const response = await expenseAPI.getAll(params);
       setExpenses(response.data);
@@ -79,8 +85,9 @@ const Expenses = () => {
 
   const handleClearFilters = () => {
     setFilters({
+      month: '',
       category: '',
-      operationType: '',
+      department: '',
     });
   };
 
@@ -168,7 +175,7 @@ const Expenses = () => {
     'Purchase',
   ];
 
-  const operationTypes = [
+  const departments = [
     'OPERATION',
     'SOCIAL MEDIA',
     'WEBSITE',
@@ -187,15 +194,37 @@ const Expenses = () => {
         </div>
         <div className="flex items-center gap-3">
           {!showForm && (
-            <button
-              onClick={() => setShowFilters(!showFilters)}
-              className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 transition-colors flex items-center gap-2"
-            >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
-              </svg>
-              <span>Filters</span>
-            </button>
+            <>
+              <button
+                onClick={() => setShowFilters(!showFilters)}
+                className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 transition-colors flex items-center gap-2"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
+                </svg>
+                <span>Filters</span>
+              </button>
+              <button
+                onClick={async () => await exportExpensesToExcel(expenses, filters)}
+                className="px-4 py-2 text-sm font-medium text-white bg-green-600 border border-green-700 rounded-md hover:bg-green-700 transition-colors flex items-center gap-2"
+                disabled={expenses.length === 0}
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+                <span>Download as Excel</span>
+              </button>
+              <button
+                onClick={() => exportExpensesToPDF(expenses, getAuthToken, filters)}
+                className="px-4 py-2 text-sm font-medium text-white bg-red-600 border border-red-700 rounded-md hover:bg-red-700 transition-colors flex items-center gap-2"
+                disabled={expenses.length === 0}
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+                <span>Download as PDF</span>
+              </button>
+            </>
           )}
           <button
             onClick={handleCreate}
@@ -221,7 +250,29 @@ const Expenses = () => {
               Clear All Filters
             </button>
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+            <div className="space-y-2">
+              <label className="block text-sm font-semibold text-gray-700">Month</label>
+              <select
+                value={filters.month}
+                onChange={(e) => setFilters({ ...filters, month: e.target.value })}
+                className="select-field w-full"
+              >
+                <option value="">All Months</option>
+                <option value="Jan">January</option>
+                <option value="Feb">February</option>
+                <option value="Mar">March</option>
+                <option value="Apr">April</option>
+                <option value="May">May</option>
+                <option value="Jun">June</option>
+                <option value="Jul">July</option>
+                <option value="Aug">August</option>
+                <option value="Sep">September</option>
+                <option value="Oct">October</option>
+                <option value="Nov">November</option>
+                <option value="Dec">December</option>
+              </select>
+            </div>
             <div className="space-y-2">
               <label className="block text-sm font-semibold text-gray-700">Category</label>
               <select
@@ -238,14 +289,14 @@ const Expenses = () => {
               </select>
             </div>
             <div className="space-y-2">
-              <label className="block text-sm font-semibold text-gray-700">Operation Type</label>
+              <label className="block text-sm font-semibold text-gray-700">Department</label>
               <select
-                value={filters.operationType}
-                onChange={(e) => setFilters({ ...filters, operationType: e.target.value })}
+                value={filters.department}
+                onChange={(e) => setFilters({ ...filters, department: e.target.value })}
                 className="select-field w-full"
               >
-                <option value="">All Types</option>
-                {operationTypes.map((t) => (
+                <option value="">All Departments</option>
+                {departments.map((t) => (
                   <option key={t} value={t}>
                     {t}
                   </option>
@@ -303,7 +354,8 @@ const Expenses = () => {
               ) : null}
               <ExpenseTable 
                 expenses={expenses} 
-                onEdit={handleEdit} 
+                onEdit={handleEdit}
+                onView={(expense) => setViewingExpense(expense)}
                 onDelete={handleBulkDelete} 
                 onDeleteSingle={handleDelete}
                 selectedExpenses={selectedExpenses}
@@ -336,6 +388,13 @@ const Expenses = () => {
           onSubmit={handleRecurringExpenseSubmit}
         />
       )}
+
+      {/* View Expense Modal */}
+      <ViewExpenseModal
+        isOpen={!!viewingExpense}
+        onClose={() => setViewingExpense(null)}
+        expense={viewingExpense}
+      />
     </div>
   );
 };

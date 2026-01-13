@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { paymentAPI, invoiceAPI, customerAPI } from '../services/api';
 import PaymentTable from '../components/PaymentTable';
 import PaymentModal from '../components/PaymentModal';
+import PaymentHistory from '../components/PaymentHistory';
 
 const Payment = () => {
   const [payments, setPayments] = useState([]);
@@ -20,6 +21,8 @@ const Payment = () => {
   const [showFilters, setShowFilters] = useState(false);
   const [invoices, setInvoices] = useState([]);
   const [customers, setCustomers] = useState([]);
+  const [showHistoryModal, setShowHistoryModal] = useState(false);
+  const [selectedInvoiceForHistory, setSelectedInvoiceForHistory] = useState(null);
 
   useEffect(() => {
     fetchPayments();
@@ -123,6 +126,13 @@ const Payment = () => {
       invoiceId: '',
       customerId: '',
     });
+  };
+
+  const handleViewPaymentHistory = (invoice) => {
+    if (invoice) {
+      setSelectedInvoiceForHistory(invoice);
+      setShowHistoryModal(true);
+    }
   };
 
   return (
@@ -230,6 +240,7 @@ const Payment = () => {
           onEdit={handleEditPayment}
           onDelete={handleDeletePayment}
           onView={handleViewPayment}
+          onViewHistory={handleViewPaymentHistory}
         />
       )}
 
@@ -246,6 +257,17 @@ const Payment = () => {
         mode={modalMode}
         onPaymentRecorded={handlePaymentRecorded}
       />
+
+      {/* Payment History Modal */}
+      {showHistoryModal && (
+        <PaymentHistory
+          invoice={selectedInvoiceForHistory}
+          onClose={() => {
+            setShowHistoryModal(false);
+            setSelectedInvoiceForHistory(null);
+          }}
+        />
+      )}
     </div>
   );
 };

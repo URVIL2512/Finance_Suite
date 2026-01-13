@@ -1,0 +1,16 @@
+services:
+  - type: web
+    name: finance-suite-backend
+    env: node
+    plan: free
+    buildCommand: cd backend && npm install
+    startCommand: cd backend && npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+    # Required environment variables (set these in Render dashboard):
+    # - MONGODB_URI: Your MongoDB connection string
+    # - JWT_SECRET: Secret key for JWT tokens
+    # - EMAIL_USER: Email address for sending emails
+    # - EMAIL_PASS: Email password or app password
+    # - PORT: Will be automatically set by Render automatically

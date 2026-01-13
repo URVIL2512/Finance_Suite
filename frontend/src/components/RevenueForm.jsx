@@ -47,11 +47,17 @@ const RevenueForm = ({ revenue, onSubmit, onCancel }) => {
     const invoiceAmount = parseFloat(formData.invoiceAmount) || 0;
     const gstPercentage = parseFloat(formData.gstPercentage) || 0;
     const tdsPercentage = parseFloat(formData.tdsPercentage) || 0;
+    const remittanceCharges = parseFloat(formData.remittanceCharges) || 0;
     const receivedAmount = parseFloat(formData.receivedAmount) || 0;
 
+    // GST is calculated on base amount
     const gstAmount = (invoiceAmount * gstPercentage) / 100;
-    const tdsAmount = ((invoiceAmount + gstAmount) * tdsPercentage) / 100;
-    const dueAmount = invoiceAmount - receivedAmount;
+    // TDS is calculated ONLY on base amount (NOT on base + GST)
+    const tdsAmount = (invoiceAmount * tdsPercentage) / 100;
+    
+    // Calculate total: base amount + GST - TDS - Remittance
+    const total = invoiceAmount + gstAmount - tdsAmount - remittanceCharges;
+    const dueAmount = total - receivedAmount;
 
     setFormData((prev) => ({
       ...prev,
@@ -59,7 +65,7 @@ const RevenueForm = ({ revenue, onSubmit, onCancel }) => {
       tdsAmount: tdsAmount > 0 ? Math.round(tdsAmount * 100) / 100 : '',
       dueAmount: dueAmount !== 0 ? Math.round(dueAmount * 100) / 100 : '',
     }));
-  }, [formData.invoiceAmount, formData.gstPercentage, formData.tdsPercentage, formData.receivedAmount]);
+  }, [formData.invoiceAmount, formData.gstPercentage, formData.tdsPercentage, formData.remittanceCharges, formData.receivedAmount]);
 
   useEffect(() => {
     const date = new Date(formData.invoiceDate);
@@ -162,7 +168,7 @@ const RevenueForm = ({ revenue, onSubmit, onCancel }) => {
             />
           </div>
           <div>
-            <label className="form-label">Invoice Amount *</label>
+            <label className="form-label">Base Amount *</label>
             <input
               type="number"
               name="invoiceAmount"
@@ -242,6 +248,26 @@ const RevenueForm = ({ revenue, onSubmit, onCancel }) => {
               readOnly
               className="input-field-compact bg-slate-50 cursor-not-allowed font-semibold"
             />
+          </div>
+        </div>
+
+        {/* Total Calculation Display */}
+        <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+          <div className="flex items-center justify-between">
+            <span className="text-sm font-semibold text-gray-700">Total Amount:</span>
+            <span className="text-lg font-bold text-finance-blue">
+              ₹{(() => {
+                const baseAmount = parseFloat(formData.invoiceAmount) || 0;
+                const gstAmount = parseFloat(formData.gstAmount) || 0;
+                const tdsAmount = parseFloat(formData.tdsAmount) || 0;
+                const remittanceCharges = parseFloat(formData.remittanceCharges) || 0;
+                const total = baseAmount + gstAmount - tdsAmount - remittanceCharges;
+                return total.toLocaleString('en-IN', { minimumFractionDigits: 2 });
+              })()}
+            </span>
+          </div>
+          <div className="text-xs text-gray-600 mt-1">
+            (Base Amount + GST - TDS - Remittance)
           </div>
         </div>
 

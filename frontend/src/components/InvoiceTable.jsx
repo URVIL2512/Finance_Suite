@@ -191,7 +191,14 @@ const InvoiceTable = ({ invoices, onEdit, onDelete, onView, onRecordPayment, onV
                     </td>
                   )}
                   <td className="px-4 py-4 whitespace-nowrap text-sm">
-                    {onViewPDF ? (
+                    {onView ? (
+                      <button
+                        onClick={() => onView(invoice)}
+                        className="text-blue-600 hover:text-blue-800 hover:underline font-medium cursor-pointer"
+                      >
+                        {invoice.invoiceNumber}
+                      </button>
+                    ) : onViewPDF ? (
                       <button
                         onClick={() => onViewPDF(invoice)}
                         className="text-blue-600 hover:text-blue-800 hover:underline font-medium cursor-pointer"

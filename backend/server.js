@@ -18,6 +18,7 @@ import settingsRoutes from './routes/settingsRoutes.js';
 import recurringInvoiceRoutes from './routes/recurringInvoiceRoutes.js';
 import recurringExpenseRoutes from './routes/recurringExpenseRoutes.js';
 import paymentRoutes from './routes/paymentRoutes.js';
+import ledgerRoutes from './routes/ledgerRoutes.js';
 import { startRecurringInvoiceScheduler } from './utils/recurringInvoiceScheduler.js';
 import { startRecurringExpenseScheduler } from './utils/recurringExpenseScheduler.js';
 
@@ -64,6 +65,7 @@ app.use('/api/settings', settingsRoutes);
 app.use('/api/recurring-invoices', recurringInvoiceRoutes);
 app.use('/api/recurring-expenses', recurringExpenseRoutes);
 app.use('/api/payments', paymentRoutes);
+app.use('/api/ledger', ledgerRoutes);
 
 // Health check
 app.get('/api/health', (req, res) => {

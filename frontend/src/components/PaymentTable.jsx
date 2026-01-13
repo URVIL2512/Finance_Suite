@@ -1,7 +1,7 @@
 import { format } from 'date-fns';
 import ActionDropdown from './ActionDropdown';
 
-const PaymentTable = ({ payments, onEdit, onDelete, onView }) => {
+const PaymentTable = ({ payments, onEdit, onDelete, onView, onViewHistory }) => {
   const formatDate = (dateString) => {
     if (!dateString) return '-';
     try {
@@ -63,7 +63,16 @@ const PaymentTable = ({ payments, onEdit, onDelete, onView }) => {
                   {payment.paymentNumber}
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                  {payment.invoice?.invoiceNumber || 'N/A'}
+                  {onViewHistory && payment.invoice ? (
+                    <button
+                      onClick={() => onViewHistory(payment.invoice)}
+                      className="text-blue-600 hover:text-blue-800 hover:underline font-medium cursor-pointer"
+                    >
+                      {payment.invoice.invoiceNumber}
+                    </button>
+                  ) : (
+                    <span>{payment.invoice?.invoiceNumber || 'N/A'}</span>
+                  )}
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                   <div>

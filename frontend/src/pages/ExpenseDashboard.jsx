@@ -5,18 +5,17 @@ import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, Responsive
 const ExpenseDashboard = () => {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [year, setYear] = useState('');
   const [month, setMonth] = useState('');
+  const currentYear = new Date().getFullYear();
 
   useEffect(() => {
     fetchData();
-  }, [year, month]);
+  }, [month]);
 
   const fetchData = async () => {
     try {
       setLoading(true);
-      const params = {};
-      if (year && year !== '') params.year = parseInt(year);
+      const params = { year: currentYear };
       if (month && month !== '') params.month = month;
       const response = await dashboardAPI.getExpenseDashboard(params);
       setData(response.data);
@@ -48,10 +47,10 @@ const ExpenseDashboard = () => {
     value: category.total,
   })) || [];
 
-  // Prepare data for Operation Type-wise chart
-  const operationTypeChartData = data?.operationTypeMonthlyBreakdown?.map(operationType => ({
-    name: operationType.operationType,
-    value: operationType.total,
+  // Prepare data for Department-wise chart
+  const departmentChartData = data?.departmentMonthlyBreakdown?.map(department => ({
+    name: department.department,
+    value: department.total,
   })) || [];
 
   // Color palette
@@ -76,18 +75,6 @@ const ExpenseDashboard = () => {
             {monthOrder.map((m) => (
               <option key={m} value={m}>
                 {m}
-              </option>
-            ))}
-          </select>
-          <select
-            value={year}
-            onChange={(e) => setYear(e.target.value)}
-            className="select-field px-5 py-2.5 font-semibold"
-          >
-            <option value="">All Years</option>
-            {Array.from({ length: 5 }, (_, i) => new Date().getFullYear() - i).map((y) => (
-              <option key={y} value={y}>
-                {y}
               </option>
             ))}
           </select>
@@ -119,6 +106,7 @@ const ExpenseDashboard = () => {
           <p className="text-3xl font-bold text-gray-600">
             ₹{data?.allTimeTotal?.toLocaleString('en-IN', { minimumFractionDigits: 2 }) || '0.00'}
           </p>
+          <p className="text-xs text-gray-500 mt-1">Current Year ({currentYear})</p>
         </div>
       </div>
 
@@ -127,7 +115,7 @@ const ExpenseDashboard = () => {
         {/* Category-wise Bar Chart */}
         <div className="bg-white rounded-lg shadow p-6">
           <h2 className="text-xl font-bold mb-4">Category-wise Expenses</h2>
-          <p className="text-sm text-gray-600 mb-4">Reporting Year: {data?.year || 'All'}{month ? `, Month: ${month}` : ''}</p>
+          <p className="text-sm text-gray-600 mb-4">Reporting Year: {currentYear}{month ? `, Month: ${month}` : ''}</p>
           <ResponsiveContainer width="100%" height={350}>
             <BarChart data={categoryChartData}>
               <CartesianGrid strokeDasharray="3 3" />
@@ -143,7 +131,7 @@ const ExpenseDashboard = () => {
         {/* Category-wise Pie Chart */}
         <div className="bg-white rounded-lg shadow p-6">
           <h2 className="text-xl font-bold mb-4">Category-wise Expenses </h2>
-          <p className="text-sm text-gray-600 mb-4">Reporting Year: {data?.year || 'All'}</p>
+          <p className="text-sm text-gray-600 mb-4">Reporting Year: {currentYear}</p>
           <ResponsiveContainer width="100%" height={350}>
             <PieChart>
               <Pie
@@ -175,73 +163,15 @@ const ExpenseDashboard = () => {
         </div>
       </div>
 
-      {/* Category-wise Monthly Breakdown Table */}
-      <div className="card-gradient p-6 mb-6">
-        <div className="mb-4">
-          <h2 className="text-xl font-bold text-gray-900 mb-2">Category-wise Monthly Expenses</h2>
-          <p className="text-sm text-gray-600">Reporting Year: {data?.year || 'All'}{month ? `, Month: ${month}` : ''}</p>
-        </div>
-        <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-gray-200 border border-gray-300">
-            <thead className="table-header">
-              <tr>
-                <th className="px-4 py-3 text-left text-xs font-medium uppercase border-r border-white/20">Category</th>
-                <th className="px-4 py-3 text-center text-xs font-medium uppercase border-r border-white/20">Year</th>
-                {monthOrder.map((month) => (
-                  <th key={month} className="px-3 py-3 text-center text-xs font-medium uppercase border-r border-white/20">
-                    {month}
-                  </th>
-                ))}
-                <th className="px-4 py-3 text-center text-xs font-medium uppercase border-r border-white/20">Total</th>
-              </tr>
-            </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
-              {data?.categoryMonthlyBreakdown?.map((category) => (
-                <tr key={category.category} className="hover:bg-gray-50">
-                  <td className="px-4 py-3 whitespace-nowrap text-sm font-medium text-gray-900 border-r border-gray-200">
-                    {category.category}
-                  </td>
-                  <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-700 text-center border-r border-gray-200">
-                    {data?.year || 'All'}
-                  </td>
-                  {monthOrder.map((month) => (
-                    <td key={month} className="px-3 py-3 whitespace-nowrap text-sm text-gray-900 text-right border-r border-gray-200">
-                      {category.months[month] ? `₹${category.months[month].toLocaleString('en-IN', { minimumFractionDigits: 2 })}` : '₹0.00'}
-                    </td>
-                  ))}
-                  <td className="px-4 py-3 whitespace-nowrap text-sm font-bold text-gray-900 text-right bg-green-50">
-                    ₹{category.total.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
-                  </td>
-                </tr>
-              ))}
-              {/* Total Row */}
-              <tr className="bg-yellow-100 font-bold">
-                <td colSpan={2} className="px-4 py-3 text-sm text-gray-900 border-r border-gray-300">Total</td>
-                {monthOrder.map((month) => {
-                  const monthTotal = data?.categoryMonthlyBreakdown?.reduce((sum, category) => sum + (category.months[month] || 0), 0) || 0;
-                  return (
-                    <td key={month} className="px-3 py-3 whitespace-nowrap text-sm text-gray-900 text-right border-r border-gray-300">
-                      ₹{monthTotal.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
-                    </td>
-                  );
-                })}
-                <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900 text-right bg-green-100">
-                  ₹{data?.categoryMonthlyBreakdown?.reduce((sum, category) => sum + category.total, 0).toLocaleString('en-IN', { minimumFractionDigits: 2 }) || '0.00'}
-                </td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-      </div>
 
-      {/* Operation Type-wise Expenses - Graphs */}
+      {/* Department-wise Expenses - Graphs */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-        {/* Operation Type-wise Bar Chart */}
+        {/* Department-wise Bar Chart */}
         <div className="bg-white rounded-lg shadow p-6">
-          <h2 className="text-xl font-bold mb-4">Operation Type-wise Expenses </h2>
-          <p className="text-sm text-gray-600 mb-4">Reporting Year: {data?.year || 'All'}</p>
+          <h2 className="text-xl font-bold mb-4">Department-wise Expenses </h2>
+          <p className="text-sm text-gray-600 mb-4">Reporting Year: {currentYear}</p>
           <ResponsiveContainer width="100%" height={350}>
-            <BarChart data={operationTypeChartData}>
+            <BarChart data={departmentChartData}>
               <CartesianGrid strokeDasharray="3 3" />
               <XAxis dataKey="name" angle={-45} textAnchor="end" height={100} />
               <YAxis />
@@ -252,14 +182,14 @@ const ExpenseDashboard = () => {
           </ResponsiveContainer>
         </div>
 
-        {/* Operation Type-wise Pie Chart */}
+        {/* Department-wise Pie Chart */}
         <div className="bg-white rounded-lg shadow p-6">
-          <h2 className="text-xl font-bold mb-4">Operation Type-wise Expenses </h2>
-          <p className="text-sm text-gray-600 mb-4">Reporting Year: {data?.year || 'All'}</p>
+          <h2 className="text-xl font-bold mb-4">Department-wise Expenses </h2>
+          <p className="text-sm text-gray-600 mb-4">Reporting Year: {currentYear}</p>
           <ResponsiveContainer width="100%" height={350}>
             <PieChart>
               <Pie
-                data={operationTypeChartData}
+                data={departmentChartData}
                 cx="50%"
                 cy="50%"
                 labelLine={true}
@@ -269,7 +199,7 @@ const ExpenseDashboard = () => {
                 fill="#8884d8"
                 dataKey="value"
               >
-                {operationTypeChartData.map((entry, index) => (
+                {departmentChartData.map((entry, index) => (
                   <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                 ))}
               </Pie>
@@ -287,71 +217,13 @@ const ExpenseDashboard = () => {
         </div>
       </div>
 
-      {/* Operation Type-wise Monthly Breakdown Table */}
-      <div className="card-gradient p-6 mb-6">
-        <div className="mb-4">
-          <h2 className="text-xl font-bold text-gray-900 mb-2">Operation Type-wise Monthly Expenses</h2>
-          <p className="text-sm text-gray-600">Reporting Year: {data?.year || 'All'}{month ? `, Month: ${month}` : ''}</p>
-        </div>
-        <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-gray-200 border border-gray-300">
-            <thead className="table-header">
-              <tr>
-                <th className="px-4 py-3 text-left text-xs font-medium uppercase border-r border-white/20">Operation Type</th>
-                <th className="px-4 py-3 text-center text-xs font-medium uppercase border-r border-white/20">Year</th>
-                {monthOrder.map((month) => (
-                  <th key={month} className="px-3 py-3 text-center text-xs font-medium uppercase border-r border-white/20">
-                    {month}
-                  </th>
-                ))}
-                <th className="px-4 py-3 text-center text-xs font-medium uppercase border-r border-white/20">Total</th>
-              </tr>
-            </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
-              {data?.operationTypeMonthlyBreakdown?.map((operationType) => (
-                <tr key={operationType.operationType} className="hover:bg-gray-50">
-                  <td className="px-4 py-3 whitespace-nowrap text-sm font-medium text-gray-900 border-r border-gray-200">
-                    {operationType.operationType}
-                  </td>
-                  <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-700 text-center border-r border-gray-200">
-                    {data?.year || 'All'}
-                  </td>
-                  {monthOrder.map((month) => (
-                    <td key={month} className="px-3 py-3 whitespace-nowrap text-sm text-gray-900 text-right border-r border-gray-200">
-                      {operationType.months[month] ? `₹${operationType.months[month].toLocaleString('en-IN', { minimumFractionDigits: 2 })}` : '₹0.00'}
-                    </td>
-                  ))}
-                  <td className="px-4 py-3 whitespace-nowrap text-sm font-bold text-gray-900 text-right bg-blue-50">
-                    ₹{operationType.total.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
-                  </td>
-                </tr>
-              ))}
-              {/* Total Row */}
-              <tr className="bg-yellow-100 font-bold">
-                <td colSpan={2} className="px-4 py-3 text-sm text-gray-900 border-r border-gray-300">Total</td>
-                {monthOrder.map((month) => {
-                  const monthTotal = data?.operationTypeMonthlyBreakdown?.reduce((sum, operationType) => sum + (operationType.months[month] || 0), 0) || 0;
-                  return (
-                    <td key={month} className="px-3 py-3 whitespace-nowrap text-sm text-gray-900 text-right border-r border-gray-300">
-                      ₹{monthTotal.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
-                    </td>
-                  );
-                })}
-                <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900 text-right bg-blue-100">
-                  ₹{data?.operationTypeMonthlyBreakdown?.reduce((sum, operationType) => sum + operationType.total, 0).toLocaleString('en-IN', { minimumFractionDigits: 2 }) || '0.00'}
-                </td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-      </div>
 
       {/* Monthly Expense Summary - Graphs */}
       <div className="mb-6">
         {/* Monthly Summary Line Chart */}
         <div className="bg-white rounded-lg shadow p-6">
-          <h2 className="text-xl font-bold mb-4">Monthly Expense Trend (Line Chart)</h2>
-          <p className="text-sm text-gray-600 mb-4">Reporting Year: {data?.year || 'All'}{month ? `, Month: ${month}` : ''}</p>
+          <h2 className="text-xl font-bold mb-4">Monthly Expense Trend</h2>
+          <p className="text-sm text-gray-600 mb-4">Reporting Year: {currentYear}{month ? `, Month: ${month}` : ''}</p>
           <ResponsiveContainer width="100%" height={350}>
             <LineChart data={sortedMonthSummary}>
               <CartesianGrid strokeDasharray="3 3" />
@@ -367,47 +239,6 @@ const ExpenseDashboard = () => {
         </div>
       </div>
 
-      {/* Monthly Summary Table */}
-      <div className="card-gradient p-6 mb-6">
-        <div className="mb-4">
-          <h2 className="text-xl font-bold text-gray-900 mb-2">Monthly Expense Summary</h2>
-          <p className="text-sm text-gray-600">Reporting Year: {data?.year || 'All'}{month ? `, Month: ${month}` : ''}</p>
-        </div>
-        <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-gray-200 border border-gray-300">
-            <thead className="table-header">
-              <tr>
-                <th className="px-4 py-3 text-left text-xs font-medium uppercase border-r border-white/20">Month</th>
-                <th className="px-4 py-3 text-right text-xs font-medium uppercase border-r border-white/20">Expense</th>
-                <th className="px-4 py-3 text-right text-xs font-medium uppercase border-r border-white/20">GST</th>
-                <th className="px-4 py-3 text-right text-xs font-medium uppercase border-r border-white/20">TDS</th>
-                <th className="px-4 py-3 text-right text-xs font-medium uppercase">Total</th>
-              </tr>
-            </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
-              {sortedMonthSummary.map((month) => (
-                <tr key={month.month} className="hover:bg-gray-50">
-                  <td className="px-4 py-3 whitespace-nowrap text-sm font-medium text-gray-900 border-r border-gray-200">
-                    {month.month}
-                  </td>
-                  <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900 text-right border-r border-gray-200">
-                    ₹{month.totalExpense.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
-                  </td>
-                  <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900 text-right border-r border-gray-200">
-                    ₹{month.totalGST.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
-                  </td>
-                  <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900 text-right border-r border-gray-200">
-                    ₹{month.totalTDS.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
-                  </td>
-                  <td className="px-4 py-3 whitespace-nowrap text-sm font-bold text-gray-900 text-right">
-                    ₹{month.totalExpense.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </div>
     </div>
   );
 };

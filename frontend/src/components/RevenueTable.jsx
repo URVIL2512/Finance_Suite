@@ -10,6 +10,15 @@ const RevenueTable = ({ revenue }) => {
 
   const months = ['Oct', 'Nov', 'Dec', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep'];
 
+  // Helper function to calculate total: base amount + GST - TDS - Remittance
+  const calculateTotal = (rev) => {
+    const baseAmount = rev.invoiceAmount || 0;
+    const gstAmount = rev.gstAmount || 0;
+    const tdsAmount = rev.tdsAmount || 0;
+    const remittanceCharges = rev.remittanceCharges || 0;
+    return baseAmount + gstAmount - tdsAmount - remittanceCharges;
+  };
+
   // Group revenue by client
   const clientRevenueMap = {};
   revenue.forEach((rev) => {
@@ -25,8 +34,9 @@ const RevenueTable = ({ revenue }) => {
         entries: [], // Store all revenue entries for this group
       };
     }
-    clientRevenueMap[key].months[rev.month] = (clientRevenueMap[key].months[rev.month] || 0) + (rev.invoiceAmount || 0);
-    clientRevenueMap[key].total += rev.invoiceAmount || 0;
+    const total = calculateTotal(rev);
+    clientRevenueMap[key].months[rev.month] = (clientRevenueMap[key].months[rev.month] || 0) + total;
+    clientRevenueMap[key].total += total;
     clientRevenueMap[key].ids.push(rev._id);
     clientRevenueMap[key].entries.push(rev);
   });
@@ -151,19 +161,33 @@ const RevenueTable = ({ revenue }) => {
               <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider border-r border-white/20">
                 Service
               </th>
-              <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider border-r border-white/20">
-                Invoice Amount
+              <th className="px-4 py-3 text-right text-xs font-medium uppercase tracking-wider border-r border-white/20">
+                Base Amount
               </th>
-              <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider border-r border-white/20">
+              <th className="px-4 py-3 text-right text-xs font-medium uppercase tracking-wider border-r border-white/20">
+                GST
+              </th>
+              <th className="px-4 py-3 text-right text-xs font-medium uppercase tracking-wider border-r border-white/20">
+                TDS
+              </th>
+              <th className="px-4 py-3 text-right text-xs font-medium uppercase tracking-wider border-r border-white/20">
+                Remittance
+              </th>
+              <th className="px-4 py-3 text-right text-xs font-medium uppercase tracking-wider border-r border-white/20">
+                Total
+              </th>
+              <th className="px-4 py-3 text-right text-xs font-medium uppercase tracking-wider border-r border-white/20">
                 Received
               </th>
-              <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider">
+              <th className="px-4 py-3 text-right text-xs font-medium uppercase tracking-wider">
                 Due
               </th>
             </tr>
           </thead>
           <tbody className="bg-white divide-y divide-gray-200">
-            {revenue.map((rev) => (
+            {revenue.map((rev) => {
+              const total = calculateTotal(rev);
+              return (
               <tr key={rev._id} className="hover:bg-gray-50">
                 <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
                   {format(new Date(rev.invoiceDate), 'dd/MM/yyyy')}
@@ -177,17 +201,30 @@ const RevenueTable = ({ revenue }) => {
                 <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
                   {rev.service}
                 </td>
-                <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
-                  ₹{rev.invoiceAmount?.toLocaleString('en-IN', { minimumFractionDigits: 2 }) || '0.00'}
+                <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900 text-right">
+                  ₹{(rev.invoiceAmount || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
                 </td>
-                <td className="px-4 py-4 whitespace-nowrap text-sm text-green-600">
-                  ₹{rev.receivedAmount?.toLocaleString('en-IN', { minimumFractionDigits: 2 }) || '0.00'}
+                <td className="px-4 py-4 whitespace-nowrap text-sm text-green-600 text-right">
+                  ₹{(rev.gstAmount || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
                 </td>
-                <td className="px-4 py-4 whitespace-nowrap text-sm font-semibold text-red-600">
-                  ₹{rev.dueAmount?.toLocaleString('en-IN', { minimumFractionDigits: 2 }) || '0.00'}
+                <td className="px-4 py-4 whitespace-nowrap text-sm text-orange-600 text-right">
+                  ₹{(rev.tdsAmount || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                </td>
+                <td className="px-4 py-4 whitespace-nowrap text-sm text-purple-600 text-right">
+                  ₹{(rev.remittanceCharges || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                </td>
+                <td className="px-4 py-4 whitespace-nowrap text-sm font-semibold text-gray-900 text-right">
+                  ₹{total.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                </td>
+                <td className="px-4 py-4 whitespace-nowrap text-sm text-green-600 text-right">
+                  ₹{(rev.receivedAmount || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                </td>
+                <td className="px-4 py-4 whitespace-nowrap text-sm font-semibold text-red-600 text-right">
+                  ₹{(rev.dueAmount || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
                 </td>
               </tr>
-            ))}
+            );
+            })}
           </tbody>
         </table>
       </div>

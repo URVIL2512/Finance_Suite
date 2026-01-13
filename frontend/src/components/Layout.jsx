@@ -18,6 +18,7 @@ const Layout = ({ onLogout }) => {
     { name: 'Invoices', href: '/invoices', icon: '🧾' },
     { name: 'Recurring Invoices', href: '/recurring-invoices', icon: '🔄' },
     { name: 'Payment', href: '/payment', icon: '💳' },
+    { name: 'Client Ledger', href: '/client-ledger', icon: '📋' },
   ];
 
   const revenueSubMenu = [

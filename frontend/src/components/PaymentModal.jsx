@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { paymentAPI, customerAPI, invoiceAPI } from '../services/api';
 
 const PaymentModal = ({ isOpen, onClose, invoice, payment, mode = 'edit', onPaymentRecorded }) => {
+  const [activeTab, setActiveTab] = useState('basic'); // 'basic', 'tax', 'email'
   const [formData, setFormData] = useState({
     customer: '',
     userEmail: '',
@@ -398,10 +399,10 @@ const PaymentModal = ({ isOpen, onClose, invoice, payment, mode = 'edit', onPaym
   const remainingAmount = receivableAmount - receivedAmount;
 
   return (
-    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 overflow-y-auto p-4">
-      <div className={`bg-white rounded-2xl shadow-2xl ${mode === 'view' ? 'max-w-4xl' : 'max-w-5xl'} w-full mx-auto my-auto max-h-[90vh] overflow-hidden flex flex-col`}>
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 overflow-y-auto p-4" onClick={mode === 'view' ? handleClose : undefined}>
+      <div className={`bg-white rounded-2xl shadow-2xl ${mode === 'view' ? 'max-w-4xl' : 'max-w-5xl'} w-full mx-auto my-auto max-h-[90vh] overflow-hidden flex flex-col`} onClick={(e) => e.stopPropagation()}>
         {/* Header */}
-        <div className={`${mode === 'view' ? 'bg-gradient-to-r from-emerald-600 to-emerald-700' : 'bg-white border-b border-gray-200'} px-6 py-4 flex-shrink-0`}>
+        <div className={`${mode === 'view' ? 'bg-gradient-to-r from-emerald-600 to-emerald-700' : 'bg-gradient-to-r from-blue-600 to-blue-700'} text-white px-6 py-4 flex-shrink-0 rounded-t-2xl`}>
           <div className="flex justify-between items-center">
             {mode === 'view' ? (
               <div className="flex items-center gap-3">
@@ -418,25 +419,41 @@ const PaymentModal = ({ isOpen, onClose, invoice, payment, mode = 'edit', onPaym
                 </div>
               </div>
             ) : (
-              <h2 className="text-2xl font-bold text-gray-900">
-                {editingPayment 
-                  ? `Edit Payment - ${editingPayment.paymentNumber}`
-                  : selectedInvoice 
-                    ? `Payment for ${selectedInvoice.invoiceNumber}` 
-                    : 'Record Payment'}
-              </h2>
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-lg bg-white/20 flex items-center justify-center">
+                  <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                </div>
+                <div>
+                  <h2 className="text-xl font-bold text-white">
+                    {editingPayment 
+                      ? `Edit Payment - ${editingPayment.paymentNumber}`
+                      : selectedInvoice 
+                        ? `Payment for ${selectedInvoice.invoiceNumber}` 
+                        : 'Record Payment'}
+                  </h2>
+                  {selectedInvoice && (
+                    <p className="text-sm text-white/90 mt-0.5">
+                      Balance Due: ₹{remainingAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                    </p>
+                  )}
+                </div>
+              </div>
             )}
             <button
               onClick={handleClose}
-              className={`${mode === 'view' ? 'text-white hover:bg-white/20' : 'text-gray-500 hover:text-gray-700 hover:bg-gray-100'} text-3xl font-bold leading-none w-8 h-8 flex items-center justify-center rounded-lg transition-colors`}
-              aria-label="Close"
+              className="w-8 h-8 rounded-lg text-white hover:bg-white/20 flex items-center justify-center transition-colors"
+              title="Close"
             >
-              ×
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
             </button>
           </div>
         </div>
         
-        <div className={`flex-1 overflow-y-auto ${mode === 'view' ? 'p-6 bg-gradient-to-br from-slate-50 to-white' : 'p-6'}`}>
+        <div className={`flex-1 overflow-y-auto ${mode === 'view' ? 'p-6 bg-gradient-to-br from-slate-50 to-white' : 'p-6 bg-gradient-to-br from-slate-50 to-white'}`}>
           {mode === 'view' ? (
             <div className="space-y-4">
               {/* Quick Info Cards */}
@@ -612,447 +629,537 @@ const PaymentModal = ({ isOpen, onClose, invoice, payment, mode = 'edit', onPaym
               </div>
             </div>
           ) : (
-            <form onSubmit={handleSubmit}>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-              <div className="md:col-span-2">
-                <label className="block text-sm font-semibold text-gray-800 mb-2.5">
-                  Customer Name <span className="text-red-500">*</span>
-                </label>
-                <select
-                  name="customer"
-                  value={formData.customer || ''}
-                  onChange={(e) => handleCustomerSelect(e.target.value)}
-                  className={`w-full px-4 py-2.5 border-2 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 font-medium ${
-                    mode === 'view' 
-                      ? 'border-gray-200 bg-gray-50 text-gray-600 cursor-not-allowed' 
-                      : 'border-gray-300 bg-white text-gray-900'
-                  }`}
-                  required
-                  disabled={mode === 'view'}
-                >
-                  <option value="">Select Customer</option>
-                  {customers.map(customer => (
-                    <option key={customer._id} value={customer._id}>
-                      {customer.displayName || customer.companyName || customer.clientName}
-                    </option>
-                  ))}
-                </select>
-                {selectedCustomer && selectedCustomer.pan && (
-                  <p className="mt-2 text-sm font-medium text-gray-700 bg-gray-50 px-3 py-1.5 rounded-md inline-block">
-                    PAN: <span className="font-semibold">{selectedCustomer.pan}</span>
-                  </p>
-                )}
-              </div>
-
-              {editingPayment && (
-                <div>
-                  <label className="block text-sm font-semibold text-gray-800 mb-2.5">
-                    Payment #
-                  </label>
-                  <input
-                    type="text"
-                    value={editingPayment.paymentNumber || 'N/A'}
-                    className="flex-1 px-4 py-2.5 border-2 border-gray-300 rounded-lg bg-gray-50 text-gray-700 font-semibold"
-                    disabled
-                  />
-                </div>
-              )}
-
-              {!invoice && (
-                <div>
-                  <label className="block text-sm font-semibold text-gray-800 mb-2.5">
-                    Invoice <span className="text-red-500">*</span>
-                  </label>
-                  <select
-                    value={selectedInvoice?._id || ''}
-                    onChange={(e) => handleInvoiceSelect(e.target.value)}
-                    className={`w-full px-4 py-2.5 border-2 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 font-medium ${
-                      mode === 'view' 
-                        ? 'border-gray-200 bg-gray-50 text-gray-600 cursor-not-allowed' 
-                        : 'border-gray-300 bg-white text-gray-900'
+            <form onSubmit={handleSubmit} className="space-y-4">
+              {/* Tabs Navigation */}
+              <div className="border-b border-slate-200 bg-white">
+                <div className="flex space-x-1 px-1">
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab('basic')}
+                    className={`px-4 py-2.5 text-sm font-semibold border-b-2 transition-colors ${
+                      activeTab === 'basic'
+                        ? 'border-blue-600 text-blue-600'
+                        : 'border-transparent text-slate-500 hover:text-slate-700'
                     }`}
-                    required
-                    disabled={mode === 'view'}
                   >
-                    <option value="">Select Invoice</option>
-                    {invoices
-                      .filter(inv => {
-                        const receivable = inv.amountDetails?.receivableAmount || inv.grandTotal || 0;
-                        const received = inv.receivedAmount || inv.paidAmount || 0;
-                        return receivable - received > 0;
-                      })
-                      .map(inv => (
-                        <option key={inv._id} value={inv._id}>
-                          {inv.invoiceNumber} - INR {(inv.amountDetails?.receivableAmount || inv.grandTotal || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
-                        </option>
-                      ))}
-                  </select>
-                </div>
-              )}
-
-              <div>
-                <label className="block text-sm font-semibold text-gray-800 mb-2.5">
-                  Amount Received (INR) <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="number"
-                  name="amountReceived"
-                  value={formData.amountReceived || ''}
-                  onChange={handleInputChange}
-                  step="0.01"
-                  min="0.01"
-                  max={remainingAmount}
-                  className={`w-full px-4 py-2.5 border-2 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 font-medium text-lg ${
-                    mode === 'view' 
-                      ? 'border-gray-200 bg-gray-50 text-gray-600 cursor-not-allowed' 
-                      : 'border-gray-300 text-gray-900'
-                  }`}
-                  required
-                  disabled={mode === 'view'}
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-semibold text-gray-800 mb-2.5">
-                  User Email <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="email"
-                  name="userEmail"
-                  value={formData.userEmail || ''}
-                  onChange={handleInputChange}
-                  placeholder="Enter email to send Paytm slip"
-                  className={`w-full px-4 py-2.5 border-2 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 font-medium ${
-                    mode === 'view' 
-                      ? 'border-gray-200 bg-gray-50 text-gray-600 cursor-not-allowed' 
-                      : 'border-gray-300 text-gray-900'
-                  }`}
-                  required
-                  disabled={mode === 'view'}
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-semibold text-gray-800 mb-2.5">
-                  Bank Charges (if any)
-                </label>
-                <input
-                  type="number"
-                  name="bankCharges"
-                  value={formData.bankCharges || ''}
-                  onChange={handleInputChange}
-                  step="0.01"
-                  min="0"
-                  className={`w-full px-4 py-2.5 border-2 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 font-medium ${
-                    mode === 'view' 
-                      ? 'border-gray-200 bg-gray-50 text-gray-600 cursor-not-allowed' 
-                      : 'border-gray-300 text-gray-900'
-                  }`}
-                  disabled={mode === 'view'}
-                />
-              </div>
-
-              <div className="md:col-span-2">
-                <label className="block text-sm font-semibold text-gray-800 mb-3">
-                  Tax deducted?
-                </label>
-                <div className="flex gap-6">
-                  <label className={`flex items-center ${mode === 'view' ? 'cursor-default' : 'cursor-pointer'}`}>
-                    <input
-                      type="radio"
-                      name="taxDeducted"
-                      checked={!formData.taxDeducted}
-                      onChange={() => setFormData(prev => ({ ...prev, taxDeducted: false }))}
-                      className="mr-2 w-4 h-4 text-blue-600 focus:ring-blue-500"
-                      disabled={mode === 'view'}
-                    />
-                    <span className="text-sm font-medium text-gray-700">No Tax deducted</span>
-                  </label>
-                  <label className={`flex items-center ${mode === 'view' ? 'cursor-default' : 'cursor-pointer'}`}>
-                    <input
-                      type="radio"
-                      name="taxDeducted"
-                      checked={formData.taxDeducted}
-                      onChange={() => setFormData(prev => ({ ...prev, taxDeducted: true, tdsType: 'TDS (Income Tax)' }))}
-                      className="mr-2 w-4 h-4 text-blue-600 focus:ring-blue-500"
-                      disabled={mode === 'view'}
-                    />
-                    <span className="text-sm font-medium text-gray-700">Yes, TDS (Income Tax)</span>
-                  </label>
+                    <div className="flex items-center gap-2">
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                      </svg>
+                      Basic Details
+                    </div>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab('tax')}
+                    className={`px-4 py-2.5 text-sm font-semibold border-b-2 transition-colors ${
+                      activeTab === 'tax'
+                        ? 'border-blue-600 text-blue-600'
+                        : 'border-transparent text-slate-500 hover:text-slate-700'
+                    }`}
+                  >
+                    <div className="flex items-center gap-2">
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                      </svg>
+                      Tax & Charges
+                    </div>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab('email')}
+                    className={`px-4 py-2.5 text-sm font-semibold border-b-2 transition-colors ${
+                      activeTab === 'email'
+                        ? 'border-blue-600 text-blue-600'
+                        : 'border-transparent text-slate-500 hover:text-slate-700'
+                    }`}
+                  >
+                    <div className="flex items-center gap-2">
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                      </svg>
+                      Email Notification
+                    </div>
+                  </button>
                 </div>
               </div>
 
-              {formData.taxDeducted && (
-                <>
-                  <div>
-                    <label className="block text-sm font-semibold text-gray-800 mb-2.5">
-                      Amount Withheld <span className="text-red-500">*</span>
-                    </label>
-                    <input
-                      type="number"
-                      name="amountWithheld"
-                      value={formData.amountWithheld}
-                      onChange={handleInputChange}
-                      step="0.01"
-                      min="0"
-                      className={`w-full px-4 py-2.5 border-2 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 font-medium ${
-                        mode === 'view' 
-                          ? 'border-gray-200 bg-gray-50 text-gray-600 cursor-not-allowed' 
-                          : 'border-gray-300 text-gray-900'
-                      }`}
-                      required={formData.taxDeducted}
-                      disabled={mode === 'view'}
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-semibold text-gray-800 mb-2.5">
-                      TDS Tax Account <span className="text-red-500">*</span>
-                    </label>
-                    <select
-                      name="tdsTaxAccount"
-                      value={formData.tdsTaxAccount || 'Advance Tax'}
-                      onChange={handleInputChange}
-                      className={`w-full px-4 py-2.5 border-2 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 font-medium ${
-                        mode === 'view' 
-                          ? 'border-gray-200 bg-gray-50 text-gray-600 cursor-not-allowed' 
-                          : 'border-gray-300 bg-white text-gray-900'
-                      }`}
-                      required={formData.taxDeducted}
-                      disabled={mode === 'view'}
-                    >
-                      {tdsTaxAccounts.map(account => (
-                        <option key={account} value={account}>{account}</option>
-                      ))}
-                    </select>
-                  </div>
-                </>
-              )}
-
-              <div>
-                <label className="block text-sm font-semibold text-gray-800 mb-2.5">
-                  Payment Date <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="date"
-                  name="paymentDate"
-                  value={formData.paymentDate || ''}
-                  onChange={handleInputChange}
-                  className={`w-full px-4 py-2.5 border-2 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 font-medium ${
-                    mode === 'view' 
-                      ? 'border-gray-200 bg-gray-50 text-gray-600 cursor-not-allowed' 
-                      : 'border-gray-300 text-gray-900'
-                  }`}
-                  required
-                  disabled={mode === 'view'}
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-semibold text-gray-800 mb-2.5">
-                  Payment Mode
-                </label>
-                <select
-                  name="paymentMode"
-                  value={formData.paymentMode || 'Cash'}
-                  onChange={handleInputChange}
-                  className={`w-full px-4 py-2.5 border-2 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 font-medium ${
-                    mode === 'view' 
-                      ? 'border-gray-200 bg-gray-50 text-gray-600 cursor-not-allowed' 
-                      : 'border-gray-300 bg-white text-gray-900'
-                  }`}
-                  disabled={mode === 'view'}
-                >
-                  {paymentModes.map(mode => (
-                    <option key={mode} value={mode}>{mode}</option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-sm font-semibold text-gray-800 mb-2.5">
-                  Payment Received On
-                </label>
-                <input
-                  type="date"
-                  name="paymentReceivedOn"
-                  value={formData.paymentReceivedOn || ''}
-                  onChange={handleInputChange}
-                  className={`w-full px-4 py-2.5 border-2 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 font-medium ${
-                    mode === 'view' 
-                      ? 'border-gray-200 bg-gray-50 text-gray-600 cursor-not-allowed' 
-                      : 'border-gray-300 text-gray-900'
-                  }`}
-                  disabled={mode === 'view'}
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-semibold text-gray-800 mb-2.5">
-                  Deposit To <span className="text-red-500">*</span>
-                </label>
-                <select
-                  name="depositTo"
-                  value={formData.depositTo || 'Petty Cash'}
-                  onChange={handleInputChange}
-                  className={`w-full px-4 py-2.5 border-2 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 font-medium ${
-                    mode === 'view' 
-                      ? 'border-gray-200 bg-gray-50 text-gray-600 cursor-not-allowed' 
-                      : 'border-gray-300 bg-white text-gray-900'
-                  }`}
-                  required
-                  disabled={mode === 'view'}
-                >
-                  {depositAccounts.map(account => (
-                    <option key={account} value={account}>{account}</option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-sm font-semibold text-gray-800 mb-2.5">
-                  Reference#
-                </label>
-                <input
-                  type="text"
-                  name="referenceNumber"
-                  value={formData.referenceNumber}
-                  onChange={handleInputChange}
-                  className={`w-full px-4 py-2.5 border-2 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 font-medium ${
-                    mode === 'view' 
-                      ? 'border-gray-200 bg-gray-50 text-gray-600 cursor-not-allowed' 
-                      : 'border-gray-300 text-gray-900'
-                  }`}
-                  disabled={mode === 'view'}
-                />
-              </div>
-
-              <div className="md:col-span-2">
-                <label className="block text-sm font-semibold text-gray-800 mb-2.5">
-                  Notes
-                </label>
-                <textarea
-                  name="notes"
-                  value={formData.notes || ''}
-                  onChange={handleInputChange}
-                  rows="3"
-                  className={`w-full px-4 py-2.5 border-2 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 font-medium resize-none ${
-                    mode === 'view' 
-                      ? 'border-gray-200 bg-gray-50 text-gray-600 cursor-not-allowed' 
-                      : 'border-gray-300 text-gray-900'
-                  }`}
-                  disabled={mode === 'view'}
-                />
-              </div>
-
-              <div className="md:col-span-2 border-t border-gray-200 pt-5 mt-2">
-                <label className={`flex items-center mb-3 ${mode === 'view' ? 'cursor-default' : 'cursor-pointer'}`}>
-                  <input
-                    type="checkbox"
-                    name="sendThankYouNote"
-                    checked={formData.sendThankYouNote}
-                    onChange={handleInputChange}
-                    className="mr-3 w-5 h-5 text-blue-600 focus:ring-blue-500 rounded border-gray-300"
-                    disabled={mode === 'view'}
-                  />
-                  <span className="text-sm font-semibold text-gray-800">
-                    Send a 'Thank you' note for this payment
-                  </span>
-                </label>
-                {formData.sendThankYouNote && (
-                  <div className="mt-3 ml-8 space-y-4 bg-gray-50 p-4 rounded-lg">
-                    {/* Add Custom Email Section */}
-                    {mode !== 'view' && (
-                      <div className="border-b border-gray-200 pb-3 mb-3">
-                        <label className="block text-sm font-semibold text-gray-800 mb-2">
-                          Add Email Address
+              {/* Tab Content */}
+              <div className="min-h-[350px]">
+                {/* Basic Details Tab */}
+                {activeTab === 'basic' && (
+                  <div className="space-y-3">
+                    {/* Customer & Invoice - Compact Grid */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-sm font-semibold text-slate-700 mb-2 flex items-center gap-1">
+                          <svg className="w-4 h-4 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                          </svg>
+                          Customer Name <span className="text-red-500">*</span>
                         </label>
-                        <div className="flex gap-2">
-                          <input
-                            type="email"
-                            value={newEmailInput}
-                            onChange={(e) => setNewEmailInput(e.target.value)}
-                            onKeyPress={(e) => {
-                              if (e.key === 'Enter') {
-                                e.preventDefault();
-                                handleAddCustomEmail();
-                              }
-                            }}
-                            placeholder="Enter email address"
-                            className="flex-1 px-3 py-2 text-sm border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                          />
-                          <button
-                            type="button"
-                            onClick={handleAddCustomEmail}
-                            className="px-4 py-2 text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors"
+                        <select
+                          name="customer"
+                          value={formData.customer || ''}
+                          onChange={(e) => handleCustomerSelect(e.target.value)}
+                          className="w-full px-4 py-2.5 border-2 border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 font-medium bg-white text-slate-900 transition-all hover:border-slate-400"
+                          required
+                        >
+                          <option value="">Select Customer</option>
+                          {customers.map(customer => (
+                            <option key={customer._id} value={customer._id}>
+                              {customer.displayName || customer.companyName || customer.clientName}
+                            </option>
+                          ))}
+                        </select>
+                        {selectedCustomer && selectedCustomer.pan && (
+                          <p className="mt-1.5 text-xs text-slate-600 bg-blue-50 px-2 py-1 rounded border border-blue-100 inline-block">
+                            PAN: <span className="font-semibold text-blue-700">{selectedCustomer.pan}</span>
+                          </p>
+                        )}
+                      </div>
+
+                      {!invoice && (
+                        <div>
+                          <label className="block text-sm font-semibold text-slate-700 mb-2 flex items-center gap-1">
+                            <svg className="w-4 h-4 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                            </svg>
+                            Invoice <span className="text-red-500">*</span>
+                          </label>
+                          <select
+                            value={selectedInvoice?._id || ''}
+                            onChange={(e) => handleInvoiceSelect(e.target.value)}
+                            className="w-full px-4 py-2.5 border-2 border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 font-medium bg-white text-slate-900 transition-all hover:border-slate-400"
+                            required
                           >
-                            Add
-                          </button>
+                            <option value="">Select Invoice</option>
+                            {invoices
+                              .filter(inv => {
+                                const receivable = inv.amountDetails?.receivableAmount || inv.grandTotal || 0;
+                                const received = inv.receivedAmount || inv.paidAmount || 0;
+                                return receivable - received > 0;
+                              })
+                              .map(inv => (
+                                <option key={inv._id} value={inv._id}>
+                                  {inv.invoiceNumber} - ₹{(inv.amountDetails?.receivableAmount || inv.grandTotal || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                                </option>
+                              ))}
+                          </select>
+                        </div>
+                      )}
+
+                      {editingPayment && (
+                        <div>
+                          <label className="block text-sm font-semibold text-slate-700 mb-2 flex items-center gap-1">
+                            <svg className="w-4 h-4 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 20l4-16m2 16l4-16M6 9h14M4 15h14" />
+                            </svg>
+                            Payment #
+                          </label>
+                          <input
+                            type="text"
+                            value={editingPayment.paymentNumber || 'N/A'}
+                            className="w-full px-4 py-2.5 border-2 border-slate-200 rounded-lg bg-slate-50 text-slate-700 font-semibold cursor-not-allowed"
+                            disabled
+                          />
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Payment Amount - Compact Grid */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-sm font-semibold text-slate-700 mb-2 flex items-center gap-1">
+                          <svg className="w-4 h-4 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                          </svg>
+                          Amount Received (INR) <span className="text-red-500">*</span>
+                        </label>
+                        <div className="relative">
+                          <span className="absolute left-4 top-1/2 transform -translate-y-1/2 text-slate-500 font-semibold">₹</span>
+                          <input
+                            type="number"
+                            name="amountReceived"
+                            value={formData.amountReceived || ''}
+                            onChange={handleInputChange}
+                            step="0.01"
+                            min="0.01"
+                            max={remainingAmount}
+                            className="w-full pl-8 pr-4 py-2.5 border-2 border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 font-semibold text-lg text-slate-900 transition-all hover:border-slate-400"
+                            required
+                            placeholder="0.00"
+                          />
+                        </div>
+                        {selectedInvoice && remainingAmount > 0 && (
+                          <p className="mt-1.5 text-xs text-slate-600">
+                            Remaining: <span className="font-semibold text-emerald-600">₹{remainingAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
+                          </p>
+                        )}
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-semibold text-slate-700 mb-2 flex items-center gap-1">
+                          <svg className="w-4 h-4 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                          </svg>
+                          User Email <span className="text-red-500">*</span>
+                        </label>
+                        <input
+                          type="email"
+                          name="userEmail"
+                          value={formData.userEmail || ''}
+                          onChange={handleInputChange}
+                          placeholder="Enter email to send payment slip"
+                          className="w-full px-4 py-2.5 border-2 border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 font-medium text-slate-900 transition-all hover:border-slate-400"
+                          required
+                        />
+                      </div>
+                    </div>
+
+                    {/* Payment Details - Compact Grid */}
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                      <div>
+                        <label className="block text-sm font-semibold text-slate-700 mb-2 flex items-center gap-1">
+                          <svg className="w-4 h-4 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                          </svg>
+                          Payment Date <span className="text-red-500">*</span>
+                        </label>
+                        <input
+                          type="date"
+                          name="paymentDate"
+                          value={formData.paymentDate || ''}
+                          onChange={handleInputChange}
+                          className="w-full px-4 py-2.5 border-2 border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 font-medium text-slate-900 transition-all hover:border-slate-400"
+                          required
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-semibold text-slate-700 mb-2 flex items-center gap-1">
+                          <svg className="w-4 h-4 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
+                          </svg>
+                          Payment Mode
+                        </label>
+                        <select
+                          name="paymentMode"
+                          value={formData.paymentMode || 'Cash'}
+                          onChange={handleInputChange}
+                          className="w-full px-4 py-2.5 border-2 border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 font-medium bg-white text-slate-900 transition-all hover:border-slate-400"
+                        >
+                          {paymentModes.map(mode => (
+                            <option key={mode} value={mode}>{mode}</option>
+                          ))}
+                        </select>
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-semibold text-slate-700 mb-2 flex items-center gap-1">
+                          <svg className="w-4 h-4 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                          </svg>
+                          Deposit To <span className="text-red-500">*</span>
+                        </label>
+                        <select
+                          name="depositTo"
+                          value={formData.depositTo || 'Petty Cash'}
+                          onChange={handleInputChange}
+                          className="w-full px-4 py-2.5 border-2 border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 font-medium bg-white text-slate-900 transition-all hover:border-slate-400"
+                          required
+                        >
+                          {depositAccounts.map(account => (
+                            <option key={account} value={account}>{account}</option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+
+                    {/* Additional Fields - Compact */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-sm font-semibold text-slate-700 mb-2 flex items-center gap-1">
+                          <svg className="w-4 h-4 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                          </svg>
+                          Payment Received On
+                        </label>
+                        <input
+                          type="date"
+                          name="paymentReceivedOn"
+                          value={formData.paymentReceivedOn || ''}
+                          onChange={handleInputChange}
+                          className="w-full px-4 py-2.5 border-2 border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 font-medium text-slate-900 transition-all hover:border-slate-400"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-semibold text-slate-700 mb-2 flex items-center gap-1">
+                          <svg className="w-4 h-4 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 20l4-16m2 16l4-16M6 9h14M4 15h14" />
+                          </svg>
+                          Reference#
+                        </label>
+                        <input
+                          type="text"
+                          name="referenceNumber"
+                          value={formData.referenceNumber}
+                          onChange={handleInputChange}
+                          placeholder="Enter reference number"
+                          className="w-full px-4 py-2.5 border-2 border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 font-medium text-slate-900 transition-all hover:border-slate-400"
+                        />
+                      </div>
+                    </div>
+
+                    {/* Notes - Compact */}
+                    <div>
+                      <label className="block text-sm font-semibold text-slate-700 mb-2 flex items-center gap-1">
+                        <svg className="w-4 h-4 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                        </svg>
+                        Notes
+                      </label>
+                      <textarea
+                        name="notes"
+                        value={formData.notes || ''}
+                        onChange={handleInputChange}
+                        rows="2"
+                        placeholder="Add any additional notes or comments..."
+                        className="w-full px-4 py-2.5 border-2 border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 font-medium text-slate-900 resize-none transition-all hover:border-slate-400"
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {/* Tax & Charges Tab */}
+                {activeTab === 'tax' && (
+                  <div className="space-y-3">
+                    {/* Tax Deduction */}
+                    <div>
+                      <label className="block text-sm font-semibold text-slate-700 mb-3">
+                        Tax deducted?
+                      </label>
+                      <div className="flex gap-6">
+                        <label className="flex items-center cursor-pointer group">
+                          <input
+                            type="radio"
+                            name="taxDeducted"
+                            checked={!formData.taxDeducted}
+                            onChange={() => setFormData(prev => ({ ...prev, taxDeducted: false }))}
+                            className="mr-2 w-5 h-5 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                          />
+                          <span className="text-sm font-medium text-slate-700 group-hover:text-slate-900">No Tax deducted</span>
+                        </label>
+                        <label className="flex items-center cursor-pointer group">
+                          <input
+                            type="radio"
+                            name="taxDeducted"
+                            checked={formData.taxDeducted}
+                            onChange={() => setFormData(prev => ({ ...prev, taxDeducted: true, tdsType: 'TDS (Income Tax)' }))}
+                            className="mr-2 w-5 h-5 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                          />
+                          <span className="text-sm font-medium text-slate-700 group-hover:text-slate-900">Yes, TDS (Income Tax)</span>
+                        </label>
+                      </div>
+                    </div>
+
+                    {/* TDS Details - Only show if tax is deducted */}
+                    {formData.taxDeducted && (
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-2 bg-orange-50 p-3 rounded-lg border border-orange-100">
+                        <div>
+                          <label className="block text-sm font-semibold text-slate-700 mb-2">
+                            Amount Withheld <span className="text-red-500">*</span>
+                          </label>
+                          <div className="relative">
+                            <span className="absolute left-4 top-1/2 transform -translate-y-1/2 text-slate-500 font-semibold">₹</span>
+                            <input
+                              type="number"
+                              name="amountWithheld"
+                              value={formData.amountWithheld}
+                              onChange={handleInputChange}
+                              step="0.01"
+                              min="0"
+                              className="w-full pl-8 pr-4 py-2.5 border-2 border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 font-medium text-slate-900 transition-all hover:border-slate-400"
+                              required={formData.taxDeducted}
+                              placeholder="0.00"
+                            />
+                          </div>
+                        </div>
+
+                        <div>
+                          <label className="block text-sm font-semibold text-slate-700 mb-2">
+                            TDS Tax Account <span className="text-red-500">*</span>
+                          </label>
+                          <select
+                            name="tdsTaxAccount"
+                            value={formData.tdsTaxAccount || 'Advance Tax'}
+                            onChange={handleInputChange}
+                            className="w-full px-4 py-2.5 border-2 border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 font-medium bg-white text-slate-900 transition-all hover:border-slate-400"
+                            required={formData.taxDeducted}
+                          >
+                            {tdsTaxAccounts.map(account => (
+                              <option key={account} value={account}>{account}</option>
+                            ))}
+                          </select>
                         </div>
                       </div>
                     )}
 
-                    {/* Email List */}
-                    {allAvailableEmails.length > 0 && (
-                      <div className="space-y-2">
-                        <p className="text-xs font-semibold text-gray-600 mb-2">Select email recipients:</p>
-                        {allAvailableEmails.map(email => (
-                          <div key={email} className="flex items-center justify-between">
-                            <label className={`flex items-center flex-1 ${mode === 'view' ? 'cursor-default' : 'cursor-pointer'}`}>
-                              <input
-                                type="checkbox"
-                                checked={formData.emailRecipients.includes(email)}
-                                onChange={() => handleEmailRecipientToggle(email)}
-                                className="mr-3 w-4 h-4 text-blue-600 focus:ring-blue-500 rounded border-gray-300"
-                                disabled={mode === 'view'}
-                              />
-                              <span className="text-sm font-medium text-gray-700">{email}</span>
-                            </label>
-                            {mode !== 'view' && customEmails.includes(email) && (
-                              <button
-                                type="button"
-                                onClick={() => handleRemoveCustomEmail(email)}
-                                className="ml-2 text-red-600 hover:text-red-700 p-1"
-                                title="Remove email"
-                              >
-                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                                </svg>
-                              </button>
-                            )}
-                          </div>
-                        ))}
+                    {/* Bank Charges */}
+                    <div>
+                      <label className="block text-sm font-semibold text-slate-700 mb-2 flex items-center gap-1">
+                        <svg className="w-4 h-4 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        Bank Charges (if any)
+                      </label>
+                      <div className="relative">
+                        <span className="absolute left-4 top-1/2 transform -translate-y-1/2 text-slate-500 font-semibold">₹</span>
+                        <input
+                          type="number"
+                          name="bankCharges"
+                          value={formData.bankCharges || ''}
+                          onChange={handleInputChange}
+                          step="0.01"
+                          min="0"
+                          className="w-full pl-8 pr-4 py-2.5 border-2 border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 font-medium text-slate-900 transition-all hover:border-slate-400"
+                          placeholder="0.00"
+                        />
                       </div>
-                    )}
-                    {allAvailableEmails.length === 0 && (
-                      <p className="text-sm text-gray-500 italic">No email addresses available. Add an email above.</p>
+                    </div>
+                  </div>
+                )}
+
+                {/* Email Notification Tab */}
+                {activeTab === 'email' && (
+                  <div className="space-y-3">
+                    {/* Send Thank You Note */}
+                    <div>
+                      <label className="flex items-center cursor-pointer group p-4 bg-indigo-50 rounded-lg border border-indigo-100">
+                        <input
+                          type="checkbox"
+                          name="sendThankYouNote"
+                          checked={formData.sendThankYouNote}
+                          onChange={handleInputChange}
+                          className="mr-3 w-5 h-5 text-blue-600 focus:ring-blue-500 rounded border-slate-300 cursor-pointer"
+                        />
+                        <span className="text-sm font-semibold text-slate-700 group-hover:text-slate-900">
+                          Send a 'Thank you' note for this payment
+                        </span>
+                      </label>
+                    </div>
+
+                    {formData.sendThankYouNote && (
+                      <div className="space-y-4 bg-indigo-50 p-4 rounded-lg border border-indigo-100">
+                        {/* Add Custom Email Section */}
+                        <div className="border-b border-indigo-200 pb-3 mb-3">
+                          <label className="block text-sm font-semibold text-slate-700 mb-2">
+                            Add Email Address
+                          </label>
+                          <div className="flex gap-2">
+                            <input
+                              type="email"
+                              value={newEmailInput}
+                              onChange={(e) => setNewEmailInput(e.target.value)}
+                              onKeyPress={(e) => {
+                                if (e.key === 'Enter') {
+                                  e.preventDefault();
+                                  handleAddCustomEmail();
+                                }
+                              }}
+                              placeholder="Enter email address"
+                              className="flex-1 px-3 py-2.5 text-sm border-2 border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all hover:border-slate-400"
+                            />
+                            <button
+                              type="button"
+                              onClick={handleAddCustomEmail}
+                              className="px-4 py-2.5 text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors shadow-sm"
+                            >
+                              Add
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* Email List */}
+                        {allAvailableEmails.length > 0 && (
+                          <div className="space-y-2">
+                            <p className="text-xs font-semibold text-slate-600 mb-2">Select email recipients:</p>
+                            {allAvailableEmails.map(email => (
+                              <div key={email} className="flex items-center justify-between p-2 hover:bg-white rounded transition-colors">
+                                <label className="flex items-center flex-1 cursor-pointer">
+                                  <input
+                                    type="checkbox"
+                                    checked={formData.emailRecipients.includes(email)}
+                                    onChange={() => handleEmailRecipientToggle(email)}
+                                    className="mr-3 w-4 h-4 text-blue-600 focus:ring-blue-500 rounded border-slate-300 cursor-pointer"
+                                  />
+                                  <span className="text-sm font-medium text-slate-700">{email}</span>
+                                </label>
+                                {customEmails.includes(email) && (
+                                  <button
+                                    type="button"
+                                    onClick={() => handleRemoveCustomEmail(email)}
+                                    className="ml-2 text-red-600 hover:text-red-700 p-1 rounded hover:bg-red-50 transition-colors"
+                                    title="Remove email"
+                                  >
+                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                    </svg>
+                                  </button>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                        {allAvailableEmails.length === 0 && (
+                          <p className="text-sm text-slate-500 italic">No email addresses available. Add an email above.</p>
+                        )}
+                      </div>
                     )}
                   </div>
                 )}
               </div>
-              </div>
 
               {error && (
-                <div className="mt-5 p-4 bg-red-50 border-2 border-red-300 rounded-lg">
+                <div className="bg-red-50 border-2 border-red-300 rounded-lg p-4 flex items-start gap-3">
+                  <svg className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
                   <p className="text-sm font-semibold text-red-700">{error}</p>
                 </div>
               )}
 
-              <div className="mt-6 pt-5 border-t border-gray-200 flex justify-end gap-3">
+              <div className="flex justify-end gap-3 pt-4 border-t border-slate-200">
                 <button
                   type="button"
                   onClick={handleClose}
-                  className="px-6 py-2.5 text-sm font-semibold text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors shadow-sm"
+                  className="px-6 py-3 text-sm font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors shadow-sm"
                   disabled={loading}
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="px-6 py-2.5 text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-md"
+                  className="px-6 py-3 text-sm font-semibold text-white bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-md flex items-center gap-2"
                   disabled={loading}
                 >
-                  {loading ? 'Saving...' : 'Save as Paid'}
+                  {loading ? (
+                    <>
+                      <svg className="animate-spin h-4 w-4 text-white" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                      </svg>
+                      <span>Saving...</span>
+                    </>
+                  ) : (
+                    <>
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                      </svg>
+                      <span>Save as Paid</span>
+                    </>
+                  )}
                 </button>
               </div>
             </form>

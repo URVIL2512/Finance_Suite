@@ -812,6 +812,8 @@ export const updateInvoice = async (req, res) => {
       remittanceCharges,
       currency,
       exchangeRate,
+      invoiceDate,
+      dueDate,
       clientAddress,
       clientGstin,
       clientState,
@@ -819,6 +821,8 @@ export const updateInvoice = async (req, res) => {
       gstNo,
       clientEmail,
       clientMobile,
+      clientName,
+      clientCountry,
       hsnSac,
       salesperson: salespersonId,
     } = req.body;
@@ -866,13 +870,31 @@ export const updateInvoice = async (req, res) => {
       }
     }
 
-    // Recalculate amounts if base amount or percentages changed
+    // Update client details first (before recalculation) so new values are used in calculations
+    if (clientAddress !== undefined || clientGstin !== undefined || clientState !== undefined || placeOfSupply !== undefined || gstNo !== undefined || clientName !== undefined || clientCountry !== undefined) {
+      invoice.clientDetails = invoice.clientDetails || {};
+      if (clientName !== undefined) invoice.clientDetails.name = clientName;
+      if (clientCountry !== undefined) invoice.clientDetails.country = clientCountry;
+      if (clientAddress !== undefined) invoice.clientDetails.address = clientAddress;
+      if (clientGstin !== undefined) invoice.clientDetails.gstin = clientGstin;
+      if (clientState !== undefined) invoice.clientDetails.state = clientState;
+      if (placeOfSupply !== undefined) invoice.clientDetails.placeOfSupply = placeOfSupply;
+      if (gstNo !== undefined) invoice.clientDetails.gstNo = gstNo;
+    }
+
+    // Recalculate amounts if base amount, percentages, country, or place of supply changed
     let recalculated = false;
     let newBaseAmount = invoice.amountDetails?.baseAmount || invoice.subTotal;
     let newGstPercent = invoice.gstPercentage || 0;
     let newTdsPercent = invoice.tdsPercentage || 0;
     let newTcsPercent = invoice.tcsPercentage || 0;
     let newRemittance = invoice.remittanceCharges || 0;
+    
+    // Track if country or place of supply changed (affects GST calculation)
+    const originalCountry = invoice.clientDetails?.country || 'India';
+    const originalPlaceOfSupply = invoice.clientDetails?.placeOfSupply || '';
+    const countryChanged = clientCountry !== undefined && clientCountry !== originalCountry;
+    const placeOfSupplyChanged = placeOfSupply !== undefined && placeOfSupply !== originalPlaceOfSupply;
     
     if (baseAmount !== undefined && parseFloat(baseAmount) !== newBaseAmount) {
       newBaseAmount = parseFloat(baseAmount);
@@ -892,6 +914,10 @@ export const updateInvoice = async (req, res) => {
     }
     if (remittanceCharges !== undefined && parseFloat(remittanceCharges) !== newRemittance) {
       newRemittance = parseFloat(remittanceCharges);
+      recalculated = true;
+    }
+    // Trigger recalculation if country or place of supply changes (affects GST)
+    if (countryChanged || placeOfSupplyChanged) {
       recalculated = true;
     }
 
@@ -960,11 +986,12 @@ export const updateInvoice = async (req, res) => {
 
     // If amounts were recalculated, recalculate GST and totals
     if (recalculated) {
+      // Use updated country from invoice.clientDetails (already updated above)
       const country = invoice.clientDetails?.country || 'India';
-      const clientStateValue = clientState !== undefined ? clientState : invoice.clientDetails?.state || '';
+      const clientStateValue = invoice.clientDetails?.state || '';
       
       // Calculate GST on Items Total - Use place of supply for GST calculation
-      const placeOfSupplyValue = placeOfSupply !== undefined ? placeOfSupply : invoice.clientDetails?.placeOfSupply || '';
+      const placeOfSupplyValue = invoice.clientDetails?.placeOfSupply || '';
       const { cgst, sgst, igst, totalGst, gstType } = calculateGST(
         newBaseAmount,
         newGstPercent,
@@ -1179,14 +1206,12 @@ export const updateInvoice = async (req, res) => {
       }
     }
 
-    // Update client details if provided
-    if (clientAddress !== undefined || clientGstin !== undefined || clientState !== undefined || placeOfSupply !== undefined || gstNo !== undefined) {
-      invoice.clientDetails = invoice.clientDetails || {};
-      if (clientAddress !== undefined) invoice.clientDetails.address = clientAddress;
-      if (clientGstin !== undefined) invoice.clientDetails.gstin = clientGstin;
-      if (clientState !== undefined) invoice.clientDetails.state = clientState;
-      if (placeOfSupply !== undefined) invoice.clientDetails.placeOfSupply = placeOfSupply;
-      if (gstNo !== undefined) invoice.clientDetails.gstNo = gstNo;
+    // Update invoice dates if provided
+    if (invoiceDate !== undefined) {
+      invoice.invoiceDate = new Date(invoiceDate);
+    }
+    if (dueDate !== undefined) {
+      invoice.dueDate = new Date(dueDate);
     }
     if (clientEmail !== undefined) invoice.clientEmail = clientEmail;
     if (clientMobile !== undefined) invoice.clientMobile = clientMobile;

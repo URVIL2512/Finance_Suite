@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { format } from 'date-fns';
 import { invoiceAPI, customerAPI, salespersonAPI, itemAPI, hsnSacAPI, settingsAPI } from '../services/api';
+import { getSacCodeForService } from '../utils/serviceSacCodes';
 
 // Indian States List
 const INDIAN_STATES = [
@@ -1099,13 +1100,15 @@ const InvoiceForm = ({ invoice, customers = [], onSubmit, onCancel, onCustomerAd
   }, [pendingCustomerSelect, customers, selectedCustomerId]);
 
   return (
-    <div className="bg-white rounded-lg shadow-sm border border-slate-200 p-4 mb-4">
-      <div className="flex items-center justify-between mb-3 pb-3 border-b border-slate-200">
-        <h2 className="text-lg font-bold text-finance-navy">
-          {invoice ? 'Edit Invoice' : 'Create Invoice'}
-        </h2>
-      </div>
-      <form onSubmit={handleSubmit} className="space-y-3">
+    <div className={invoice ? '' : 'bg-white rounded-lg shadow-sm border border-slate-200 p-4 mb-4'}>
+      {!invoice && (
+        <div className="flex items-center justify-between mb-3 pb-3 border-b border-slate-200">
+          <h2 className="text-lg font-bold text-finance-navy">
+            Create Invoice
+          </h2>
+        </div>
+      )}
+      <form onSubmit={handleSubmit} className={invoice ? 'space-y-6' : 'space-y-3'}>
         {!invoice && (
           <>
             {/* Customer Name Section */}
@@ -1312,35 +1315,46 @@ const InvoiceForm = ({ invoice, customers = [], onSubmit, onCancel, onCustomerAd
           </>
         )}
 
-        {/* Salesperson Selection */}
-        <div>
-          <label className="form-label">Salesperson</label>
-          <div className="flex gap-3">
-            <select
-              value={selectedSalespersonId}
-              onChange={handleSalespersonSelect}
-              className="select-field-compact flex-1"
-            >
-              <option value="">Select or add a salesperson</option>
-              {salespersons.map((salesperson) => (
-                <option key={salesperson._id} value={salesperson._id}>
-                  {salesperson.name} {salesperson.email ? `- ${salesperson.email}` : ''} {salesperson.phone ? `- ${salesperson.phone}` : ''}
-                </option>
-              ))}
-            </select>
-            <button
-              type="button"
-              onClick={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                setShowAddSalesperson(!showAddSalesperson);
-              }}
-              className="px-4 py-2 bg-finance-blue text-white rounded-md hover:bg-finance-blueLight transition-colors text-sm font-medium"
-            >
-              + Add
-            </button>
+        {/* Salesperson and Dates Section */}
+        <div className={invoice ? 'bg-white rounded-xl border border-slate-200 shadow-sm p-5 mb-6' : ''}>
+          <div className={invoice ? 'mb-4 pb-3 border-b border-slate-200' : ''}>
+            <h3 className={invoice ? 'text-base font-bold text-slate-900 flex items-center gap-2' : 'hidden'}>
+              <svg className="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+              </svg>
+              Salesperson and Dates
+            </h3>
           </div>
-        </div>
+          
+          {/* Salesperson Selection */}
+          <div className={invoice ? 'mb-4' : ''}>
+            <label className="form-label">Salesperson</label>
+            <div className="flex gap-3">
+              <select
+                value={selectedSalespersonId}
+                onChange={handleSalespersonSelect}
+                className="select-field-compact flex-1"
+              >
+                <option value="">Select or add a salesperson</option>
+                {salespersons.map((salesperson) => (
+                  <option key={salesperson._id} value={salesperson._id}>
+                    {salesperson.name} {salesperson.email ? `- ${salesperson.email}` : ''} {salesperson.phone ? `- ${salesperson.phone}` : ''}
+                  </option>
+                ))}
+              </select>
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  setShowAddSalesperson(!showAddSalesperson);
+                }}
+                className="px-4 py-2 bg-finance-blue text-white rounded-md hover:bg-finance-blueLight transition-colors text-sm font-medium"
+              >
+                + Add
+              </button>
+            </div>
+          </div>
 
         {/* Add New Salesperson Modal */}
         {showAddSalesperson && (
@@ -1550,15 +1564,23 @@ const InvoiceForm = ({ invoice, customers = [], onSubmit, onCancel, onCustomerAd
               <p className="text-xs text-gray-500 mt-1">Status is frozen once set to "Paid"</p>
             )}
             {invoice && formData.status === 'Partial' && (
-              <p className="text-xs text-gray-500 mt-1">Can only change to "Paid"</p>
+              <p className="text-xs text-blue-600 mt-1 font-medium">Can only change to "Paid"</p>
             )}
           </div>
         </div>
+        </div>
 
         {/* Item Table */}
-        <div className="border-t border-slate-200 pt-3">
-          <div className="flex items-center justify-between mb-3">
-            <h3 className="text-sm font-bold text-gray-800">Item Table</h3>
+        <div className={invoice ? 'bg-white rounded-xl border border-slate-200 shadow-sm p-5 mb-6' : 'border-t border-slate-200 pt-3'}>
+          <div className={`flex items-center justify-between ${invoice ? 'mb-4 pb-3 border-b border-slate-200' : 'mb-3'}`}>
+            <h3 className={`${invoice ? 'text-base font-bold text-slate-900 flex items-center gap-2' : 'text-sm font-bold text-gray-800'}`}>
+              {invoice && (
+                <svg className="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+                </svg>
+              )}
+              Item Table
+            </h3>
             <div className="flex gap-2">
               {items.length > 0 && (
                 <button
@@ -1638,11 +1660,18 @@ const InvoiceForm = ({ invoice, customers = [], onSubmit, onCancel, onCustomerAd
                                 // Auto-fill rate immediately when item matches
                                 handleItemChange(item.id, 'rate', matchedItem.sellingPrice);
                               }
+                              
+                              // Auto-fill SAC code if service name matches
+                              const sacCode = getSacCodeForService(value);
+                              if (sacCode) {
+                                handleItemChange(item.id, 'hsnSac', sacCode);
+                              }
                             }}
                             onBlur={(e) => {
+                              const value = e.target.value.trim();
                               // Auto-fill when user leaves the field if exact match found
                               const matchedItem = existingItems.find(
-                                existingItem => existingItem.name.toLowerCase().trim() === e.target.value.toLowerCase().trim()
+                                existingItem => existingItem.name.toLowerCase().trim() === value.toLowerCase().trim()
                               );
                               if (matchedItem) {
                                 // Update description, rate, and HSN/SAC if available
@@ -1650,7 +1679,13 @@ const InvoiceForm = ({ invoice, customers = [], onSubmit, onCancel, onCustomerAd
                                 if (matchedItem.sellingPrice && matchedItem.sellingPrice > 0) {
                                   handleItemChange(item.id, 'rate', matchedItem.sellingPrice);
                                 }
-                                // Note: HSN/SAC would need to be added to Item model if needed
+                              }
+                              
+                              // Auto-fill SAC code if service name matches (check both typed value and matched item name)
+                              const serviceName = matchedItem ? matchedItem.name : value;
+                              const sacCode = getSacCodeForService(serviceName);
+                              if (sacCode) {
+                                handleItemChange(item.id, 'hsnSac', sacCode);
                               }
                             }}
                             placeholder="Type or click to select an item"
@@ -2069,8 +2104,15 @@ const InvoiceForm = ({ invoice, customers = [], onSubmit, onCancel, onCustomerAd
 
           {/* Right Column - Calculation Summary */}
           <div className="col-span-12 lg:col-span-5">
-            <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
-              <h3 className="text-sm font-semibold text-gray-800 mb-3 pb-2 border-b border-gray-300">Invoice Summary</h3>
+            <div className={`${invoice ? 'bg-gradient-to-br from-blue-50 to-indigo-50' : 'bg-gray-50'} border ${invoice ? 'border-blue-200' : 'border-gray-200'} rounded-xl p-5 shadow-sm`}>
+              <h3 className={`text-sm font-bold ${invoice ? 'text-slate-900' : 'text-gray-800'} mb-4 pb-3 border-b ${invoice ? 'border-blue-200' : 'border-gray-300'} flex items-center gap-2`}>
+                {invoice && (
+                  <svg className="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                  </svg>
+                )}
+                Invoice Summary
+              </h3>
               <div className="space-y-2">
                 {/* Base Amount */}
                 <div className="flex justify-between items-center">
@@ -2628,20 +2670,20 @@ const InvoiceForm = ({ invoice, customers = [], onSubmit, onCancel, onCustomerAd
         )}
 
         {/* Action Buttons */}
-        <div className="flex justify-end space-x-3 pt-3 border-t border-slate-200">
+        <div className={`flex justify-end space-x-3 ${invoice ? 'pt-6 mt-6 border-t border-slate-200' : 'pt-3 border-t border-slate-200'}`}>
           <button
             type="button"
             onClick={onCancel}
-            className="btn-secondary px-5 py-2 text-sm"
+            className={`${invoice ? 'px-6 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg font-semibold transition-all duration-200' : 'btn-secondary px-5 py-2 text-sm'}`}
           >
             Cancel
           </button>
           <button
             type="submit"
             disabled={!invoice && !selectedCustomerId}
-            className="btn-primary px-5 py-2 text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+            className={`${invoice ? 'px-6 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-semibold transition-all duration-200 shadow-sm hover:shadow-md disabled:opacity-50 disabled:cursor-not-allowed' : 'btn-primary px-5 py-2 text-sm disabled:opacity-50 disabled:cursor-not-allowed'}`}
           >
-            {invoice ? 'Update' : 'Generate'} Invoice
+            {invoice ? 'Update Invoice' : 'Generate Invoice'}
           </button>
         </div>
       </form>

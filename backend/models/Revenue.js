@@ -114,8 +114,15 @@ revenueSchema.index({ service: 1 });
 revenueSchema.index({ user: 1 });
 
 // Calculate due amount before saving
+// Total = base amount + GST - TDS - Remittance
+// Due Amount = Total - Received Amount
 revenueSchema.pre('save', function (next) {
-  this.dueAmount = this.invoiceAmount - this.receivedAmount;
+  const baseAmount = this.invoiceAmount || 0;
+  const gstAmount = this.gstAmount || 0;
+  const tdsAmount = this.tdsAmount || 0;
+  const remittanceCharges = this.remittanceCharges || 0;
+  const total = baseAmount + gstAmount - tdsAmount - remittanceCharges;
+  this.dueAmount = total - (this.receivedAmount || 0);
   next();
 });
 

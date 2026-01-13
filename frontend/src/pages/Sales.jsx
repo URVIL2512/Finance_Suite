@@ -4,6 +4,7 @@ import { format } from 'date-fns';
 import { invoiceAPI, customerAPI, recurringInvoiceAPI } from '../services/api';
 import InvoiceForm from '../components/InvoiceForm';
 import InvoiceTable from '../components/InvoiceTable';
+import InvoiceViewEdit from '../components/InvoiceViewEdit';
 import CustomerForm from '../components/CustomerForm';
 import CustomerTable from '../components/CustomerTable';
 import RecurringInvoiceModal from '../components/RecurringInvoiceModal';
@@ -288,15 +289,36 @@ const Sales = () => {
     setSelectedInvoiceForPayment(null);
   };
 
-  const handleViewInvoice = (invoice) => {
+  const handleViewInvoice = async (invoice) => {
     console.log('👁️ View invoice clicked:', invoice);
     if (invoice && invoice._id) {
-      console.log('Setting viewing invoice:', invoice.invoiceNumber);
-      setViewingInvoice(invoice);
+      try {
+        // Fetch fresh invoice data to ensure we have the latest
+        const response = await invoiceAPI.getById(invoice._id);
+        if (response.data) {
+          console.log('Setting viewing invoice:', response.data.invoiceNumber);
+          setViewingInvoice(response.data);
+        } else {
+          setViewingInvoice(invoice);
+        }
+      } catch (error) {
+        console.error('Error fetching invoice:', error);
+        setViewingInvoice(invoice); // Fallback to provided invoice
+      }
     } else {
       console.error('❌ Invoice is null, undefined, or missing _id:', invoice);
       alert('Error: Cannot view invoice details. Invoice data is invalid.');
     }
+  };
+
+  const handleInvoiceUpdate = (updatedInvoice) => {
+    // Update the invoice in the list
+    setInvoices(prevInvoices => 
+      prevInvoices.map(inv => inv._id === updatedInvoice._id ? updatedInvoice : inv)
+    );
+    setViewingInvoice(updatedInvoice);
+    // Refresh the list to ensure consistency
+    fetchInvoices();
   };
 
   const handleClearFilters = () => {
@@ -610,8 +632,18 @@ const Sales = () => {
                 </>
               )}
 
-              {/* Invoice Detail View - Professional Modal */}
+              {/* Invoice View/Edit Modal */}
               {viewingInvoice && (
+                <InvoiceViewEdit
+                  invoice={viewingInvoice}
+                  customers={customers}
+                  onClose={() => setViewingInvoice(null)}
+                  onUpdate={handleInvoiceUpdate}
+                />
+              )}
+
+              {/* Old Invoice Detail View Modal - REMOVED - Using InvoiceViewEdit component instead */}
+              {false && viewingInvoice && (
                 <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={() => setViewingInvoice(null)}>
                   <div className="bg-white rounded-2xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-hidden flex flex-col" onClick={(e) => e.stopPropagation()}>
                     {/* Header */}
@@ -748,7 +780,7 @@ const Sales = () => {
                             {(viewingInvoice.tdsAmount || 0) > 0 && (
                               <div>
                                 <div className="text-xs font-semibold text-slate-500 mb-1">TDS ({viewingInvoice.tdsPercentage || 0}%)</div>
-                                <div className="text-sm font-semibold text-slate-900">
+                                <div className="text-sm font-semibold text-orange-600">
                                   {viewingInvoice.currencyDetails?.invoiceCurrency || viewingInvoice.currency || 'INR'} {(viewingInvoice.tdsAmount || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
                                 </div>
                               </div>
@@ -784,15 +816,20 @@ const Sales = () => {
                               </div>
                             </div>
                             <div>
-                              <div className="text-xs font-semibold text-slate-500 mb-1">Paid</div>
+                              <div className="text-xs font-semibold text-slate-500 mb-1">Amount Received</div>
                               <div className="text-sm font-semibold text-emerald-600">
-                                {viewingInvoice.currencyDetails?.invoiceCurrency || viewingInvoice.currency || 'INR'} {(viewingInvoice.paidAmount || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                                {viewingInvoice.currencyDetails?.invoiceCurrency || viewingInvoice.currency || 'INR'} {(viewingInvoice.receivedAmount || viewingInvoice.paidAmount || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
                               </div>
                             </div>
                             <div>
-                              <div className="text-xs font-semibold text-slate-500 mb-1">Received</div>
-                              <div className="text-sm font-semibold text-emerald-600">
-                                {viewingInvoice.currencyDetails?.invoiceCurrency || viewingInvoice.currency || 'INR'} {(viewingInvoice.receivedAmount || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                              <div className="text-xs font-semibold text-slate-500 mb-1">Balance Due</div>
+                              <div className="text-sm font-semibold text-red-600">
+                                {viewingInvoice.currencyDetails?.invoiceCurrency || viewingInvoice.currency || 'INR'} {(() => {
+                                  const receivable = viewingInvoice.amountDetails?.receivableAmount || 0;
+                                  const received = viewingInvoice.receivedAmount || viewingInvoice.paidAmount || 0;
+                                  const balanceDue = Math.max(0, receivable - received);
+                                  return balanceDue.toLocaleString('en-IN', { minimumFractionDigits: 2 });
+                                })()}
                               </div>
                             </div>
                           </div>

@@ -155,5 +155,11 @@ export const paymentAPI = {
   delete: (id) => api.delete(`/payments/${id}`),
 };
 
+// Ledger APIs
+export const ledgerAPI = {
+  getCustomers: () => api.get('/ledger/customers'),
+  getLedger: (customerId) => api.get('/ledger', { params: { customerId } }),
+};
+
 export default api;
 

@@ -288,16 +288,34 @@ export const createPayment = async (req, res) => {
 
     console.log('✅ Payment created successfully:', payment.paymentNumber);
 
-    // Update invoice received amount
-    const currentReceived = invoiceDoc.receivedAmount || invoiceDoc.paidAmount || 0;
-    const newReceived = currentReceived + amountReceived;
+    // CRITICAL FIX: Validate payment amount doesn't exceed remaining balance
     const receivableAmount = invoiceDoc.amountDetails?.receivableAmount || invoiceDoc.grandTotal || 0;
+    const currentReceived = invoiceDoc.receivedAmount || invoiceDoc.paidAmount || 0;
+    const remainingBalance = receivableAmount - currentReceived;
+    
+    // Use INR amount for invoice update (payment is stored in INR)
+    const paymentAmountINR = payment.amountReceived; // Already in INR from line 231
+    
+    // Validate payment doesn't exceed remaining balance
+    if (paymentAmountINR > remainingBalance) {
+      // Delete the payment we just created
+      await Payment.findByIdAndDelete(payment._id);
+      return res.status(400).json({ 
+        message: `Payment amount (INR ${paymentAmountINR.toLocaleString('en-IN', { minimumFractionDigits: 2 })}) exceeds remaining balance (INR ${remainingBalance.toLocaleString('en-IN', { minimumFractionDigits: 2 })}). Receivable Amount: INR ${receivableAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}, Already Received: INR ${currentReceived.toLocaleString('en-IN', { minimumFractionDigits: 2 })}` 
+      });
+    }
+    
+    // Update invoice received amount using INR amount
+    const newReceived = currentReceived + paymentAmountINR;
+    invoiceDoc.receivedAmount = Math.round(newReceived * 100) / 100;
+    invoiceDoc.paidAmount = Math.round(newReceived * 100) / 100;
 
-    invoiceDoc.receivedAmount = newReceived;
-    invoiceDoc.paidAmount = newReceived;
-
-    // Update invoice status
-    if (newReceived >= receivableAmount) {
+    // Update invoice status based on receivableAmount (NOT grandTotal)
+    // Status Logic:
+    // - TotalReceived = 0 → Unpaid
+    // - TotalReceived < ReceivableAmount → Partial
+    // - TotalReceived ≥ ReceivableAmount → Paid
+    if (newReceived >= receivableAmount && receivableAmount > 0) {
       invoiceDoc.status = 'Paid';
     } else if (newReceived > 0) {
       invoiceDoc.status = 'Partial';
@@ -424,14 +442,23 @@ export const updatePayment = async (req, res) => {
     if (amountReceived !== undefined && amountReceived !== oldAmount) {
       const invoice = await Invoice.findById(payment.invoice);
       if (invoice) {
+        const receivableAmount = invoice.amountDetails?.receivableAmount || invoice.grandTotal || 0;
         const currentReceived = invoice.receivedAmount || invoice.paidAmount || 0;
         const newReceived = currentReceived - oldAmount + amountReceived;
-        const receivableAmount = invoice.amountDetails?.receivableAmount || invoice.grandTotal || 0;
+        const remainingBalance = receivableAmount - (currentReceived - oldAmount);
+        
+        // Validate new payment amount doesn't exceed remaining balance
+        if (amountReceived > remainingBalance) {
+          return res.status(400).json({ 
+            message: `Payment amount (INR ${amountReceived.toLocaleString('en-IN', { minimumFractionDigits: 2 })}) exceeds remaining balance (INR ${remainingBalance.toLocaleString('en-IN', { minimumFractionDigits: 2 })}). Receivable Amount: INR ${receivableAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}, Already Received: INR ${(currentReceived - oldAmount).toLocaleString('en-IN', { minimumFractionDigits: 2 })}` 
+          });
+        }
 
-        invoice.receivedAmount = newReceived;
-        invoice.paidAmount = newReceived;
+        invoice.receivedAmount = Math.round(newReceived * 100) / 100;
+        invoice.paidAmount = Math.round(newReceived * 100) / 100;
 
-        if (newReceived >= receivableAmount) {
+        // Update invoice status based on receivableAmount (NOT grandTotal)
+        if (newReceived >= receivableAmount && receivableAmount > 0) {
           invoice.status = 'Paid';
         } else if (newReceived > 0) {
           invoice.status = 'Partial';
@@ -488,14 +515,15 @@ export const deletePayment = async (req, res) => {
     // Update invoice received amount
     const invoice = await Invoice.findById(invoiceId);
     if (invoice) {
+      const receivableAmount = invoice.amountDetails?.receivableAmount || invoice.grandTotal || 0;
       const currentReceived = invoice.receivedAmount || invoice.paidAmount || 0;
       const newReceived = Math.max(0, currentReceived - amountReceived);
-      const receivableAmount = invoice.amountDetails?.receivableAmount || invoice.grandTotal || 0;
 
-      invoice.receivedAmount = newReceived;
-      invoice.paidAmount = newReceived;
+      invoice.receivedAmount = Math.round(newReceived * 100) / 100;
+      invoice.paidAmount = Math.round(newReceived * 100) / 100;
 
-      if (newReceived >= receivableAmount) {
+      // Update invoice status based on receivableAmount (NOT grandTotal)
+      if (newReceived >= receivableAmount && receivableAmount > 0) {
         invoice.status = 'Paid';
       } else if (newReceived > 0) {
         invoice.status = 'Partial';

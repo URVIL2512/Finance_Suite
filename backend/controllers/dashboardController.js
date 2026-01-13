@@ -66,26 +66,27 @@ export const getExpenseDashboard = async (req, res) => {
       categoryMonthlyBreakdown[exp.category].total += exp.totalAmount;
     });
 
-    // Operation Type-wise monthly breakdown
-    const operationTypeMonthlyBreakdown = {};
+    // Department-wise monthly breakdown
+    const departmentMonthlyBreakdown = {};
     expenses.forEach((exp) => {
-      if (!operationTypeMonthlyBreakdown[exp.operationType]) {
-        operationTypeMonthlyBreakdown[exp.operationType] = {
-          operationType: exp.operationType,
+      if (!departmentMonthlyBreakdown[exp.department]) {
+        departmentMonthlyBreakdown[exp.department] = {
+          department: exp.department,
           months: {},
           total: 0,
         };
       }
-      if (!operationTypeMonthlyBreakdown[exp.operationType].months[exp.month]) {
-        operationTypeMonthlyBreakdown[exp.operationType].months[exp.month] = 0;
+      if (!departmentMonthlyBreakdown[exp.department].months[exp.month]) {
+        departmentMonthlyBreakdown[exp.department].months[exp.month] = 0;
       }
-      operationTypeMonthlyBreakdown[exp.operationType].months[exp.month] += exp.totalAmount;
-      operationTypeMonthlyBreakdown[exp.operationType].total += exp.totalAmount;
+      departmentMonthlyBreakdown[exp.department].months[exp.month] += exp.totalAmount;
+      departmentMonthlyBreakdown[exp.department].total += exp.totalAmount;
     });
 
-    // All-time totals
-    const allTimeExpenses = await Expense.find({ user: req.user._id });
-    const allTimeTotal = allTimeExpenses.reduce((sum, exp) => sum + exp.totalAmount, 0);
+    // Current year total (replacing all-time total)
+    const currentYear = new Date().getFullYear();
+    const currentYearExpenses = await Expense.find({ user: req.user._id, year: currentYear });
+    const allTimeTotal = currentYearExpenses.reduce((sum, exp) => sum + exp.totalAmount, 0);
 
     res.json({
       year: year || 'All',
@@ -114,8 +115,8 @@ export const getExpenseDashboard = async (req, res) => {
         }, {}),
         total: Math.round(item.total * 100) / 100,
       })),
-      operationTypeMonthlyBreakdown: Object.values(operationTypeMonthlyBreakdown).map((item) => ({
-        operationType: item.operationType,
+      departmentMonthlyBreakdown: Object.values(departmentMonthlyBreakdown).map((item) => ({
+        department: item.department,
         months: Object.entries(item.months).reduce((acc, [month, amount]) => {
           acc[month] = Math.round(amount * 100) / 100;
           return acc;

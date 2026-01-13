@@ -310,8 +310,8 @@ const Customers = () => {
                             <div className="text-xs font-semibold text-slate-500 mb-0.5">Mobile</div>
                             <div className="text-xs text-slate-700">
                               {typeof viewingCustomer.mobile === 'object' && viewingCustomer.mobile?.number
-                                ? `${viewingCustomer.mobile.countryCode || ''} ${viewingCustomer.mobile.number}`
-                                : viewingCustomer.mobile}
+                                ? `${viewingCustomer.mobile.countryCode || ''} ${viewingCustomer.mobile.number}`.trim()
+                                : (typeof viewingCustomer.mobile === 'string' ? viewingCustomer.mobile : '-')}
                             </div>
                           </div>
                         )}

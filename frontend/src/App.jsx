@@ -14,6 +14,7 @@ import Items from './pages/Items';
 import ExpenseDashboard from './pages/ExpenseDashboard';
 import RevenueDashboard from './pages/RevenueDashboard';
 import Settings from './pages/Settings';
+import ClientLedger from './pages/ClientLedger';
 import Layout from './components/Layout';
 import { getAuthToken, removeAuthToken } from './utils/auth';
 
@@ -90,6 +91,7 @@ function App() {
           <Route path="items" element={<Items />} />
           <Route path="expense-dashboard" element={<ExpenseDashboard />} />
           <Route path="revenue-dashboard" element={<RevenueDashboard />} />
+          <Route path="client-ledger" element={<ClientLedger />} />
           <Route path="settings" element={<Settings />} />
         </Route>
       </Routes>

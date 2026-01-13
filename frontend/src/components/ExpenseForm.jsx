@@ -1,12 +1,17 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { format } from 'date-fns';
 
 const ExpenseForm = ({ expense, onSubmit, onCancel }) => {
+  const [activeTab, setActiveTab] = useState('expense');
+  const [newCategory, setNewCategory] = useState('');
+  const [showAddCategory, setShowAddCategory] = useState(false);
+  const [showCategoryDropdown, setShowCategoryDropdown] = useState(false);
+  const categoryDropdownRef = useRef(null);
   const [formData, setFormData] = useState({
     date: format(new Date(), 'yyyy-MM-dd'),
     category: '',
     paymentMode: '',
-    operationType: '',
+    department: '',
     bankAccount: '',
     vendor: '',
     description: '',
@@ -21,6 +26,9 @@ const ExpenseForm = ({ expense, onSubmit, onCancel }) => {
     month: format(new Date(), 'MMM'),
     year: new Date().getFullYear(),
     executive: '',
+    userName: '',
+    userEmail: '',
+    userPhone: '',
   });
 
 
@@ -31,7 +39,7 @@ const ExpenseForm = ({ expense, onSubmit, onCancel }) => {
         date: format(expenseDate, 'yyyy-MM-dd'),
         category: expense.category || '',
         paymentMode: expense.paymentMode || '',
-        operationType: expense.operationType || '',
+        department: expense.department || '',
         bankAccount: expense.bankAccount || '',
         vendor: expense.vendor || '',
         description: expense.description || '',
@@ -46,6 +54,9 @@ const ExpenseForm = ({ expense, onSubmit, onCancel }) => {
         month: expense.month || format(new Date(), 'MMM'),
         year: expense.year || new Date().getFullYear(),
         executive: expense.executive || '',
+        userName: expense.userName || '',
+        userEmail: expense.userEmail || '',
+        userPhone: expense.userPhone || '',
       });
     } else {
       // Reset form when no expense is being edited
@@ -53,7 +64,7 @@ const ExpenseForm = ({ expense, onSubmit, onCancel }) => {
         date: format(new Date(), 'yyyy-MM-dd'),
         category: '',
         paymentMode: '',
-        operationType: '',
+        department: '',
         bankAccount: '',
         vendor: '',
         description: '',
@@ -68,6 +79,9 @@ const ExpenseForm = ({ expense, onSubmit, onCancel }) => {
         month: format(new Date(), 'MMM'),
         year: new Date().getFullYear(),
         executive: '',
+        userName: '',
+        userEmail: '',
+        userPhone: '',
       });
     }
   }, [expense]);
@@ -99,6 +113,24 @@ const ExpenseForm = ({ expense, onSubmit, onCancel }) => {
     }));
   }, [formData.date]);
 
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (categoryDropdownRef.current && !categoryDropdownRef.current.contains(event.target)) {
+        setShowCategoryDropdown(false);
+        setShowAddCategory(false);
+      }
+    };
+
+    if (showCategoryDropdown) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [showCategoryDropdown]);
+
   const handleChange = (e) => {
     const { name, value } = e.target;
     setFormData({
@@ -107,6 +139,43 @@ const ExpenseForm = ({ expense, onSubmit, onCancel }) => {
         ? value === '' ? '' : parseFloat(value) || ''
         : value,
     });
+  };
+
+  const handleNext = () => {
+    // Validate required fields on Expense Details tab
+    if (activeTab === 'expense') {
+      if (!formData.date) {
+        alert('Date is required');
+        return;
+      }
+      if (!formData.category) {
+        alert('Category is required');
+        return;
+      }
+      if (!formData.paymentMode) {
+        alert('Payment Mode is required');
+        return;
+      }
+      if (!formData.department) {
+        alert('Department is required');
+        return;
+      }
+      if (!formData.amountExclTax) {
+        alert('Amount (Excl. Tax) is required');
+        return;
+      }
+      if (!formData.totalAmount) {
+        alert('Total Amount is required');
+        return;
+      }
+      setActiveTab('user');
+    }
+  };
+
+  const handleBack = () => {
+    if (activeTab === 'user') {
+      setActiveTab('expense');
+    }
   };
 
   const handleSubmit = (e) => {
@@ -134,7 +203,7 @@ const ExpenseForm = ({ expense, onSubmit, onCancel }) => {
     onSubmit(submitData);
   };
 
-  const categories = [
+  const [categories, setCategories] = useState([
     'Salaries',
     'Office Rent',
     'Internet',
@@ -149,7 +218,17 @@ const ExpenseForm = ({ expense, onSubmit, onCancel }) => {
     'Chai n Snacks',
     'Loan Interest',
     'Purchase',
-  ];
+    'Remittance',
+  ]);
+
+  const handleAddCategory = () => {
+    if (newCategory.trim() && !categories.includes(newCategory.trim())) {
+      setCategories([...categories, newCategory.trim()]);
+      setFormData({ ...formData, category: newCategory.trim() });
+      setNewCategory('');
+      setShowAddCategory(false);
+    }
+  };
   const paymentModes = [
     'Office Cash',
     'Bank Transfer',
@@ -159,7 +238,7 @@ const ExpenseForm = ({ expense, onSubmit, onCancel }) => {
     'HR Personal',
     'Other',
   ];
-  const operationTypes = [
+  const departments = [
     'OPERATION',
     'SOCIAL MEDIA',
     'WEBSITE',
@@ -185,9 +264,39 @@ const ExpenseForm = ({ expense, onSubmit, onCancel }) => {
           </button>
         </div>
 
+        {/* Tabs */}
+        <div className="border-b border-gray-200 bg-white">
+          <div className="flex px-8">
+            <button
+              type="button"
+              onClick={() => setActiveTab('expense')}
+              className={`px-6 py-4 text-sm font-semibold border-b-2 transition-colors ${
+                activeTab === 'expense'
+                  ? 'border-blue-600 text-blue-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700'
+              }`}
+            >
+              Expense Details
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveTab('user')}
+              className={`px-6 py-4 text-sm font-semibold border-b-2 transition-colors ${
+                activeTab === 'user'
+                  ? 'border-blue-600 text-blue-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700'
+              }`}
+            >
+              User Information
+            </button>
+          </div>
+        </div>
+
         {/* Form Content */}
         <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto bg-gray-50/30">
           <div className="p-8 space-y-8">
+            {activeTab === 'expense' && (
+              <>
             {/* Basic Information Section */}
             <div className="space-y-5">
               <h3 className="text-base font-bold text-gray-800 uppercase tracking-wider mb-4">Basic Information</h3>
@@ -215,18 +324,112 @@ const ExpenseForm = ({ expense, onSubmit, onCancel }) => {
                   <label className="block text-sm font-semibold text-gray-700">
                     Category<span className="text-red-500 ml-1">*</span>
                   </label>
-                  <select
+                  <div className="relative" ref={categoryDropdownRef}>
+                    <div
+                      onClick={() => {
+                        setShowCategoryDropdown(!showCategoryDropdown);
+                        setShowAddCategory(false);
+                      }}
+                      className="select-field w-full text-sm py-2.5 cursor-pointer flex items-center justify-between"
+                    >
+                      <span className={formData.category ? 'text-gray-900' : 'text-gray-400'}>
+                        {formData.category || 'Select'}
+                      </span>
+                      <svg
+                        className={`w-5 h-5 text-gray-400 transition-transform ${showCategoryDropdown ? 'rotate-180' : ''}`}
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                      </svg>
+                    </div>
+                    {showCategoryDropdown && (
+                      <div className="absolute z-50 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg max-h-60 overflow-auto">
+                        <div className="py-1">
+                          {categories.map((cat) => (
+                            <div
+                              key={cat}
+                              onClick={() => {
+                                setFormData({ ...formData, category: cat });
+                                setShowCategoryDropdown(false);
+                              }}
+                              className={`px-4 py-2 cursor-pointer hover:bg-blue-50 ${
+                                formData.category === cat ? 'bg-blue-100 text-blue-700' : 'text-gray-900'
+                              }`}
+                            >
+                              {cat}
+                            </div>
+                          ))}
+                          <div className="border-t border-gray-200 mt-1">
+                            {!showAddCategory ? (
+                              <div
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setShowAddCategory(true);
+                                }}
+                                className="px-4 py-2 cursor-pointer hover:bg-blue-50 text-blue-600 font-semibold flex items-center gap-2"
+                              >
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                                </svg>
+                                Add New Category
+                              </div>
+                            ) : (
+                              <div className="p-2 border-t border-gray-200 bg-gray-50">
+                                <div className="flex gap-2">
+                                  <input
+                                    type="text"
+                                    value={newCategory}
+                                    onChange={(e) => setNewCategory(e.target.value)}
+                                    placeholder="Enter new category"
+                                    className="input-field flex-1 text-sm py-2"
+                                    onKeyPress={(e) => {
+                                      if (e.key === 'Enter') {
+                                        e.preventDefault();
+                                        handleAddCategory();
+                                        setShowCategoryDropdown(false);
+                                      }
+                                    }}
+                                    autoFocus
+                                    onClick={(e) => e.stopPropagation()}
+                                  />
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleAddCategory();
+                                      setShowCategoryDropdown(false);
+                                    }}
+                                    className="px-3 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-sm font-semibold"
+                                  >
+                                    ✓
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setShowAddCategory(false);
+                                      setNewCategory('');
+                                    }}
+                                    className="px-3 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-colors text-sm font-semibold"
+                                  >
+                                    ✕
+                                  </button>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                  <input
+                    type="hidden"
                     name="category"
                     value={formData.category}
-                    onChange={handleChange}
                     required
-                    className="select-field w-full text-sm py-2.5"
-                  >
-                    <option value="">Select</option>
-                    {categories.map((cat) => (
-                      <option key={cat} value={cat}>{cat}</option>
-                    ))}
-                  </select>
+                  />
                 </div>
                 <div className="space-y-2">
                   <label className="block text-sm font-semibold text-gray-700">Vendor/Party</label>
@@ -348,18 +551,18 @@ const ExpenseForm = ({ expense, onSubmit, onCancel }) => {
                 </div>
                 <div className="space-y-2">
                   <label className="block text-sm font-semibold text-gray-700">
-                    Operation Type<span className="text-red-500 ml-1">*</span>
+                    Department<span className="text-red-500 ml-1">*</span>
                   </label>
                   <select
-                    name="operationType"
-                    value={formData.operationType}
+                    name="department"
+                    value={formData.department}
                     onChange={handleChange}
                     required
                     className="select-field w-full text-sm py-2.5"
                   >
                     <option value="">Select</option>
-                    {operationTypes.map((type) => (
-                      <option key={type} value={type}>{type}</option>
+                    {departments.map((dept) => (
+                      <option key={dept} value={dept}>{dept}</option>
                     ))}
                   </select>
                 </div>
@@ -437,23 +640,98 @@ const ExpenseForm = ({ expense, onSubmit, onCancel }) => {
                 </div>
               </div>
             </div>
+              </>
+            )}
+
+            {activeTab === 'user' && (
+              <div className="space-y-5">
+                <h3 className="text-base font-bold text-gray-800 uppercase tracking-wider mb-4">User Information</h3>
+                <p className="text-sm text-gray-600 mb-4">Enter the details of the user who created/edited this expense entry.</p>
+                
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+                  <div className="space-y-2">
+                    <label className="block text-sm font-semibold text-gray-700">
+                      User Name<span className="text-red-500 ml-1">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      name="userName"
+                      value={formData.userName}
+                      onChange={handleChange}
+                      placeholder="Enter user name"
+                      required
+                      className="input-field w-full text-sm py-2.5"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="block text-sm font-semibold text-gray-700">
+                      Email ID
+                    </label>
+                    <input
+                      type="email"
+                      name="userEmail"
+                      value={formData.userEmail}
+                      onChange={handleChange}
+                      placeholder="Enter email address"
+                      className="input-field w-full text-sm py-2.5"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="block text-sm font-semibold text-gray-700">
+                      Phone Number
+                    </label>
+                    <input
+                      type="tel"
+                      name="userPhone"
+                      value={formData.userPhone}
+                      onChange={handleChange}
+                      placeholder="Enter phone number"
+                      className="input-field w-full text-sm py-2.5"
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Footer Actions */}
-          <div className="border-t border-gray-200 px-8 py-5 bg-white flex justify-end gap-3">
-            <button
-              type="button"
-              onClick={onCancel}
-              className="px-6 py-2.5 bg-gray-100 text-gray-700 font-semibold rounded-lg hover:bg-gray-200 transition-colors text-sm"
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              className="px-6 py-2.5 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 transition-colors text-sm shadow-md"
-            >
-              {expense ? 'Update Expense' : 'Create Expense'}
-            </button>
+          <div className="border-t border-gray-200 px-8 py-5 bg-white flex justify-between gap-3">
+            <div>
+              {activeTab === 'user' && (
+                <button
+                  type="button"
+                  onClick={handleBack}
+                  className="px-6 py-2.5 bg-gray-100 text-gray-700 font-semibold rounded-lg hover:bg-gray-200 transition-colors text-sm"
+                >
+                  Back
+                </button>
+              )}
+            </div>
+            <div className="flex gap-3">
+              <button
+                type="button"
+                onClick={onCancel}
+                className="px-6 py-2.5 bg-gray-100 text-gray-700 font-semibold rounded-lg hover:bg-gray-200 transition-colors text-sm"
+              >
+                Cancel
+              </button>
+              {activeTab === 'expense' ? (
+                <button
+                  type="button"
+                  onClick={handleNext}
+                  className="px-6 py-2.5 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 transition-colors text-sm shadow-md"
+                >
+                  Next
+                </button>
+              ) : (
+                <button
+                  type="submit"
+                  className="px-6 py-2.5 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 transition-colors text-sm shadow-md"
+                >
+                  {expense ? 'Update Expense' : 'Create Expense'}
+                </button>
+              )}
+            </div>
           </div>
         </form>
       </div>

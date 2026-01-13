@@ -8,22 +8,6 @@ const expenseSchema = new mongoose.Schema(
     },
     category: {
       type: String,
-      enum: [
-        'Salaries',
-        'Office Rent',
-        'Internet',
-        'Electricity',
-        'Software Tools',
-        'HR/Admin',
-        'Travel',
-        'Food',
-        'Marketing',
-        'Compliance',
-        'Misc',
-        'Chai n Snacks',
-        'Loan Interest',
-        'Purchase',
-      ],
       required: [true, 'Please select a category'],
     },
     paymentMode: {
@@ -39,7 +23,7 @@ const expenseSchema = new mongoose.Schema(
       ],
       required: [true, 'Please select a payment mode'],
     },
-    operationType: {
+    department: {
       type: String,
       enum: [
         'OPERATION',
@@ -48,7 +32,7 @@ const expenseSchema = new mongoose.Schema(
         'BUSINESS DEVELOPMENT',
         'TELE CALLING',
       ],
-      required: [true, 'Please select an operation type'],
+      required: [true, 'Please select a department'],
     },
     bankAccount: {
       type: String,
@@ -114,6 +98,26 @@ const expenseSchema = new mongoose.Schema(
       default: '',
     },
     executive: {
+      type: String,
+      default: '',
+    },
+    userName: {
+      type: String,
+      required: [true, 'Please enter user name'],
+    },
+    userEmail: {
+      type: String,
+      default: '',
+    },
+    userPhone: {
+      type: String,
+      default: '',
+    },
+    createdBy: {
+      type: String,
+      default: '',
+    },
+    editedBy: {
       type: String,
       default: '',
     },
