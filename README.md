@@ -155,7 +155,5 @@ The frontend will run on `http://localhost:3000`
 4. Navigate to Invoices to create invoices
 5. View dashboards for summaries and charts
 
-## License
 
-ISC
 
