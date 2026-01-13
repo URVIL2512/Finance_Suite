@@ -21,6 +21,7 @@ import paymentRoutes from './routes/paymentRoutes.js';
 import ledgerRoutes from './routes/ledgerRoutes.js';
 import { startRecurringInvoiceScheduler } from './utils/recurringInvoiceScheduler.js';
 import { startRecurringExpenseScheduler } from './utils/recurringExpenseScheduler.js';
+import { testSMTPConnection } from './utils/emailService.js';
 
 dotenv.config();
 
@@ -95,7 +96,6 @@ app.get('/api/health', (req, res) => {
 });
 
 // Test SMTP connection
-import { testSMTPConnection } from './utils/emailService.js';
 app.get('/api/test-email', async (req, res) => {
   try {
     const result = await testSMTPConnection();
