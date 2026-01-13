@@ -21,7 +21,6 @@ import paymentRoutes from './routes/paymentRoutes.js';
 import ledgerRoutes from './routes/ledgerRoutes.js';
 import { startRecurringInvoiceScheduler } from './utils/recurringInvoiceScheduler.js';
 import { startRecurringExpenseScheduler } from './utils/recurringExpenseScheduler.js';
-import { testSMTPConnection } from './utils/emailService.js';
 
 dotenv.config();
 
@@ -93,20 +92,6 @@ app.use('/api/ledger', ledgerRoutes);
 // Health check
 app.get('/api/health', (req, res) => {
   res.json({ status: 'OK', message: 'Finance Suite API is running' });
-});
-
-// Test SMTP connection
-app.get('/api/test-email', async (req, res) => {
-  try {
-    const result = await testSMTPConnection();
-    res.json(result);
-  } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: error.message || 'SMTP connection test failed',
-      error: process.env.NODE_ENV === 'development' ? error.stack : undefined,
-    });
-  }
 });
 
 // Error handling middleware
