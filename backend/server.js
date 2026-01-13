@@ -51,6 +51,28 @@ if (process.env.NODE_ENV === 'development') {
   });
 }
 
+// Root route - API information
+app.get('/', (req, res) => {
+  res.json({
+    message: 'Finance Suite API',
+    version: '1.0.0',
+    status: 'running',
+    endpoints: {
+      health: '/api/health',
+      auth: '/api/auth',
+      expenses: '/api/expenses',
+      revenue: '/api/revenue',
+      invoices: '/api/invoices',
+      customers: '/api/customers',
+      items: '/api/items',
+      payments: '/api/payments',
+      ledger: '/api/ledger',
+      dashboard: '/api/dashboard'
+    },
+    documentation: 'This is the backend API for Finance Suite. Use /api/health to check server status.'
+  });
+});
+
 // Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/expenses', expenseRoutes);
