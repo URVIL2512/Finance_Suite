@@ -356,8 +356,13 @@ const PaymentModal = ({ isOpen, onClose, invoice, payment, mode = 'edit', onPaym
       }
     } catch (error) {
       console.error('Error saving payment:', error);
+      console.error('Error response:', error.response?.data);
       const errorMessage = error.response?.data?.message || error.message || 'Failed to save payment';
       setError(errorMessage);
+      // Show detailed error in alert for debugging
+      if (error.response?.data) {
+        alert(`Payment Error: ${errorMessage}\n\nCheck browser console for details.`);
+      }
     } finally {
       setLoading(false);
     }
