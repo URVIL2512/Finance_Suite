@@ -215,7 +215,7 @@ export const createPayment = async (req, res) => {
     // Create payment with retry logic for duplicate key errors
     let payment;
     let retryCount = 0;
-    const maxRetries = 3;
+    const maxRetries = 5;
 
     while (retryCount < maxRetries) {
       try {
@@ -245,8 +245,13 @@ export const createPayment = async (req, res) => {
         // Successfully created, break out of retry loop
         break;
       } catch (createError) {
-        // Check if it's a duplicate key error
-        if (createError.code === 11000 && createError.keyPattern?.paymentNumber) {
+        // Check if it's a duplicate key error (check for both paymentNumber and compound index)
+        const isDuplicateError = createError.code === 11000 && (
+          createError.keyPattern?.paymentNumber || 
+          (createError.keyPattern?.paymentNumber && createError.keyPattern?.user)
+        );
+        
+        if (isDuplicateError) {
           retryCount++;
           console.warn(`Duplicate payment number detected (attempt ${retryCount}/${maxRetries}): ${paymentNumber}`);
           
@@ -254,22 +259,56 @@ export const createPayment = async (req, res) => {
             // Generate a new payment number and retry
             try {
               paymentNumber = await generatePaymentNumber(req.user._id);
+              console.log(`🔄 Retrying with new payment number: ${paymentNumber}`);
               // Wait a small random time to avoid thundering herd
-              await new Promise(resolve => setTimeout(resolve, Math.random() * 100));
+              await new Promise(resolve => setTimeout(resolve, Math.random() * 100 + 50));
             } catch (genError) {
               console.error('Error generating new payment number on retry:', genError);
-              return res.status(500).json({ 
-                message: 'Failed to generate unique payment number. Please try again.',
-                error: genError.message 
-              });
+              // Use timestamp fallback instead of failing
+              const year = new Date().getFullYear();
+              const timestamp = Date.now().toString().slice(-6);
+              paymentNumber = `PAY${year}${timestamp}`;
+              console.warn(`Using timestamp fallback payment number: ${paymentNumber}`);
             }
           } else {
-            // Max retries reached
-            console.error('Failed to create payment after max retries:', createError);
-            return res.status(400).json({ 
-              message: 'Payment creation failed due to duplicate payment number. Please try again.',
-              error: 'E11000_DUPLICATE_PAYMENT_NUMBER'
-            });
+            // Max retries reached - use timestamp fallback
+            console.warn(`Max retries reached, using timestamp fallback for payment number`);
+            const year = new Date().getFullYear();
+            const timestamp = Date.now().toString().slice(-6);
+            paymentNumber = `PAY${year}${timestamp}`;
+            
+            try {
+              payment = await Payment.create({
+                paymentNumber,
+                invoice,
+                customer,
+                userEmail,
+                paymentDate: paymentDate || new Date(),
+                paymentReceivedOn: paymentReceivedOn || paymentDate || new Date(),
+                paymentMode: paymentMode || 'Cash',
+                depositTo: depositTo || 'Petty Cash',
+                referenceNumber: referenceNumber || '',
+                amountReceived: Math.round(amountReceivedINR * 100) / 100,
+                bankCharges: Math.round(bankChargesINR * 100) / 100,
+                taxDeducted: taxDeducted || false,
+                tdsType: taxDeducted ? (tdsType || 'TDS (Income Tax)') : '',
+                amountWithheld: Math.round(amountWithheldINR * 100) / 100,
+                tdsTaxAccount: tdsTaxAccount || 'Advance Tax',
+                notes: notes || '',
+                status: status || 'Paid',
+                sendThankYouNote: sendThankYouNote || false,
+                emailRecipients: emailRecipients || [],
+                user: req.user._id,
+              });
+              console.log(`✅ Payment created with fallback number: ${paymentNumber}`);
+              break;
+            } catch (fallbackError) {
+              console.error('Even fallback payment number failed:', fallbackError);
+              return res.status(500).json({ 
+                message: 'Failed to create payment. Please try again.',
+                error: 'PAYMENT_CREATION_FAILED'
+              });
+            }
           }
         } else {
           // Some other error, throw it
