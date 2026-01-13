@@ -7,7 +7,12 @@ import fs from 'fs';
 const createTransporter = () => {
   // Use environment variables for email configuration
   if (!process.env.SMTP_USER || !process.env.SMTP_PASSWORD) {
-    throw new Error('Email configuration is missing. Please set SMTP_USER and SMTP_PASSWORD in .env file');
+    console.error('❌ Email configuration error:', {
+      SMTP_USER: process.env.SMTP_USER ? 'Set' : 'MISSING',
+      SMTP_PASSWORD: process.env.SMTP_PASSWORD ? 'Set' : 'MISSING',
+      NODE_ENV: process.env.NODE_ENV,
+    });
+    throw new Error('Email configuration is missing. Please set SMTP_USER and SMTP_PASSWORD in environment variables (Render dashboard)');
   }
 
   const transporter = nodemailer.createTransport({
@@ -18,6 +23,13 @@ const createTransporter = () => {
       user: process.env.SMTP_USER,
       pass: process.env.SMTP_PASSWORD,
     },
+  });
+
+  console.log('✅ Email transporter created:', {
+    host: process.env.SMTP_HOST || 'smtp.gmail.com',
+    port: parseInt(process.env.SMTP_PORT || '587'),
+    user: process.env.SMTP_USER,
+    passwordSet: process.env.SMTP_PASSWORD ? 'Yes' : 'No',
   });
 
   return transporter;
