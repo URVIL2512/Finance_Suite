@@ -189,10 +189,14 @@ Website: www.kology.co
 3. You've generated a new App Password from: https://myaccount.google.com/apppasswords
 4. The email and password in .env file are correct`;
     } else if (error.code === 'ECONNECTION' || error.code === 'ETIMEDOUT') {
-      errorMessage = `Connection to email server failed. Please check:
-1. SMTP_HOST and SMTP_PORT are correct
-2. Your internet connection is working
-3. Firewall is not blocking the connection`;
+      errorMessage = `Connection timeout - SMTP connection failed. This is a known issue on Render's free tier which blocks outbound SMTP connections on ports 465 and 587.
+
+Solutions:
+1. Upgrade to Render's paid plan (removes SMTP restrictions) - Recommended
+2. Use an email service API (SendGrid, Mailgun, AWS SES) instead of SMTP
+3. See RENDER_SMTP_TIMEOUT_FIX.md for detailed solutions
+
+Error details: ${error.code} - ${error.message}`;
     } else if (error.message && error.message.includes('PDF file not found')) {
       errorMessage = 'PDF file not found. Invoice PDF generation may have failed.';
     }
