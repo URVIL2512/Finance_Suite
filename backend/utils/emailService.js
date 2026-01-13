@@ -5,23 +5,31 @@ import fs from 'fs';
  * Create email transporter
  */
 const createTransporter = () => {
-  // Use environment variables for email configuration
-  if (!process.env.SMTP_USER || !process.env.SMTP_PASSWORD) {
+  // Support both EMAIL_* and SMTP_* variables (EMAIL_* takes priority)
+  const emailHost = process.env.EMAIL_HOST || process.env.SMTP_HOST || 'smtp.gmail.com';
+  const emailPort = parseInt(process.env.EMAIL_PORT || process.env.SMTP_PORT || '587');
+  const emailUser = process.env.EMAIL_USER || process.env.SMTP_USER;
+  const emailPass = process.env.EMAIL_PASS || process.env.EMAIL_PASSWORD || process.env.SMTP_PASSWORD;
+  const emailSecure = process.env.EMAIL_SECURE === 'true' || process.env.SMTP_SECURE === 'true';
+
+  if (!emailUser || !emailPass) {
     console.error('❌ Email configuration error:', {
-      SMTP_USER: process.env.SMTP_USER ? 'Set' : 'MISSING',
-      SMTP_PASSWORD: process.env.SMTP_PASSWORD ? 'Set' : 'MISSING',
+      EMAIL_USER: process.env.EMAIL_USER ? 'Set' : 'MISSING',
+      EMAIL_PASS: process.env.EMAIL_PASS ? 'Set' : 'MISSING',
+      SMTP_USER: process.env.SMTP_USER ? 'Set (fallback)' : 'MISSING',
+      SMTP_PASSWORD: process.env.SMTP_PASSWORD ? 'Set (fallback)' : 'MISSING',
       NODE_ENV: process.env.NODE_ENV,
     });
-    throw new Error('Email configuration is missing. Please set SMTP_USER and SMTP_PASSWORD in environment variables (Render dashboard)');
+    throw new Error('Email configuration is missing. Please set EMAIL_USER and EMAIL_PASS (or SMTP_USER and SMTP_PASSWORD) in environment variables');
   }
 
   const transporter = nodemailer.createTransport({
-    host: process.env.SMTP_HOST || 'smtp.gmail.com',
-    port: parseInt(process.env.SMTP_PORT || '587'),
-    secure: process.env.SMTP_SECURE === 'true', // true for 465, false for other ports
+    host: emailHost,
+    port: emailPort,
+    secure: emailSecure, // true for 465, false for other ports
     auth: {
-      user: process.env.SMTP_USER,
-      pass: process.env.SMTP_PASSWORD,
+      user: emailUser,
+      pass: emailPass,
     },
     connectionTimeout: 60000, // 60 seconds
     greetingTimeout: 30000, // 30 seconds
@@ -31,10 +39,10 @@ const createTransporter = () => {
   });
 
   console.log('✅ Email transporter created:', {
-    host: process.env.SMTP_HOST || 'smtp.gmail.com',
-    port: parseInt(process.env.SMTP_PORT || '587'),
-    user: process.env.SMTP_USER,
-    passwordSet: process.env.SMTP_PASSWORD ? 'Yes' : 'No',
+    host: emailHost,
+    port: emailPort,
+    user: emailUser,
+    passwordSet: emailPass ? 'Yes' : 'No',
   });
 
   return transporter;
@@ -152,9 +160,12 @@ Email: mihir@kology.in | Phone: 9328850777
 Website: www.kology.co
     `;
 
+    // Get sender email (support EMAIL_FROM or use default)
+    const senderEmail = process.env.EMAIL_FROM || process.env.SMTP_USER || process.env.EMAIL_USER || 'mihir@kology.in';
+    
     // Send email
     const mailOptions = {
-      from: `"Kology Ventures" <${process.env.SMTP_USER}>`,
+      from: `"Kology Ventures" <${senderEmail}>`,
       to: to,
       subject: subject,
       text: textBody,
@@ -347,9 +358,12 @@ Email: mihir@kology.in | Phone: 9328850777
 Website: www.kology.co
     `;
 
+    // Get sender email (support EMAIL_FROM or use default)
+    const senderEmail = process.env.EMAIL_FROM || process.env.SMTP_USER || process.env.EMAIL_USER || 'mihir@kology.in';
+    
     // Send email
     const mailOptions = {
-      from: `"Kology Ventures" <${process.env.SMTP_USER}>`,
+      from: `"Kology Ventures" <${senderEmail}>`,
       to: to,
       subject: subject,
       text: textBody,
@@ -367,25 +381,6 @@ Website: www.kology.co
     };
   } catch (error) {
     console.error('Error sending payment slip email:', error);
-    throw error;
-  }
-};
-
-/**
- * Test SMTP connection
- * @returns {Promise} Test result
- */
-export const testSMTPConnection = async () => {
-  try {
-    const transporter = createTransporter();
-    await transporter.verify();
-    console.log('SMTP ready');
-    return {
-      success: true,
-      message: 'SMTP connection verified successfully',
-    };
-  } catch (error) {
-    console.error('SMTP connection test failed:', error);
     throw error;
   }
 };
