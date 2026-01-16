@@ -93,7 +93,7 @@ const sendInvoiceEmailWithRetry = async (options) => {
                                 'Service';
 
     // Send email
-    await sendInvoiceEmail({
+    const emailResult = await sendInvoiceEmail({
       to: clientEmail,
       clientName: invoice.clientDetails?.name || 'Client',
       invoiceNumber: invoice.invoiceNumber,
@@ -104,13 +104,16 @@ const sendInvoiceEmailWithRetry = async (options) => {
       currency: currency,
     });
 
-    // Update invoice with email sent status
-    await Invoice.findByIdAndUpdate(invoiceId, {
-      emailSent: true,
-      emailSentAt: new Date(),
-    });
-
-    console.log(`✅ Invoice email sent successfully to ${clientEmail} (Invoice: ${invoice.invoiceNumber})`);
+    // Update invoice with email sent status only if email was successful
+    if (emailResult && emailResult.success) {
+      await Invoice.findByIdAndUpdate(invoiceId, {
+        emailSent: true,
+        emailSentAt: new Date(),
+      });
+      console.log(`✅ Invoice email sent successfully to ${clientEmail} (Invoice: ${invoice.invoiceNumber})`);
+    } else {
+      throw new Error(emailResult?.error || 'Failed to send email');
+    }
 
     // Clean up PDF file after sending (optional - keep for debugging)
     // setTimeout(() => {

@@ -278,7 +278,7 @@ export const processRecurringInvoices = async (req, res) => {
           const receivableAmount = newInvoice.amountDetails?.receivableAmount || newInvoice.grandTotal || 0;
           const serviceDescription = newInvoice.serviceDetails?.description || newInvoice.items[0]?.description || 'Service';
 
-          await sendInvoiceEmail({
+          const emailResult = await sendInvoiceEmail({
             to: clientEmail,
             clientName: newInvoice.clientDetails?.name || 'Client',
             invoiceNumber: newInvoice.invoiceNumber,
@@ -289,9 +289,13 @@ export const processRecurringInvoices = async (req, res) => {
             currency: currency,
           });
 
-          newInvoice.emailSent = true;
-          newInvoice.emailSentAt = new Date();
-          await newInvoice.save();
+          if (emailResult && emailResult.success) {
+            newInvoice.emailSent = true;
+            newInvoice.emailSentAt = new Date();
+            await newInvoice.save();
+          } else {
+            console.error(`Failed to send recurring invoice email to ${clientEmail}:`, emailResult?.error || 'Unknown error');
+          }
         }
 
         // Calculate next send date
@@ -456,7 +460,7 @@ export const processRecurringInvoicesDirect = async () => {
           const receivableAmount = newInvoice.amountDetails?.receivableAmount || newInvoice.grandTotal || 0;
           const serviceDescription = newInvoice.serviceDetails?.description || newInvoice.items[0]?.description || 'Service';
 
-          await sendInvoiceEmail({
+          const emailResult = await sendInvoiceEmail({
             to: clientEmail,
             clientName: newInvoice.clientDetails?.name || 'Client',
             invoiceNumber: newInvoice.invoiceNumber,
@@ -467,9 +471,13 @@ export const processRecurringInvoicesDirect = async () => {
             currency: currency,
           });
 
-          newInvoice.emailSent = true;
-          newInvoice.emailSentAt = new Date();
-          await newInvoice.save();
+          if (emailResult && emailResult.success) {
+            newInvoice.emailSent = true;
+            newInvoice.emailSentAt = new Date();
+            await newInvoice.save();
+          } else {
+            console.error(`Failed to send recurring invoice email to ${clientEmail}:`, emailResult?.error || 'Unknown error');
+          }
         }
 
         // Calculate next send date

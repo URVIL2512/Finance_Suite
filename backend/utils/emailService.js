@@ -2,31 +2,32 @@ import nodemailer from 'nodemailer';
 import fs from 'fs';
 
 /**
- * Create email transporter
+ * Create and export a single Brevo SMTP transporter
+ * This transporter is created once and reused for all emails
  */
-const createTransporter = () => {
-  // Support both EMAIL_* and SMTP_* variables (EMAIL_* takes priority)
-  const emailHost = process.env.EMAIL_HOST || process.env.SMTP_HOST || 'smtp.gmail.com';
-  const emailPort = parseInt(process.env.EMAIL_PORT || process.env.SMTP_PORT || '587');
-  const emailUser = process.env.EMAIL_USER || process.env.SMTP_USER;
-  const emailPass = process.env.EMAIL_PASS || process.env.EMAIL_PASSWORD || process.env.SMTP_PASSWORD;
-  const emailSecure = process.env.EMAIL_SECURE === 'true' || process.env.SMTP_SECURE === 'true';
+const createBrevoTransporter = () => {
+  // Use ONLY Brevo SMTP credentials from environment variables
+  const emailUser = process.env.EMAIL_USER;
+  const emailPass = process.env.EMAIL_PASS;
 
   if (!emailUser || !emailPass) {
-    console.error('❌ Email configuration error:', {
-      EMAIL_USER: process.env.EMAIL_USER ? 'Set' : 'MISSING',
-      EMAIL_PASS: process.env.EMAIL_PASS ? 'Set' : 'MISSING',
-      SMTP_USER: process.env.SMTP_USER ? 'Set (fallback)' : 'MISSING',
-      SMTP_PASSWORD: process.env.SMTP_PASSWORD ? 'Set (fallback)' : 'MISSING',
+    console.error('❌ Brevo SMTP configuration error:', {
+      EMAIL_USER: emailUser ? 'Set' : 'MISSING',
+      EMAIL_PASS: emailPass ? 'Set' : 'MISSING',
       NODE_ENV: process.env.NODE_ENV,
     });
-    throw new Error('Email configuration is missing. Please set EMAIL_USER and EMAIL_PASS (or SMTP_USER and SMTP_PASSWORD) in environment variables');
+    throw new Error('Brevo SMTP configuration is missing. Please set EMAIL_USER and EMAIL_PASS in environment variables');
+  }
+
+  // Validate that EMAIL_USER is a Brevo SMTP email (should end with @smtp-brevo.com)
+  if (!emailUser.includes('@smtp-brevo.com')) {
+    console.warn(`⚠️ Warning: EMAIL_USER (${emailUser}) does not appear to be a Brevo SMTP email. Expected format: xxx@smtp-brevo.com`);
   }
 
   const transporter = nodemailer.createTransport({
-    host: emailHost,
-    port: emailPort,
-    secure: emailSecure, // true for 465, false for other ports
+    host: 'smtp-relay.brevo.com',
+    port: 587,
+    secure: false, // false for port 587
     auth: {
       user: emailUser,
       pass: emailPass,
@@ -38,14 +39,49 @@ const createTransporter = () => {
     logger: process.env.NODE_ENV === 'development', // Enable logger in development
   });
 
-  console.log('✅ Email transporter created:', {
-    host: emailHost,
-    port: emailPort,
+  console.log('✅ Brevo SMTP transporter created:', {
+    host: 'smtp-relay.brevo.com',
+    port: 587,
     user: emailUser,
     passwordSet: emailPass ? 'Yes' : 'No',
   });
 
   return transporter;
+};
+
+// Create single transporter instance (created once, reused everywhere)
+let emailTransporter = null;
+
+/**
+ * Get or create the Brevo SMTP transporter
+ * @returns {Object} Nodemailer transporter
+ */
+const getTransporter = () => {
+  if (!emailTransporter) {
+    emailTransporter = createBrevoTransporter();
+  }
+  return emailTransporter;
+};
+
+/**
+ * Verify Brevo SMTP connection on server startup
+ * This should be called once when the server starts
+ */
+export const verifyBrevoSMTP = async () => {
+  try {
+    const transporter = getTransporter();
+    await transporter.verify();
+    console.log('✅ Brevo SMTP ready - connection verified successfully');
+    return true;
+  } catch (error) {
+    console.error('❌ Brevo SMTP verification failed:', {
+      message: error.message,
+      code: error.code,
+      responseCode: error.responseCode,
+      response: error.response,
+    });
+    return false;
+  }
 };
 
 /**
@@ -82,7 +118,8 @@ export const sendInvoiceEmail = async ({
       throw new Error(`PDF file not found at ${pdfPath}`);
     }
 
-    const transporter = createTransporter();
+    // Get the shared transporter (not creating a new one)
+    const transporter = getTransporter();
 
     // Format due date
     const formattedDueDate = new Date(dueDate).toLocaleDateString('en-IN', {
@@ -160,12 +197,13 @@ Email: mihir@kology.in | Phone: 9328850777
 Website: www.kology.co
     `;
 
-    // Get sender email (support EMAIL_FROM or use default)
-    const senderEmail = process.env.EMAIL_FROM || process.env.SMTP_USER || process.env.EMAIL_USER || 'mihir@kology.in';
+    // Use fixed "from" field as specified: "Kology_Suite <kafkabigdata@gmail.com>"
+    // This email is a Brevo-verified sender
+    const fromEmail = 'Kology_Suite <kafkabigdata@gmail.com>';
     
     // Send email
     const mailOptions = {
-      from: `"Kology Ventures" <${senderEmail}>`,
+      from: fromEmail,
       to: to,
       subject: subject,
       text: textBody,
@@ -178,43 +216,29 @@ Website: www.kology.co
       ],
     };
 
-    // Verify connection before sending
-    await transporter.verify();
-    
     const info = await transporter.sendMail(mailOptions);
+    console.log(`✅ Invoice email sent successfully to ${to} (Invoice: ${invoiceNumber})`);
     return {
       success: true,
       messageId: info.messageId,
       response: info.response,
     };
   } catch (error) {
-    console.error('Error sending email:', error);
+    console.error('❌ Error sending invoice email:', {
+      to,
+      invoiceNumber,
+      error: error.message,
+      code: error.code,
+      responseCode: error.responseCode,
+    });
     
-    // Provide user-friendly error messages
-    let errorMessage = error.message || 'Failed to send email';
-    
-    if (error.code === 'EAUTH' || error.responseCode === 535) {
-      errorMessage = `Gmail authentication failed. Please ensure:
-1. You're using an App Password (not your regular Gmail password)
-2. 2-Factor Authentication is enabled on your Gmail account
-3. You've generated a new App Password from: https://myaccount.google.com/apppasswords
-4. The email and password in .env file are correct`;
-    } else if (error.code === 'ECONNECTION' || error.code === 'ETIMEDOUT') {
-      errorMessage = `Connection timeout - SMTP connection failed. This is a known issue on Render's free tier which blocks outbound SMTP connections on ports 465 and 587.
-
-Solutions:
-1. Upgrade to Render's paid plan (removes SMTP restrictions) - Recommended
-2. Use an email service API (SendGrid, Mailgun, AWS SES) instead of SMTP
-3. See RENDER_SMTP_TIMEOUT_FIX.md for detailed solutions
-
-Error details: ${error.code} - ${error.message}`;
-    } else if (error.message && error.message.includes('PDF file not found')) {
-      errorMessage = 'PDF file not found. Invoice PDF generation may have failed.';
-    }
-    
-    const enhancedError = new Error(errorMessage);
-    enhancedError.originalError = error;
-    throw enhancedError;
+    // Return error details but don't throw - let the caller handle it
+    // This ensures invoice creation doesn't fail if email fails
+    return {
+      success: false,
+      error: error.message,
+      code: error.code,
+    };
   }
 };
 
@@ -247,7 +271,8 @@ export const sendPaymentSlipEmail = async ({
       throw new Error('Recipient email is required');
     }
 
-    const transporter = createTransporter();
+    // Get the shared transporter (not creating a new one)
+    const transporter = getTransporter();
 
     // Format payment date
     const formattedPaymentDate = new Date(paymentDate).toLocaleDateString('en-IN', {
@@ -358,29 +383,41 @@ Email: mihir@kology.in | Phone: 9328850777
 Website: www.kology.co
     `;
 
-    // Get sender email (support EMAIL_FROM or use default)
-    const senderEmail = process.env.EMAIL_FROM || process.env.SMTP_USER || process.env.EMAIL_USER || 'mihir@kology.in';
+    // Use fixed "from" field as specified: "Kology_Suite <kafkabigdata@gmail.com>"
+    // This email is a Brevo-verified sender
+    const fromEmail = 'Kology_Suite <kafkabigdata@gmail.com>';
     
     // Send email
     const mailOptions = {
-      from: `"Kology Ventures" <${senderEmail}>`,
+      from: fromEmail,
       to: to,
       subject: subject,
       text: textBody,
       html: htmlBody,
     };
 
-    // Verify connection before sending
-    await transporter.verify();
-    
     const info = await transporter.sendMail(mailOptions);
+    console.log(`✅ Payment receipt email sent successfully to ${to} (Payment: ${paymentNumber})`);
     return {
       success: true,
       messageId: info.messageId,
       response: info.response,
     };
   } catch (error) {
-    console.error('Error sending payment slip email:', error);
-    throw error;
+    console.error('❌ Error sending payment slip email:', {
+      to,
+      paymentNumber,
+      error: error.message,
+      code: error.code,
+      responseCode: error.responseCode,
+    });
+    
+    // Return error details but don't throw - let the caller handle it
+    // This ensures payment creation doesn't fail if email fails
+    return {
+      success: false,
+      error: error.message,
+      code: error.code,
+    };
   }
 };

@@ -392,7 +392,7 @@ export const createPayment = async (req, res) => {
           
           // Send payment slip email to each recipient
           for (const recipientEmail of emailRecipients) {
-            await sendPaymentSlipEmail({
+            const emailResult = await sendPaymentSlipEmail({
               to: recipientEmail,
               paymentNumber: payment.paymentNumber,
               customerName: customerName,
@@ -402,6 +402,10 @@ export const createPayment = async (req, res) => {
               paymentMode: payment.paymentMode,
               referenceNumber: payment.referenceNumber || '',
             });
+            
+            if (!emailResult || !emailResult.success) {
+              console.error(`Failed to send payment receipt email to ${recipientEmail}:`, emailResult?.error || 'Unknown error');
+            }
           }
         } catch (emailError) {
           console.error('Error sending payment email:', emailError);

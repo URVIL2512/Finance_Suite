@@ -1,7 +1,7 @@
 {
-  "name": "finance-suite-backend",
+  "name": "kology-suite-backend",
   "version": "1.0.0",
-  "description": "Finance Suite Backend - Expense, Revenue & Invoice Management",
+  "description": "Kology Suite Backend - Expense, Revenue & Invoice Management",
   "main": "server.js",
   "type": "module",
   "scripts": {

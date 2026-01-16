@@ -750,7 +750,7 @@ export const createInvoice = async (req, res) => {
           const receivableAmount = freshInvoice.amountDetails?.receivableAmount || freshInvoice.grandTotal || 0;
           const serviceDescription = freshInvoice.serviceDetails?.description || freshInvoice.items[0]?.description || 'Service';
 
-          await sendInvoiceEmail({
+          const emailResult = await sendInvoiceEmail({
             to: finalClientEmail,
             clientName: freshInvoice.clientDetails.name,
             invoiceNumber: freshInvoice.invoiceNumber,
@@ -761,12 +761,15 @@ export const createInvoice = async (req, res) => {
             currency: currency,
           });
 
-          // Update invoice with email sent status
-          freshInvoice.emailSent = true;
-          freshInvoice.emailSentAt = new Date();
-          await freshInvoice.save();
-          
-          console.log(`Invoice email sent successfully to ${finalClientEmail}`);
+          // Update invoice with email sent status only if email was successful
+          if (emailResult && emailResult.success) {
+            freshInvoice.emailSent = true;
+            freshInvoice.emailSentAt = new Date();
+            await freshInvoice.save();
+            console.log(`Invoice email sent successfully to ${finalClientEmail}`);
+          } else {
+            console.error(`Failed to send invoice email to ${finalClientEmail}:`, emailResult?.error || 'Unknown error');
+          }
         } catch (emailErr) {
           console.error('Error sending invoice email:', emailErr);
           // Try to update invoice with error status (optional)
@@ -1745,7 +1748,7 @@ export const updateInvoice = async (req, res) => {
           const receivableAmount = freshInvoice.amountDetails?.receivableAmount || freshInvoice.grandTotal || 0;
           const serviceDescription = freshInvoice.serviceDetails?.description || freshInvoice.items[0]?.description || 'Service';
 
-          await sendInvoiceEmail({
+          const emailResult = await sendInvoiceEmail({
             to: clientEmailToUse,
             clientName: freshInvoice.clientDetails?.name || 'Client',
             invoiceNumber: freshInvoice.invoiceNumber,
@@ -1756,12 +1759,15 @@ export const updateInvoice = async (req, res) => {
             currency: currency,
           });
 
-          // Update invoice with email sent status
-          freshInvoice.emailSent = true;
-          freshInvoice.emailSentAt = new Date();
-          await freshInvoice.save();
-          
-          console.log(`Invoice email sent successfully to ${clientEmailToUse}`);
+          // Update invoice with email sent status only if email was successful
+          if (emailResult && emailResult.success) {
+            freshInvoice.emailSent = true;
+            freshInvoice.emailSentAt = new Date();
+            await freshInvoice.save();
+            console.log(`Invoice email sent successfully to ${clientEmailToUse}`);
+          } else {
+            console.error(`Failed to send invoice email to ${clientEmailToUse}:`, emailResult?.error || 'Unknown error');
+          }
         } catch (emailErr) {
           console.error('Error sending invoice email after update:', emailErr);
           // Log error but don't fail the update
