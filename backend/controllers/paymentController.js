@@ -396,7 +396,27 @@ export const createPayment = async (req, res) => {
           const customerDoc = await Customer.findById(payment.customer);
           const customerName = customerDoc?.displayName || customerDoc?.companyName || customerDoc?.clientName || 'Customer';
           
-          // Send payment receipt email to each recipient using Brevo REST API
+          // Get all payments for this invoice for payment history PDF
+          const allPaymentsForInvoice = await Payment.find({
+            invoice: invoice,
+            user: req.user._id,
+          })
+            .sort({ paymentDate: 1 })
+            .lean();
+          
+          // Prepare invoice data for PDF generation
+          const invoiceDataForPDF = {
+            ...invoiceDoc.toObject(),
+            clientDetails: invoiceDoc.clientDetails || {},
+            amountDetails: invoiceDoc.amountDetails || {
+              receivableAmount: invoiceDoc.grandTotal || 0,
+            },
+            currencyDetails: invoiceDoc.currencyDetails || {
+              invoiceCurrency: invoiceDoc.currency || 'INR',
+            },
+          };
+          
+          // Send payment history email to each recipient using Brevo REST API
           for (const customerEmail of emailRecipients) {
             console.log("Sending mail to:", customerEmail);
             
@@ -416,6 +436,9 @@ export const createPayment = async (req, res) => {
               paymentDate: payment.paymentDate,
               paymentMode: payment.paymentMode,
               referenceNumber: payment.referenceNumber || '',
+              invoiceId: invoice,
+              invoiceData: invoiceDataForPDF,
+              allPayments: allPaymentsForInvoice,
             })
               .then(result => {
                 if (result.success) {

@@ -3,6 +3,7 @@ import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
 import { generatePaymentReceiptPDF } from "./paymentReceiptPdfGenerator.js";
+import { generatePaymentHistoryPDF } from "./paymentHistoryPdfGenerator.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -179,6 +180,9 @@ export const sendInvoiceEmail = async ({
  * @param {string} options.paymentMode - Payment mode
  * @param {Date} options.paymentDate - Payment date
  * @param {string} options.referenceNumber - Reference number
+ * @param {string} options.invoiceId - Invoice ID (required for payment history PDF)
+ * @param {Object} options.invoiceData - Invoice data (optional, will be fetched if not provided)
+ * @param {Array} options.allPayments - All payments for the invoice (optional, will be fetched if not provided)
  * @returns {Promise} Email send result
  */
 export const sendPaymentSlipEmail = async ({
@@ -190,6 +194,9 @@ export const sendPaymentSlipEmail = async ({
   paymentMode,
   paymentDate,
   referenceNumber,
+  invoiceId,
+  invoiceData,
+  allPayments,
 }) => {
   try {
     // Validate email
@@ -203,26 +210,23 @@ export const sendPaymentSlipEmail = async ({
       throw new Error('BREVO_API_KEY is not set in environment variables');
     }
 
-    // Generate Payment Receipt PDF
-    const pdfPath = path.join(__dirname, '../temp', `payment-receipt-${paymentNumber}.pdf`);
+    // Generate Payment History PDF (instead of payment receipt PDF)
+    const pdfPath = path.join(__dirname, '../temp', `payment-history-${invoiceNumber}-${Date.now()}.pdf`);
     const tempDir = path.dirname(pdfPath);
     if (!fs.existsSync(tempDir)) {
       fs.mkdirSync(tempDir, { recursive: true });
     }
 
-    await generatePaymentReceiptPDF({
-      paymentNumber,
-      customerName,
-      invoiceNumber,
-      amountReceived,
-      paymentMode,
-      paymentDate,
-      referenceNumber,
-    }, pdfPath);
+    // Use provided invoice data and payments, or they should be passed from controller
+    if (!invoiceData || !allPayments) {
+      throw new Error('Invoice data and payments are required for payment history PDF');
+    }
+
+    await generatePaymentHistoryPDF(invoiceData, allPayments, pdfPath);
 
     // Verify PDF was created
     if (!fs.existsSync(pdfPath)) {
-      throw new Error('Payment receipt PDF was not created');
+      throw new Error('Payment history PDF was not created');
     }
 
     // Format payment date
@@ -330,7 +334,7 @@ export const sendPaymentSlipEmail = async ({
         htmlContent: htmlContent,
         attachment: [
           {
-            name: `Payment-Receipt-${paymentNumber}.pdf`,
+            name: `Payment-History-${invoiceNumber}.pdf`,
             content: pdfBase64
           }
         ]
