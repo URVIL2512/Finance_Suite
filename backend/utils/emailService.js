@@ -49,7 +49,7 @@ let emailTransporter = null;
  * Get or create the Brevo SMTP transporter
  * @returns {Object} Nodemailer transporter
  */
-const getTransporter = () => {
+export const getTransporter = () => {
   if (!emailTransporter) {
     emailTransporter = createBrevoTransporter();
   }

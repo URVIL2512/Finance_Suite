@@ -1,7 +1,7 @@
 import Payment from '../models/Payment.js';
 import Invoice from '../models/Invoice.js';
 import Customer from '../models/Customer.js';
-import { sendPaymentSlipEmail } from '../utils/emailService.js';
+import { sendPaymentSlipEmail, getTransporter } from '../utils/emailService.js';
 import { generatePaymentNumber } from '../utils/paymentNumberGenerator.js';
 
 // @desc    Get all payments
@@ -328,6 +328,122 @@ export const createPayment = async (req, res) => {
 
     console.log('✅ Payment created successfully:', payment.paymentNumber);
 
+    // Send email right after payment creation
+    if (sendThankYouNote && emailRecipients && emailRecipients.length > 0) {
+      try {
+        // Get transporter (this will trigger "Brevo SMTP transporter created" log)
+        const transporter = getTransporter();
+        
+        // Get customer details for email
+        const customerDoc = await Customer.findById(payment.customer);
+        const customerName = customerDoc?.displayName || customerDoc?.companyName || customerDoc?.clientName || 'Customer';
+        
+        // Format payment date
+        const formattedPaymentDate = new Date(payment.paymentDate).toLocaleDateString('en-IN', {
+          day: '2-digit',
+          month: '2-digit',
+          year: 'numeric',
+        });
+        
+        // Format amount
+        const formattedAmount = `INR ${parseFloat(amountReceived).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+        
+        // Email template
+        const emailTemplate = `
+          <!DOCTYPE html>
+          <html>
+          <head>
+            <meta charset="utf-8">
+            <style>
+              body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+              .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+              .header { background-color: #1E3A8A; color: white; padding: 20px; text-align: center; }
+              .content { padding: 20px; background-color: #f9f9f9; }
+              .payment-details { background-color: white; padding: 20px; margin: 15px 0; border-left: 4px solid #1E3A8A; }
+              .footer { text-align: center; padding: 20px; color: #666; font-size: 12px; }
+              .amount { font-size: 24px; font-weight: bold; color: #1E3A8A; }
+              .detail-row { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #eee; }
+              .detail-label { font-weight: bold; color: #666; }
+              .detail-value { color: #333; }
+            </style>
+          </head>
+          <body>
+            <div class="container">
+              <div class="header">
+                <h2>Kology Ventures Private Limited</h2>
+                <p>Connect. Communicate. Collaborate</p>
+              </div>
+              <div class="content">
+                <p>Hello ${customerName},</p>
+                <p>Thank you for your payment! Please find below the payment receipt details.</p>
+                <div class="payment-details">
+                  <h3 style="color: #1E3A8A; margin-top: 0;">Payment Receipt</h3>
+                  <div class="detail-row">
+                    <span class="detail-label">Payment Number:</span>
+                    <span class="detail-value">${payment.paymentNumber}</span>
+                  </div>
+                  <div class="detail-row">
+                    <span class="detail-label">Invoice Number:</span>
+                    <span class="detail-value">${invoiceDoc.invoiceNumber}</span>
+                  </div>
+                  <div class="detail-row">
+                    <span class="detail-label">Payment Date:</span>
+                    <span class="detail-value">${formattedPaymentDate}</span>
+                  </div>
+                  <div class="detail-row">
+                    <span class="detail-label">Payment Mode:</span>
+                    <span class="detail-value">${payment.paymentMode}</span>
+                  </div>
+                  ${payment.referenceNumber ? `
+                  <div class="detail-row">
+                    <span class="detail-label">Reference Number:</span>
+                    <span class="detail-value">${payment.referenceNumber}</span>
+                  </div>
+                  ` : ''}
+                  <div class="detail-row" style="border-bottom: none; padding-top: 15px;">
+                    <span class="detail-label" style="font-size: 18px;">Amount Received:</span>
+                    <span class="amount">${formattedAmount}</span>
+                  </div>
+                </div>
+                <p>This is your payment receipt. Please keep this for your records.</p>
+                <p>If you have any questions regarding this payment, please don't hesitate to contact us.</p>
+                <p>Thank you for your business!</p>
+              </div>
+              <div class="footer">
+                <p><strong>Kology Ventures Private Limited</strong></p>
+                <p>Gandhinagar Gujarat 382421, India</p>
+                <p>Email: mihir@kology.in | Phone: 9328850777</p>
+                <p>Website: www.kology.co</p>
+              </div>
+            </div>
+          </body>
+          </html>
+        `;
+        
+        // Send email to each recipient
+        for (const customerEmail of emailRecipients) {
+          console.log("Sending mail to:", customerEmail);
+          
+          // Verify email is valid
+          if (!customerEmail || customerEmail.trim() === '') {
+            console.error("Email sending failed: Invalid recipient email:", customerEmail);
+            continue;
+          }
+          
+          await transporter.sendMail({
+            from: "Kology_Suite <kafkabigdata@gmail.com>",
+            to: customerEmail,
+            subject: "Payment Receipt",
+            html: emailTemplate
+          });
+          
+          console.log("Email sent successfully");
+        }
+      } catch (err) {
+        console.error("Email sending failed:", err);
+      }
+    }
+
     // CRITICAL FIX: Validate payment amount doesn't exceed remaining balance
     const receivableAmount = invoiceDoc.amountDetails?.receivableAmount || invoiceDoc.grandTotal || 0;
     const currentReceived = invoiceDoc.receivedAmount || invoiceDoc.paidAmount || 0;
@@ -379,39 +495,6 @@ export const createPayment = async (req, res) => {
 
     // Return response immediately for faster confirmation
     res.status(201).json(populatedPayment);
-
-    // Send email asynchronously in background (don't wait for it)
-    if (sendThankYouNote && emailRecipients && emailRecipients.length > 0) {
-      // Use setImmediate to send emails after response is sent
-      setImmediate(async () => {
-        try {
-          // Get customer name for email
-          const Customer = (await import('../models/Customer.js')).default;
-          const customerDoc = await Customer.findById(payment.customer);
-          const customerName = customerDoc?.displayName || customerDoc?.companyName || customerDoc?.clientName || 'Customer';
-          
-          // Send payment slip email to each recipient
-          for (const recipientEmail of emailRecipients) {
-            const emailResult = await sendPaymentSlipEmail({
-              to: recipientEmail,
-              paymentNumber: payment.paymentNumber,
-              customerName: customerName,
-              invoiceNumber: invoiceDoc.invoiceNumber,
-              amountReceived: amountReceived,
-              paymentDate: payment.paymentDate,
-              paymentMode: payment.paymentMode,
-              referenceNumber: payment.referenceNumber || '',
-            });
-            
-            if (!emailResult || !emailResult.success) {
-              console.error(`Failed to send payment receipt email to ${recipientEmail}:`, emailResult?.error || 'Unknown error');
-            }
-          }
-        } catch (emailError) {
-          console.error('Error sending payment email:', emailError);
-        }
-      });
-    }
   } catch (error) {
     console.error('Error creating payment:', error);
     console.error('Error details:', {
