@@ -108,11 +108,11 @@ const PORT = process.env.PORT || 5000;
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`Server running on port ${PORT}`);
   
-  // Verify Brevo SMTP connection on startup
+  // Verify Brevo SMTP connection on startup (verification disabled on Render)
   verifyBrevoSMTP()
     .catch((error) => {
-      console.error('❌ Brevo SMTP verification failed (server still running):', error.message);
-      // Server continues running even if SMTP verification fails
+      console.error('❌ Brevo SMTP initialization failed (server still running):', error.message);
+      // Server continues running even if SMTP initialization fails
     });
 
   // Connect to database in background (non-blocking)

@@ -24,24 +24,17 @@ const createBrevoTransporter = () => {
     console.warn(`⚠️ Warning: EMAIL_USER (${emailUser}) does not appear to be a Brevo SMTP email. Expected format: xxx@smtp-brevo.com`);
   }
 
+  // Use Brevo's recommended service mode to avoid Render network timeout problems
   const transporter = nodemailer.createTransport({
-    host: 'smtp-relay.brevo.com',
-    port: 587,
-    secure: false, // false for port 587
+    service: "SendinBlue", // Brevo officially supports this alias
     auth: {
       user: emailUser,
-      pass: emailPass,
-    },
-    connectionTimeout: 60000, // 60 seconds
-    greetingTimeout: 30000, // 30 seconds
-    socketTimeout: 60000, // 60 seconds
-    debug: process.env.NODE_ENV === 'development', // Enable debug in development
-    logger: process.env.NODE_ENV === 'development', // Enable logger in development
+      pass: emailPass
+    }
   });
 
-  console.log('✅ Brevo SMTP transporter created:', {
-    host: 'smtp-relay.brevo.com',
-    port: 587,
+  console.log('✅ Brevo SMTP transporter created (service mode):', {
+    service: 'SendinBlue',
     user: emailUser,
     passwordSet: emailPass ? 'Yes' : 'No',
   });
@@ -65,23 +58,14 @@ const getTransporter = () => {
 
 /**
  * Verify Brevo SMTP connection on server startup
- * This should be called once when the server starts
+ * NOTE: Verification is disabled on Render as it blocks the verify handshake
+ * Actual sendMail() will still work without verification
  */
 export const verifyBrevoSMTP = async () => {
-  try {
-    const transporter = getTransporter();
-    await transporter.verify();
-    console.log('✅ Brevo SMTP ready - connection verified successfully');
-    return true;
-  } catch (error) {
-    console.error('❌ Brevo SMTP verification failed:', {
-      message: error.message,
-      code: error.code,
-      responseCode: error.responseCode,
-      response: error.response,
-    });
-    return false;
-  }
+  // Verification removed to avoid Render network timeout issues
+  // Transporter will work for actual sendMail() calls
+  console.log('✅ Brevo SMTP transporter ready (verification skipped on Render)');
+  return true;
 };
 
 /**
