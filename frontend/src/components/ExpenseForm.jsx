@@ -9,6 +9,11 @@ const ExpenseForm = ({ expense, onSubmit, onCancel }) => {
   const [showAddCategory, setShowAddCategory] = useState(false);
   const [showCategoryDropdown, setShowCategoryDropdown] = useState(false);
   const categoryDropdownRef = useRef(null);
+  const [bankAccounts, setBankAccounts] = useState(['Kology', 'Kology ICICI']);
+  const [showBankAccountDropdown, setShowBankAccountDropdown] = useState(false);
+  const [showAddBankAccount, setShowAddBankAccount] = useState(false);
+  const [newBankAccount, setNewBankAccount] = useState('');
+  const bankAccountDropdownRef = useRef(null);
   const [formData, setFormData] = useState({
     date: format(new Date(), 'yyyy-MM-dd'),
     category: '',
@@ -88,22 +93,86 @@ const ExpenseForm = ({ expense, onSubmit, onCancel }) => {
     }
   }, [expense]);
 
+  // Track which fields were manually changed to avoid circular updates
+  const lastChangedField = useRef('');
+  const isCalculating = useRef(false);
+
   useEffect(() => {
+    if (isCalculating.current) return;
+    
     const amountExclTax = parseFloat(formData.amountExclTax) || 0;
     const gstPercentage = parseFloat(formData.gstPercentage) || 0;
+    const gstAmount = parseFloat(formData.gstAmount) || 0;
     const tdsPercentage = parseFloat(formData.tdsPercentage) || 0;
+    const tdsAmount = parseFloat(formData.tdsAmount) || 0;
 
-    const gstAmount = (amountExclTax * gstPercentage) / 100;
-    const tdsAmount = ((amountExclTax + gstAmount) * tdsPercentage) / 100;
-    const totalAmount = amountExclTax + gstAmount - tdsAmount;
+    if (amountExclTax <= 0) {
+      // Reset all if amount is 0
+      if (lastChangedField.current !== 'gstPercentage' && lastChangedField.current !== 'tdsPercentage') {
+        isCalculating.current = true;
+        setFormData((prev) => ({
+          ...prev,
+          gstAmount: '',
+          tdsAmount: '',
+          totalAmount: '',
+        }));
+        setTimeout(() => { isCalculating.current = false; }, 0);
+      }
+      return;
+    }
+
+    let finalGstAmount = gstAmount;
+    let finalGstPercentage = gstPercentage;
+    let finalTdsAmount = tdsAmount;
+    let finalTdsPercentage = tdsPercentage;
+
+    isCalculating.current = true;
+
+    // GST Calculation: Bidirectional
+    if (lastChangedField.current === 'gstAmount' && gstAmount > 0) {
+      // User entered GST Amount -> Calculate GST%
+      finalGstPercentage = (gstAmount / amountExclTax) * 100;
+      finalGstAmount = gstAmount;
+    } else if ((lastChangedField.current === 'gstPercentage' || lastChangedField.current === 'amountExclTax') && gstPercentage > 0) {
+      // User entered GST% or Amount -> Calculate GST Amount
+      finalGstAmount = (amountExclTax * gstPercentage) / 100;
+      finalGstPercentage = gstPercentage;
+    }
+
+    // Calculate base amount with GST for TDS calculation
+    const baseAmountWithGst = amountExclTax + finalGstAmount;
+
+    // TDS Calculation: Bidirectional
+    if (lastChangedField.current === 'tdsAmount' && tdsAmount > 0 && baseAmountWithGst > 0) {
+      // User entered TDS Amount -> Calculate TDS%
+      finalTdsPercentage = (tdsAmount / baseAmountWithGst) * 100;
+      finalTdsAmount = tdsAmount;
+    } else if ((lastChangedField.current === 'tdsPercentage' || lastChangedField.current === 'amountExclTax' || lastChangedField.current === 'gstPercentage' || lastChangedField.current === 'gstAmount') && tdsPercentage > 0 && baseAmountWithGst > 0) {
+      // User entered TDS% or dependent fields changed -> Calculate TDS Amount
+      finalTdsAmount = (baseAmountWithGst * tdsPercentage) / 100;
+      finalTdsPercentage = tdsPercentage;
+    }
+
+    // Calculate total amount
+    const totalAmount = amountExclTax + finalGstAmount - finalTdsAmount;
 
     setFormData((prev) => ({
       ...prev,
-      gstAmount: gstAmount > 0 ? Math.round(gstAmount * 100) / 100 : '',
-      tdsAmount: tdsAmount > 0 ? Math.round(tdsAmount * 100) / 100 : '',
+      gstAmount: finalGstAmount > 0 ? Math.round(finalGstAmount * 100) / 100 : '',
+      gstPercentage: finalGstPercentage > 0 ? Math.round(finalGstPercentage * 100) / 100 : prev.gstPercentage,
+      tdsAmount: finalTdsAmount > 0 ? Math.round(finalTdsAmount * 100) / 100 : '',
+      tdsPercentage: finalTdsPercentage > 0 ? Math.round(finalTdsPercentage * 100) / 100 : prev.tdsPercentage,
       totalAmount: totalAmount > 0 ? Math.round(totalAmount * 100) / 100 : '',
     }));
-  }, [formData.amountExclTax, formData.gstPercentage, formData.tdsPercentage]);
+
+    // Reset tracking after a short delay
+    setTimeout(() => {
+      isCalculating.current = false;
+      if (lastChangedField.current !== 'amountExclTax') {
+        lastChangedField.current = '';
+      }
+    }, 0);
+  }, [formData.amountExclTax, formData.gstPercentage, formData.gstAmount, formData.tdsPercentage, formData.tdsAmount]);
 
   useEffect(() => {
     const date = new Date(formData.date);
@@ -122,25 +191,44 @@ const ExpenseForm = ({ expense, onSubmit, onCancel }) => {
         setShowCategoryDropdown(false);
         setShowAddCategory(false);
       }
+      if (bankAccountDropdownRef.current && !bankAccountDropdownRef.current.contains(event.target)) {
+        setShowBankAccountDropdown(false);
+        setShowAddBankAccount(false);
+      }
     };
 
-    if (showCategoryDropdown) {
+    if (showCategoryDropdown || showBankAccountDropdown) {
       document.addEventListener('mousedown', handleClickOutside);
     }
 
     return () => {
       document.removeEventListener('mousedown', handleClickOutside);
     };
-  }, [showCategoryDropdown]);
+  }, [showCategoryDropdown, showBankAccountDropdown]);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
+    
+    // Track which field was changed for bidirectional calculation
+    if (name === 'gstAmount' || name === 'tdsAmount' || name === 'gstPercentage' || name === 'tdsPercentage' || name === 'amountExclTax') {
+      lastChangedField.current = name;
+    }
+    
     setFormData({
       ...formData,
-      [name]: name === 'amountExclTax' || name === 'gstPercentage' || name === 'tdsPercentage' || name === 'paidAmount'
+      [name]: name === 'amountExclTax' || name === 'gstPercentage' || name === 'gstAmount' || name === 'tdsPercentage' || name === 'tdsAmount' || name === 'paidAmount'
         ? value === '' ? '' : parseFloat(value) || ''
         : value,
     });
+  };
+
+  const handleAddBankAccount = () => {
+    if (newBankAccount.trim() && !bankAccounts.includes(newBankAccount.trim())) {
+      setBankAccounts([...bankAccounts, newBankAccount.trim()]);
+      setFormData({ ...formData, bankAccount: newBankAccount.trim() });
+      setNewBankAccount('');
+      setShowAddBankAccount(false);
+    }
   };
 
   const handleNext = () => {
@@ -482,11 +570,13 @@ const ExpenseForm = ({ expense, onSubmit, onCancel }) => {
                 <div className="space-y-2">
                   <label className="block text-sm font-semibold text-gray-700">GST Amount</label>
                   <input
-                    type="text"
+                    type="number"
                     name="gstAmount"
                     value={formData.gstAmount || ''}
-                    readOnly
-                    className="input-field w-full text-sm py-2.5 bg-gray-50 cursor-not-allowed text-gray-600"
+                    onChange={handleChange}
+                    step="0.01"
+                    placeholder="0.00"
+                    className="input-field w-full text-sm py-2.5"
                   />
                 </div>
               </div>
@@ -507,11 +597,13 @@ const ExpenseForm = ({ expense, onSubmit, onCancel }) => {
                 <div className="space-y-2">
                   <label className="block text-sm font-semibold text-gray-700">TDS Amount</label>
                   <input
-                    type="text"
+                    type="number"
                     name="tdsAmount"
                     value={formData.tdsAmount || ''}
-                    readOnly
-                    className="input-field w-full text-sm py-2.5 bg-gray-50 cursor-not-allowed text-gray-600"
+                    onChange={handleChange}
+                    step="0.01"
+                    placeholder="0.00"
+                    className="input-field w-full text-sm py-2.5"
                   />
                 </div>
                 <div className="space-y-2">
@@ -570,14 +662,77 @@ const ExpenseForm = ({ expense, onSubmit, onCancel }) => {
                 </div>
                 <div className="space-y-2">
                   <label className="block text-sm font-semibold text-gray-700">Bank Account</label>
-                  <input
-                    type="text"
-                    name="bankAccount"
-                    value={formData.bankAccount}
-                    onChange={handleChange}
-                    placeholder="Enter account"
-                    className="input-field w-full text-sm py-2.5"
-                  />
+                  <div className="relative" ref={bankAccountDropdownRef}>
+                    <div
+                      onClick={() => {
+                        setShowBankAccountDropdown(!showBankAccountDropdown);
+                        setShowAddBankAccount(false);
+                      }}
+                      className="select-field w-full text-sm py-2.5 cursor-pointer flex items-center justify-between"
+                    >
+                      <span className={formData.bankAccount ? 'text-gray-900' : 'text-gray-400'}>
+                        {formData.bankAccount || 'Select bank account'}
+                      </span>
+                      <svg className={`w-4 h-4 text-gray-400 transition-transform ${showBankAccountDropdown ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                      </svg>
+                    </div>
+                    {showBankAccountDropdown && (
+                      <div className="absolute z-50 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg max-h-60 overflow-auto">
+                        {bankAccounts.map((account) => (
+                          <div
+                            key={account}
+                            onClick={() => {
+                              setFormData({ ...formData, bankAccount: account });
+                              setShowBankAccountDropdown(false);
+                            }}
+                            className={`px-4 py-2.5 cursor-pointer hover:bg-blue-50 transition-colors ${
+                              formData.bankAccount === account ? 'bg-blue-50 text-blue-600 font-medium' : 'text-gray-700'
+                            }`}
+                          >
+                            {account}
+                          </div>
+                        ))}
+                        {!showAddBankAccount ? (
+                          <div
+                            onClick={() => {
+                              setShowAddBankAccount(true);
+                            }}
+                            className="px-4 py-2.5 cursor-pointer hover:bg-gray-100 transition-colors text-blue-600 font-medium border-t border-gray-200 flex items-center gap-2"
+                          >
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                            </svg>
+                            Add New
+                          </div>
+                        ) : (
+                          <div className="px-4 py-2.5 border-t border-gray-200 flex gap-2">
+                            <input
+                              type="text"
+                              value={newBankAccount}
+                              onChange={(e) => setNewBankAccount(e.target.value)}
+                              onKeyPress={(e) => {
+                                if (e.key === 'Enter') {
+                                  e.preventDefault();
+                                  handleAddBankAccount();
+                                }
+                              }}
+                              placeholder="Enter bank account name"
+                              className="flex-1 px-2 py-1.5 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
+                              autoFocus
+                            />
+                            <button
+                              type="button"
+                              onClick={handleAddBankAccount}
+                              className="px-3 py-1.5 bg-blue-600 text-white rounded hover:bg-blue-700 text-sm font-medium"
+                            >
+                              Add
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
             </div>
