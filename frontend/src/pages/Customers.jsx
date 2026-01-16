@@ -4,8 +4,10 @@ import { format } from 'date-fns';
 import { customerAPI, invoiceAPI } from '../services/api';
 import CustomerForm from '../components/CustomerForm';
 import CustomerTable from '../components/CustomerTable';
+import { useToast } from '../contexts/ToastContext';
 
 const Customers = () => {
+  const { showToast } = useToast();
   const navigate = useNavigate();
   const location = useLocation();
   const [customers, setCustomers] = useState([]);
@@ -93,10 +95,10 @@ const Customers = () => {
       try {
         await customerAPI.delete(id);
         fetchCustomers();
-        alert('Customer deleted successfully!');
+        showToast('Customer deleted successfully!', 'success');
       } catch (error) {
         console.error('Error deleting customer:', error);
-        alert('Failed to delete customer');
+        showToast('Failed to delete customer', 'error');
       }
     }
   };
@@ -107,11 +109,11 @@ const Customers = () => {
       if (editingCustomer) {
         const response = await customerAPI.update(editingCustomer._id, data);
         newCustomer = response.data;
-        alert('Customer updated successfully!');
+        showToast('Customer updated successfully!', 'success');
       } else {
         const response = await customerAPI.create(data);
         newCustomer = response.data;
-        alert('Customer created successfully!');
+        showToast('Customer created successfully!', 'success');
       }
       
       // If redirected from invoice page, navigate back
@@ -161,7 +163,7 @@ const Customers = () => {
         errorMessage = error.message || errorMessage;
       }
       
-      alert(`Error: ${errorMessage}`);
+      showToast(errorMessage, 'error');
     }
   };
 

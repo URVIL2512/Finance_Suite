@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { expenseAPI, recurringExpenseAPI } from '../services/api';
+import { useToast } from '../contexts/ToastContext';
 import ExpenseForm from '../components/ExpenseForm';
 import ExpenseTable from '../components/ExpenseTable';
 import RecurringExpenseModal from '../components/RecurringExpenseModal';
@@ -8,6 +9,7 @@ import { exportExpensesToExcel, exportExpensesToPDF } from '../utils/expenseExpo
 import { getAuthToken } from '../utils/auth';
 
 const Expenses = () => {
+  const { showToast } = useToast();
   const [expenses, setExpenses] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
@@ -62,7 +64,7 @@ const Expenses = () => {
       fetchExpenses();
     } catch (error) {
       console.error('Error deleting expense:', error);
-      alert('Failed to delete expense');
+      showToast('Failed to delete expense', 'error');
     }
   };
 
@@ -74,10 +76,10 @@ const Expenses = () => {
           await expenseAPI.delete(id);
         }
         fetchExpenses();
-        alert(`Successfully deleted ${ids.length} expense entry/entries`);
+        showToast(`Successfully deleted ${ids.length} expense entry/entries`, 'success');
       } catch (error) {
         console.error('Error deleting expense entries:', error);
-        alert('Failed to delete some expense entries');
+        showToast('Failed to delete some expense entries', 'error');
         fetchExpenses(); // Refresh to show current state
       }
     }
@@ -117,10 +119,10 @@ const Expenses = () => {
       
       if (editingExpense) {
         await expenseAPI.update(editingExpense._id, data);
-        alert('Expense updated successfully!');
+        showToast('Expense updated successfully!', 'success');
       } else {
         await expenseAPI.create(data);
-        alert('Expense created successfully!');
+        showToast('Expense created successfully!', 'success');
       }
       setShowForm(false);
       setEditingExpense(null);
@@ -140,21 +142,21 @@ const Expenses = () => {
         errorMessage = error.message;
       }
       
-      alert(`Error: ${errorMessage}`);
+      showToast(errorMessage, 'error');
     }
   };
 
   const handleRecurringExpenseSubmit = async (data) => {
     try {
       const response = await recurringExpenseAPI.create(data);
-      alert(`Recurring expense created successfully for ${data.expenseIds.length} expense(s)!`);
+      showToast(`Recurring expense created successfully for ${data.expenseIds.length} expense(s)!`, 'success');
       setSelectedExpenses([]);
       setShowRecurringModal(false);
       fetchExpenses(); // Refresh expenses list
     } catch (error) {
       console.error('Error creating recurring expense:', error);
       const errorMessage = error.response?.data?.message || 'Failed to create recurring expense';
-      alert(`Error: ${errorMessage}`);
+      showToast(errorMessage, 'error');
     }
   };
 

@@ -2,10 +2,12 @@ import { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { format } from 'date-fns';
 import { getAuthToken } from '../utils/auth';
+import { useToast } from '../contexts/ToastContext';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
 const InvoiceTable = ({ invoices, onEdit, onDelete, onView, onRecordPayment, onViewPDF, selectedInvoices = [], onSelectInvoice, onSelectAll }) => {
+  const { showToast } = useToast();
   const [openDropdown, setOpenDropdown] = useState(null);
   const [dropdownPosition, setDropdownPosition] = useState({ top: 0, right: 0 });
   const [pdfModalOpen, setPdfModalOpen] = useState(false);
@@ -66,7 +68,7 @@ const InvoiceTable = ({ invoices, onEdit, onDelete, onView, onRecordPayment, onV
   const handleViewPDF = async (invoice) => {
     const token = getAuthToken();
     if (!token) {
-      alert('Please login to view PDF');
+      showToast('Please login to view PDF', 'error');
       return;
     }
     
@@ -93,7 +95,7 @@ const InvoiceTable = ({ invoices, onEdit, onDelete, onView, onRecordPayment, onV
       setPdfBlobUrl(blobUrl);
     } catch (error) {
       console.error('Error loading PDF:', error);
-      alert(`Failed to load PDF: ${error.message || 'Please try again.'}`);
+      showToast(`Failed to load PDF: ${error.message || 'Please try again.'}`, 'error');
       setPdfModalOpen(false);
       setViewingPdfInvoice(null);
     } finally {

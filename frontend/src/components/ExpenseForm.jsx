@@ -1,7 +1,9 @@
 import { useState, useEffect, useRef } from 'react';
 import { format } from 'date-fns';
+import { useToast } from '../contexts/ToastContext';
 
 const ExpenseForm = ({ expense, onSubmit, onCancel }) => {
+  const { showToast } = useToast();
   const [activeTab, setActiveTab] = useState('expense');
   const [newCategory, setNewCategory] = useState('');
   const [showAddCategory, setShowAddCategory] = useState(false);
@@ -145,27 +147,27 @@ const ExpenseForm = ({ expense, onSubmit, onCancel }) => {
     // Validate required fields on Expense Details tab
     if (activeTab === 'expense') {
       if (!formData.date) {
-        alert('Date is required');
+        showToast('Date is required', 'error');
         return;
       }
       if (!formData.category) {
-        alert('Category is required');
+        showToast('Category is required', 'error');
         return;
       }
       if (!formData.paymentMode) {
-        alert('Payment Mode is required');
+        showToast('Payment Mode is required', 'error');
         return;
       }
       if (!formData.department) {
-        alert('Department is required');
+        showToast('Department is required', 'error');
         return;
       }
       if (!formData.amountExclTax) {
-        alert('Amount (Excl. Tax) is required');
+        showToast('Amount (Excl. Tax) is required', 'error');
         return;
       }
       if (!formData.totalAmount) {
-        alert('Total Amount is required');
+        showToast('Total Amount is required', 'error');
         return;
       }
       setActiveTab('user');

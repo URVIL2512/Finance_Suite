@@ -3,6 +3,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { format } from 'date-fns';
 import { invoiceAPI, customerAPI, salespersonAPI, itemAPI, hsnSacAPI, settingsAPI } from '../services/api';
 import { getSacCodeForService } from '../utils/serviceSacCodes';
+import { useToast } from '../contexts/ToastContext';
 
 // Indian States List
 const INDIAN_STATES = [
@@ -466,7 +467,7 @@ const InvoiceForm = ({ invoice, customers = [], onSubmit, onCancel, onCustomerAd
     
     // Validate required fields
     if (!newCustomerData.clientName || !newCustomerData.email || !newCustomerData.country || !newCustomerData.currency) {
-      alert('Please fill all required fields (Client Name, Email, Country, Currency)');
+      showToast('Please fill all required fields (Client Name, Email, Country, Currency)', 'error');
       return false;
     }
     
@@ -542,7 +543,7 @@ const InvoiceForm = ({ invoice, customers = [], onSubmit, onCancel, onCustomerAd
     } catch (error) {
       console.error('Error creating customer:', error);
       const errorMessage = error.response?.data?.message || 'Failed to create customer';
-      alert(`Error: ${errorMessage}`);
+      showToast(errorMessage, 'error');
       return false;
     }
   };
@@ -569,7 +570,7 @@ const InvoiceForm = ({ invoice, customers = [], onSubmit, onCancel, onCustomerAd
     
     // Validate required fields
     if (!newSalespersonData.name || newSalespersonData.name.trim() === '') {
-      alert('Please enter salesperson name');
+      showToast('Please enter salesperson name', 'error');
       return false;
     }
     
@@ -605,7 +606,7 @@ const InvoiceForm = ({ invoice, customers = [], onSubmit, onCancel, onCustomerAd
     } catch (error) {
       console.error('Error creating salesperson:', error);
       const errorMessage = error.response?.data?.message || 'Failed to create salesperson';
-      alert(`Error: ${errorMessage}`);
+      showToast(errorMessage, 'error');
       return false;
     }
   };
@@ -914,13 +915,13 @@ const InvoiceForm = ({ invoice, customers = [], onSubmit, onCancel, onCustomerAd
   // Handler to add new GST/TDS/TCS rate
   const handleAddRate = async (type) => {
     if (!newRateValue || newRateValue === '') {
-      alert('Please enter a percentage value');
+      showToast('Please enter a percentage value', 'error');
       return;
     }
 
     const percentageValue = parseFloat(newRateValue);
     if (isNaN(percentageValue) || percentageValue < 0 || percentageValue > 100) {
-      alert('Please enter a valid percentage between 0 and 100');
+      showToast('Please enter a valid percentage between 0 and 100', 'error');
       return;
     }
 
@@ -968,7 +969,7 @@ const InvoiceForm = ({ invoice, customers = [], onSubmit, onCancel, onCustomerAd
       setNewRateValue('');
     } catch (error) {
       console.error('Error adding rate:', error);
-      alert('Failed to add rate. Please try again.');
+      showToast('Failed to add rate. Please try again.', 'error');
     }
   };
 
@@ -1015,15 +1016,15 @@ const InvoiceForm = ({ invoice, customers = [], onSubmit, onCancel, onCustomerAd
     
     if (!invoice) {
       if (!selectedCustomerId) {
-        alert('Please select a customer to create invoice');
+        showToast('Please select a customer to create invoice', 'error');
         return;
       }
       if (!formData.clientEmail || formData.clientEmail.trim() === '') {
-        alert('Client email is required. Please select a customer with email.');
+        showToast('Client email is required. Please select a customer with email.', 'error');
         return;
       }
       if (!formData.baseAmount || parseFloat(formData.baseAmount) <= 0) {
-        alert('Base amount is required and must be greater than 0');
+        showToast('Base amount is required and must be greater than 0', 'error');
         return;
       }
     }
@@ -1031,7 +1032,7 @@ const InvoiceForm = ({ invoice, customers = [], onSubmit, onCancel, onCustomerAd
     // Validate items
     const validItems = items.filter(item => item.description && item.description.trim() !== '');
     if (validItems.length === 0) {
-      alert('Please add at least one item with description');
+      showToast('Please add at least one item with description', 'error');
       return;
     }
 
@@ -1821,7 +1822,7 @@ const InvoiceForm = ({ invoice, customers = [], onSubmit, onCancel, onCustomerAd
                               }
                             } else {
                               // If only one item, show warning and don't delete
-                              alert('At least one item is required. You cannot delete the last item.');
+                              showToast('At least one item is required. You cannot delete the last item.', 'error');
                             }
                           }}
                           className="text-red-600 hover:text-red-800 p-1 rounded hover:bg-red-50 transition-colors"

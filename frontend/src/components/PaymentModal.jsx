@@ -1,7 +1,9 @@
 import { useState, useEffect } from 'react';
 import { paymentAPI, customerAPI, invoiceAPI } from '../services/api';
+import { useToast } from '../contexts/ToastContext';
 
 const PaymentModal = ({ isOpen, onClose, invoice, payment, mode = 'edit', onPaymentRecorded }) => {
+  const { showToast } = useToast();
   const [activeTab, setActiveTab] = useState('basic'); // 'basic', 'tax', 'email'
   const [formData, setFormData] = useState({
     customer: '',
@@ -348,7 +350,7 @@ const PaymentModal = ({ isOpen, onClose, invoice, payment, mode = 'edit', onPaym
       }
 
       if (response.data) {
-        alert(`Payment ${editingPayment ? 'updated' : 'recorded'} successfully!`);
+        showToast(`Payment ${editingPayment ? 'updated' : 'recorded'} successfully!`, 'success');
         if (onPaymentRecorded) {
           onPaymentRecorded(response.data);
         }
@@ -359,10 +361,7 @@ const PaymentModal = ({ isOpen, onClose, invoice, payment, mode = 'edit', onPaym
       console.error('Error response:', error.response?.data);
       const errorMessage = error.response?.data?.message || error.message || 'Failed to save payment';
       setError(errorMessage);
-      // Show detailed error in alert for debugging
-      if (error.response?.data) {
-        alert(`Payment Error: ${errorMessage}\n\nCheck browser console for details.`);
-      }
+      showToast(`Payment Error: ${errorMessage}`, 'error');
     } finally {
       setLoading(false);
     }

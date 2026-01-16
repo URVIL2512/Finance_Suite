@@ -17,6 +17,7 @@ import Settings from './pages/Settings';
 import ClientLedger from './pages/ClientLedger';
 import Layout from './components/Layout';
 import { getAuthToken, removeAuthToken } from './utils/auth';
+import { ToastProvider } from './contexts/ToastContext';
 
 function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -47,8 +48,9 @@ function App() {
   }
 
   return (
-    <Router>
-      <Routes>
+    <ToastProvider>
+      <Router>
+        <Routes>
         <Route
           path="/login"
           element={
@@ -96,6 +98,7 @@ function App() {
         </Route>
       </Routes>
     </Router>
+    </ToastProvider>
   );
 }
 

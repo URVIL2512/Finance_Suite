@@ -3,6 +3,7 @@ import { paymentAPI, invoiceAPI, customerAPI } from '../services/api';
 import PaymentTable from '../components/PaymentTable';
 import PaymentModal from '../components/PaymentModal';
 import PaymentHistory from '../components/PaymentHistory';
+import { useToast } from '../contexts/ToastContext';
 
 const Payment = () => {
   const [payments, setPayments] = useState([]);
@@ -51,7 +52,7 @@ const Payment = () => {
     } catch (error) {
       console.error('Error fetching payments:', error);
       const errorMessage = error.response?.data?.message || error.message || 'Failed to fetch payments';
-      alert(`Error: ${errorMessage}`);
+      showToast(errorMessage, 'error');
       setPayments([]);
     } finally {
       setLoading(false);
@@ -101,11 +102,11 @@ const Payment = () => {
     if (window.confirm('Are you sure you want to delete this payment?')) {
       try {
         await paymentAPI.delete(id);
-        alert('Payment deleted successfully!');
+        showToast('Payment deleted successfully!', 'success');
         fetchPayments();
       } catch (error) {
         console.error('Error deleting payment:', error);
-        alert('Failed to delete payment');
+        showToast('Failed to delete payment', 'error');
       }
     }
   };
@@ -155,7 +156,7 @@ const Payment = () => {
       window.URL.revokeObjectURL(url);
     } catch (error) {
       console.error('Error downloading payment history PDF:', error);
-      alert('Failed to download payment history PDF. Please try again.');
+      showToast('Failed to download payment history PDF. Please try again.', 'error');
     }
   };
 

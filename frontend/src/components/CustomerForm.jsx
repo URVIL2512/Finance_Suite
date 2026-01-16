@@ -1,7 +1,9 @@
 import { useState, useEffect } from 'react';
 import { customerAPI } from '../services/api';
+import { useToast } from '../contexts/ToastContext';
 
 const CustomerForm = ({ customer, onSubmit, onCancel }) => {
+  const { showToast } = useToast();
   const [activeTab, setActiveTab] = useState('details'); // 'details', 'address', 'otherInfo'
   const [isDisplayNameManuallyEdited, setIsDisplayNameManuallyEdited] = useState(false);
   const [formData, setFormData] = useState({
@@ -200,11 +202,11 @@ const CustomerForm = ({ customer, onSubmit, onCancel }) => {
     // Validate required fields based on current tab
     if (activeTab === 'details') {
       if (!formData.displayName) {
-        alert('Display Name is required');
+        showToast('Display Name is required', 'error');
         return;
       }
       if (!formData.email) {
-        alert('Email Address is required');
+        showToast('Email Address is required', 'error');
         return;
       }
       setActiveTab('address');

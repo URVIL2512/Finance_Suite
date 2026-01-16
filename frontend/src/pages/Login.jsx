@@ -37,10 +37,10 @@ const Login = ({ onLogin }) => {
       <div className="max-w-md w-full space-y-8 animate-fade-in">
         <div className="text-center">
           <div className="mx-auto w-20 h-20 bg-gradient-to-br from-blue-600 to-blue-700 rounded-2xl flex items-center justify-center shadow-xl ring-4 ring-blue-500/20 mb-4">
-            <span className="text-white text-3xl font-bold">F</span>
+            <span className="text-white text-3xl font-bold">K</span>
           </div>
           <h2 className="text-3xl font-bold bg-gradient-to-r from-slate-900 to-slate-700 bg-clip-text text-transparent">
-            Finance Suite
+            Kology Suite
           </h2>
           <p className="mt-2 text-sm text-slate-600 font-medium">Sign in to your account</p>
         </div>

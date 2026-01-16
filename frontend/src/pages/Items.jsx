@@ -4,8 +4,10 @@ import { format } from 'date-fns';
 import { itemAPI } from '../services/api';
 import ItemForm from '../components/ItemForm';
 import ActionDropdown from '../components/ActionDropdown';
+import { useToast } from '../contexts/ToastContext';
 
 const Items = () => {
+  const { showToast } = useToast();
   const navigate = useNavigate();
   const location = useLocation();
   
@@ -46,12 +48,12 @@ const Items = () => {
     try {
       if (editingItem) {
         await itemAPI.update(editingItem._id, formData);
-        alert('Item updated successfully!');
+        showToast('Item updated successfully!', 'success');
         handleCancel();
         fetchItems();
       } else {
         await itemAPI.create(formData);
-        alert('Item created successfully!');
+        showToast('Item created successfully!', 'success');
         
         // If we came from invoice page, return there after creating item
         if (returnPath && (returnPath === '/invoices' || returnPath === '/sales')) {
@@ -80,7 +82,7 @@ const Items = () => {
     } catch (error) {
       console.error('Error saving item:', error);
       const errorMessage = error.response?.data?.message || 'Failed to save item';
-      alert(`Error: ${errorMessage}`);
+      showToast(errorMessage, 'error');
     }
   };
 
@@ -122,11 +124,11 @@ const Items = () => {
     if (window.confirm('Are you sure you want to delete this item?')) {
       try {
         await itemAPI.delete(id);
-        alert('Item deleted successfully!');
+        showToast('Item deleted successfully!', 'success');
         fetchItems();
       } catch (error) {
         console.error('Error deleting item:', error);
-        alert('Failed to delete item');
+        showToast('Failed to delete item', 'error');
       }
     }
   };

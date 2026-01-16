@@ -2,8 +2,10 @@ import { useState, useEffect } from 'react';
 import { format } from 'date-fns';
 import { invoiceAPI } from '../services/api';
 import InvoiceForm from './InvoiceForm';
+import { useToast } from '../contexts/ToastContext';
 
 const InvoiceViewEdit = ({ invoice, onClose, onUpdate, customers = [] }) => {
+  const { showToast } = useToast();
   const [isEditing, setIsEditing] = useState(false);
   const [loading, setLoading] = useState(false);
   const [invoiceData, setInvoiceData] = useState(invoice);
@@ -34,11 +36,11 @@ const InvoiceViewEdit = ({ invoice, onClose, onUpdate, customers = [] }) => {
         if (onUpdate) {
           onUpdate(response.data);
         }
-        alert('Invoice updated successfully!');
+        showToast('Invoice updated successfully!', 'success');
       }
     } catch (error) {
       console.error('Error updating invoice:', error);
-      alert(error.response?.data?.message || 'Failed to update invoice');
+      showToast(error.response?.data?.message || 'Failed to update invoice', 'error');
     } finally {
       setLoading(false);
     }

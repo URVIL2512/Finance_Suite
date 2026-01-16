@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { format } from 'date-fns';
 
 const RevenueForm = ({ revenue, onSubmit, onCancel }) => {
+  const { showToast } = useToast();
   const [formData, setFormData] = useState({
     clientName: '',
     country: '',
@@ -111,12 +112,12 @@ const RevenueForm = ({ revenue, onSubmit, onCancel }) => {
     };
     
     if (!submitData.clientName || !submitData.country || !submitData.service || !submitData.engagementType) {
-      alert('Please fill in all required fields');
+      showToast('Please fill in all required fields', 'error');
       return;
     }
     
     if (!submitData.invoiceAmount || submitData.invoiceAmount <= 0) {
-      alert('Invoice amount must be greater than 0');
+      showToast('Invoice amount must be greater than 0', 'error');
       return;
     }
     

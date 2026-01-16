@@ -66,11 +66,11 @@ const Layout = ({ onLogout }) => {
         <div className="p-6 border-b border-slate-200/60 bg-gradient-to-br from-white to-slate-50/50">
           <div className="flex items-center space-x-3">
             <div className="w-11 h-11 bg-gradient-to-br from-blue-600 to-blue-700 rounded-xl flex items-center justify-center shadow-lg ring-2 ring-blue-500/20">
-              <span className="text-white text-xl font-bold">F</span>
+              <span className="text-white text-xl font-bold">K</span>
             </div>
             <div>
               <h1 className="text-xl font-bold bg-gradient-to-r from-slate-900 to-slate-700 bg-clip-text text-transparent">
-                Finance Suite
+                Kology Suite
               </h1>
               <p className="text-xs text-slate-500 -mt-0.5 font-medium">Financial Management</p>
             </div>
@@ -247,7 +247,7 @@ const Layout = ({ onLogout }) => {
           </div>
         </nav>
 
-        {/* Settings and Logout Buttons */}
+        {/* Settings, Profile, and Logout Buttons */}
         <div className="p-4 border-t border-slate-200/60 bg-gradient-to-t from-white to-slate-50/30 space-y-2">
           {/* Settings Button */}
           <Link
@@ -284,6 +284,7 @@ const Layout = ({ onLogout }) => {
             <span>Logout</span>
           </button>
         </div>
+
       </aside>
 
       {/* Main Content */}
@@ -292,6 +293,7 @@ const Layout = ({ onLogout }) => {
           <Outlet />
         </div>
       </main>
+
     </div>
   );
 };

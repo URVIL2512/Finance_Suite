@@ -8,10 +8,12 @@ import InvoiceViewEdit from '../components/InvoiceViewEdit';
 import RecurringInvoiceModal from '../components/RecurringInvoiceModal';
 import PaymentModal from '../components/PaymentModal';
 import { getAuthToken } from '../utils/auth';
+import { useToast } from '../contexts/ToastContext';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
 const Invoices = () => {
+  const { showToast } = useToast();
   const location = useLocation();
   const navigate = useNavigate();
   const [invoices, setInvoices] = useState([]);
@@ -144,7 +146,7 @@ const Invoices = () => {
         fetchInvoices();
       } catch (error) {
         console.error('Error deleting invoice:', error);
-        alert('Failed to delete invoice');
+        showToast('Failed to delete invoice', 'error');
       }
     }
   };
@@ -165,17 +167,17 @@ const Invoices = () => {
         
         // Show instant success message
         const emailToShow = invoiceData.clientEmail || data.clientEmail || 'client';
-        alert(`Invoice updated successfully! Email is being sent to ${emailToShow}.`);
+        showToast(`Invoice updated successfully! Email is being sent to ${emailToShow}.`, 'success');
       } else {
         // Validate email is present for new invoices
         if (!data.clientEmail || data.clientEmail.trim() === '') {
-          alert('Error: Client email is required to send the invoice');
+          showToast('Error: Client email is required to send the invoice', 'error');
           return;
         }
         
         // Validate base amount is present
         if (!data.baseAmount || parseFloat(data.baseAmount) <= 0) {
-          alert('Error: Base amount is required and must be greater than 0');
+          showToast('Error: Base amount is required and must be greater than 0', 'error');
           return;
         }
         
@@ -183,7 +185,7 @@ const Invoices = () => {
         const invoiceData = response.data;
         
         // Show instant success message
-        alert(`Invoice created successfully! Email is being sent to ${invoiceData.clientEmail || data.clientEmail}.`);
+        showToast(`Invoice created successfully! Email is being sent to ${invoiceData.clientEmail || data.clientEmail}.`, 'success');
       }
       setShowForm(false);
       setEditingInvoice(null);
@@ -203,21 +205,21 @@ const Invoices = () => {
         errorMessage = error.message;
       }
       
-      alert(`Error: ${errorMessage}`);
+      showToast(errorMessage, 'error');
     }
   };
 
   const handleRecurringInvoiceSubmit = async (data) => {
     try {
       const response = await recurringInvoiceAPI.create(data);
-      alert(`Recurring invoice created successfully for ${data.invoiceIds.length} invoice(s)!`);
+      showToast(`Recurring invoice created successfully for ${data.invoiceIds.length} invoice(s)!`, 'success');
       setSelectedInvoices([]);
       setShowRecurringModal(false);
       fetchInvoices(); // Refresh invoices list
     } catch (error) {
       console.error('Error creating recurring invoice:', error);
       const errorMessage = error.response?.data?.message || 'Failed to create recurring invoice';
-      alert(`Error: ${errorMessage}`);
+      showToast(errorMessage, 'error');
     }
   };
 
@@ -250,7 +252,7 @@ const Invoices = () => {
       }
     } else {
       console.error('❌ Invoice is null, undefined, or missing _id:', invoice);
-      alert('Error: Cannot view invoice details. Invoice data is invalid.');
+      showToast('Error: Cannot view invoice details. Invoice data is invalid.', 'error');
     }
   };
 
@@ -276,7 +278,7 @@ const Invoices = () => {
     try {
       const token = getAuthToken();
       if (!token) {
-        alert('Please login to view PDF');
+        showToast('Please login to view PDF', 'error');
         setSelectedInvoiceForPDF(null);
         setPdfLoading(false);
         return;
@@ -300,7 +302,7 @@ const Invoices = () => {
       setPdfBlobUrl(blobUrl);
     } catch (error) {
       console.error('Error loading PDF:', error);
-      alert(`Failed to load PDF: ${error.message || 'Please try again.'}`);
+      showToast(`Failed to load PDF: ${error.message || 'Please try again.'}`, 'error');
       setSelectedInvoiceForPDF(null);
     } finally {
       setPdfLoading(false);

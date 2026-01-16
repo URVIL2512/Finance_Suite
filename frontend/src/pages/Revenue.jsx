@@ -1,9 +1,11 @@
 import { useState, useEffect } from 'react';
 import { revenueAPI } from '../services/api';
+import { useToast } from '../contexts/ToastContext';
 import RevenueForm from '../components/RevenueForm';
 import RevenueTable from '../components/RevenueTable';
 
 const Revenue = () => {
+  const { showToast } = useToast();
   const [revenue, setRevenue] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
@@ -57,7 +59,7 @@ const Revenue = () => {
       fetchRevenue();
     } catch (error) {
       console.error('Error deleting revenue:', error);
-      alert('Failed to delete revenue entry');
+      showToast('Failed to delete revenue entry', 'error');
     }
   };
 
@@ -69,10 +71,10 @@ const Revenue = () => {
           await revenueAPI.delete(id);
         }
         fetchRevenue();
-        alert(`Successfully deleted ${ids.length} revenue entry/entries`);
+        showToast(`Successfully deleted ${ids.length} revenue entry/entries`, 'success');
       } catch (error) {
         console.error('Error deleting revenue entries:', error);
-        alert('Failed to delete some revenue entries');
+        showToast('Failed to delete some revenue entries', 'error');
         fetchRevenue(); // Refresh to show current state
       }
     }
@@ -91,7 +93,7 @@ const Revenue = () => {
     try {
       // Only allow editing existing revenue, not creating new ones
       if (!editingRevenue) {
-        alert('Cannot create revenue manually. Revenue entries are automatically created when you create invoices.');
+        showToast('Cannot create revenue manually. Revenue entries are automatically created when you create invoices.', 'error');
         return;
       }
 
@@ -118,7 +120,7 @@ const Revenue = () => {
       });
       
       await revenueAPI.update(editingRevenue._id, data);
-      alert('Revenue updated successfully!');
+      showToast('Revenue updated successfully!', 'success');
       setShowForm(false);
       setEditingRevenue(null);
       fetchRevenue();
@@ -137,7 +139,7 @@ const Revenue = () => {
         errorMessage = error.message;
       }
       
-      alert(`Error: ${errorMessage}`);
+      showToast(errorMessage, 'error');
     }
   };
 
