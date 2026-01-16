@@ -114,8 +114,8 @@ export const sendInvoiceEmail = async ({
       "https://api.brevo.com/v3/smtp/email",
       {
         sender: {
-          name: "Kology_Suite",
-          email: "kafkabigdata@gmail.com"
+          name: "Kology Finance",
+          email: "system54181920@gmail.com"
         },
         to: [
           { email: to }
@@ -288,8 +288,8 @@ export const sendPaymentSlipEmail = async ({
       "https://api.brevo.com/v3/smtp/email",
       {
         sender: {
-          name: "Kology_Suite",
-          email: "kafkabigdata@gmail.com"
+          name: "Kology Finance",
+          email: "system54181920@gmail.com"
         },
         to: [
           { email: to }
