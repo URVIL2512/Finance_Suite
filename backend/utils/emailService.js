@@ -25,12 +25,16 @@ const createBrevoTransporter = () => {
   }
 
   // Use Brevo's recommended service mode to avoid Render network timeout problems
+  // IMPORTANT: Add timeouts for Render Free tier to handle Brevo handshake delays
   const transporter = nodemailer.createTransport({
     service: "SendinBlue", // Brevo officially supports this alias
     auth: {
       user: emailUser,
       pass: emailPass
-    }
+    },
+    connectionTimeout: 10000, // 10 seconds
+    greetingTimeout: 10000,   // 10 seconds
+    socketTimeout: 10000      // 10 seconds
   });
 
   console.log('✅ Brevo SMTP transporter created (service mode):', {

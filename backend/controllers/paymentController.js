@@ -491,10 +491,10 @@ export const createPayment = async (req, res) => {
               html: emailTemplate
             };
             
-            // Non-blocking email send
+            // Non-blocking email send with explicit promise handling
             transporter.sendMail(mailOptions)
-              .then(() => {
-                console.log("Email sent successfully");
+              .then(info => {
+                console.log("Email sent successfully:", info.messageId);
               })
               .catch(err => {
                 console.error("Email sending failed:", err);
