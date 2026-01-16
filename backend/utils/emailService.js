@@ -1,79 +1,13 @@
-import nodemailer from 'nodemailer';
+import axios from 'axios';
 import fs from 'fs';
 
 /**
- * Create and export a single Brevo SMTP transporter
- * This transporter is created once and reused for all emails
+ * Send email using Brevo Transactional Email REST API
+ * Uses BREVO_API_KEY from environment variables
  */
-const createBrevoTransporter = () => {
-  // Use ONLY Brevo SMTP credentials from environment variables
-  const emailUser = process.env.EMAIL_USER;
-  const emailPass = process.env.EMAIL_PASS;
-
-  if (!emailUser || !emailPass) {
-    console.error('❌ Brevo SMTP configuration error:', {
-      EMAIL_USER: emailUser ? 'Set' : 'MISSING',
-      EMAIL_PASS: emailPass ? 'Set' : 'MISSING',
-      NODE_ENV: process.env.NODE_ENV,
-    });
-    throw new Error('Brevo SMTP configuration is missing. Please set EMAIL_USER and EMAIL_PASS in environment variables');
-  }
-
-  // Validate that EMAIL_USER is a Brevo SMTP email (should end with @smtp-brevo.com)
-  if (!emailUser.includes('@smtp-brevo.com')) {
-    console.warn(`⚠️ Warning: EMAIL_USER (${emailUser}) does not appear to be a Brevo SMTP email. Expected format: xxx@smtp-brevo.com`);
-  }
-
-  // Use Brevo's recommended service mode to avoid Render network timeout problems
-  // IMPORTANT: Add timeouts for Render Free tier to handle Brevo handshake delays
-  const transporter = nodemailer.createTransport({
-    service: "SendinBlue", // Brevo officially supports this alias
-    auth: {
-      user: emailUser,
-      pass: emailPass
-    },
-    connectionTimeout: 10000, // 10 seconds
-    greetingTimeout: 10000,   // 10 seconds
-    socketTimeout: 10000      // 10 seconds
-  });
-
-  console.log('✅ Brevo SMTP transporter created (service mode):', {
-    service: 'SendinBlue',
-    user: emailUser,
-    passwordSet: emailPass ? 'Yes' : 'No',
-  });
-
-  return transporter;
-};
-
-// Create single transporter instance (created once, reused everywhere)
-let emailTransporter = null;
 
 /**
- * Get or create the Brevo SMTP transporter
- * @returns {Object} Nodemailer transporter
- */
-export const getTransporter = () => {
-  if (!emailTransporter) {
-    emailTransporter = createBrevoTransporter();
-  }
-  return emailTransporter;
-};
-
-/**
- * Verify Brevo SMTP connection on server startup
- * NOTE: Verification is disabled on Render as it blocks the verify handshake
- * Actual sendMail() will still work without verification
- */
-export const verifyBrevoSMTP = async () => {
-  // Verification removed to avoid Render network timeout issues
-  // Transporter will work for actual sendMail() calls
-  console.log('✅ Brevo SMTP transporter ready (verification skipped on Render)');
-  return true;
-};
-
-/**
- * Send invoice PDF via email
+ * Send invoice PDF via email using Brevo REST API
  * @param {Object} options - Email options
  * @param {string} options.to - Recipient email
  * @param {string} options.clientName - Client name
@@ -106,8 +40,11 @@ export const sendInvoiceEmail = async ({
       throw new Error(`PDF file not found at ${pdfPath}`);
     }
 
-    // Get the shared transporter (not creating a new one)
-    const transporter = getTransporter();
+    // Validate BREVO_API_KEY
+    const brevoApiKey = process.env.BREVO_API_KEY;
+    if (!brevoApiKey) {
+      throw new Error('BREVO_API_KEY is not set in environment variables');
+    }
 
     // Format due date
     const formattedDueDate = new Date(dueDate).toLocaleDateString('en-IN', {
@@ -122,7 +59,7 @@ export const sendInvoiceEmail = async ({
 
     // Email content
     const subject = `Tax Invoice – ${invoiceNumber}`;
-    const htmlBody = `
+    const htmlContent = `
       <!DOCTYPE html>
       <html>
       <head>
@@ -165,7 +102,7 @@ export const sendInvoiceEmail = async ({
       </html>
     `;
 
-    const textBody = `
+    const textContent = `
 Hello ${clientName},
 
 Please find attached your tax invoice for ${service}.
@@ -185,53 +122,71 @@ Email: mihir@kology.in | Phone: 9328850777
 Website: www.kology.co
     `;
 
-    // Use fixed "from" field as specified: "Kology_Suite <kafkabigdata@gmail.com>"
-    // This email is a Brevo-verified sender
-    const fromEmail = 'Kology_Suite <kafkabigdata@gmail.com>';
-    
-    // Send email
-    const mailOptions = {
-      from: fromEmail,
-      to: to,
-      subject: subject,
-      text: textBody,
-      html: htmlBody,
-      attachments: [
+    // Read PDF file and convert to base64
+    const pdfFile = fs.readFileSync(pdfPath);
+    const pdfBase64 = pdfFile.toString('base64');
+
+    // Brevo REST API request
+    const emailData = {
+      sender: {
+        name: 'Kology_Suite',
+        email: 'kafkabigdata@gmail.com'
+      },
+      to: [
         {
-          filename: `Invoice-${invoiceNumber}.pdf`,
-          path: pdfPath,
-        },
+          email: to,
+          name: clientName
+        }
       ],
+      subject: subject,
+      htmlContent: htmlContent,
+      textContent: textContent,
+      attachment: [
+        {
+          name: `Invoice-${invoiceNumber}.pdf`,
+          content: pdfBase64
+        }
+      ]
     };
 
-    const info = await transporter.sendMail(mailOptions);
-    console.log(`✅ Invoice email sent successfully to ${to} (Invoice: ${invoiceNumber})`);
+    // Send email via Brevo REST API
+    const response = await axios.post(
+      'https://api.brevo.com/v3/smtp/email',
+      emailData,
+      {
+        headers: {
+          'api-key': brevoApiKey,
+          'Content-Type': 'application/json'
+        }
+      }
+    );
+
+    console.log(`✅ Invoice email sent successfully to ${to} (Invoice: ${invoiceNumber}) - Message ID: ${response.data.messageId}`);
     return {
       success: true,
-      messageId: info.messageId,
-      response: info.response,
+      messageId: response.data.messageId,
+      response: response.data,
     };
   } catch (error) {
     console.error('❌ Error sending invoice email:', {
       to,
       invoiceNumber,
-      error: error.message,
-      code: error.code,
-      responseCode: error.responseCode,
+      error: error.response?.data || error.message,
+      status: error.response?.status,
     });
     
     // Return error details but don't throw - let the caller handle it
     // This ensures invoice creation doesn't fail if email fails
     return {
       success: false,
-      error: error.message,
-      code: error.code,
+      error: error.response?.data || error.message,
+      status: error.response?.status,
     };
   }
 };
 
 /**
- * Send payment receipt/Paytm slip via email
+ * Send payment receipt via email using Brevo REST API
  * @param {Object} options - Email options
  * @param {string} options.to - Recipient email
  * @param {string} options.paymentNumber - Payment number
@@ -259,8 +214,11 @@ export const sendPaymentSlipEmail = async ({
       throw new Error('Recipient email is required');
     }
 
-    // Get the shared transporter (not creating a new one)
-    const transporter = getTransporter();
+    // Validate BREVO_API_KEY
+    const brevoApiKey = process.env.BREVO_API_KEY;
+    if (!brevoApiKey) {
+      throw new Error('BREVO_API_KEY is not set in environment variables');
+    }
 
     // Format payment date
     const formattedPaymentDate = new Date(paymentDate).toLocaleDateString('en-IN', {
@@ -274,7 +232,7 @@ export const sendPaymentSlipEmail = async ({
 
     // Email content
     const subject = `Payment Receipt - ${paymentNumber}`;
-    const htmlBody = `
+    const htmlContent = `
       <!DOCTYPE html>
       <html>
       <head>
@@ -345,7 +303,7 @@ export const sendPaymentSlipEmail = async ({
       </html>
     `;
 
-    const textBody = `
+    const textContent = `
 Hello ${customerName},
 
 Thank you for your payment! Please find below the payment receipt details.
@@ -371,41 +329,68 @@ Email: mihir@kology.in | Phone: 9328850777
 Website: www.kology.co
     `;
 
-    // Use fixed "from" field as specified: "Kology_Suite <kafkabigdata@gmail.com>"
-    // This email is a Brevo-verified sender
-    const fromEmail = 'Kology_Suite <kafkabigdata@gmail.com>';
-    
-    // Send email
-    const mailOptions = {
-      from: fromEmail,
-      to: to,
+    // Brevo REST API request
+    const emailData = {
+      sender: {
+        name: 'Kology_Suite',
+        email: 'kafkabigdata@gmail.com'
+      },
+      to: [
+        {
+          email: to,
+          name: customerName
+        }
+      ],
       subject: subject,
-      text: textBody,
-      html: htmlBody,
+      htmlContent: htmlContent,
+      textContent: textContent
     };
 
-    const info = await transporter.sendMail(mailOptions);
-    console.log(`✅ Payment receipt email sent successfully to ${to} (Payment: ${paymentNumber})`);
+    // Send email via Brevo REST API
+    const response = await axios.post(
+      'https://api.brevo.com/v3/smtp/email',
+      emailData,
+      {
+        headers: {
+          'api-key': brevoApiKey,
+          'Content-Type': 'application/json'
+        }
+      }
+    );
+
+    console.log(`✅ Payment receipt email sent successfully to ${to} (Payment: ${paymentNumber}) - Message ID: ${response.data.messageId}`);
     return {
       success: true,
-      messageId: info.messageId,
-      response: info.response,
+      messageId: response.data.messageId,
+      response: response.data,
     };
   } catch (error) {
     console.error('❌ Error sending payment slip email:', {
       to,
       paymentNumber,
-      error: error.message,
-      code: error.code,
-      responseCode: error.responseCode,
+      error: error.response?.data || error.message,
+      status: error.response?.status,
     });
     
     // Return error details but don't throw - let the caller handle it
     // This ensures payment creation doesn't fail if email fails
     return {
       success: false,
-      error: error.message,
-      code: error.code,
+      error: error.response?.data || error.message,
+      status: error.response?.status,
     };
   }
+};
+
+/**
+ * Verify Brevo API key (no-op, kept for compatibility)
+ */
+export const verifyBrevoSMTP = async () => {
+  const brevoApiKey = process.env.BREVO_API_KEY;
+  if (!brevoApiKey) {
+    console.error('❌ BREVO_API_KEY is not set in environment variables');
+    return false;
+  }
+  console.log('✅ Brevo API key configured (REST API mode)');
+  return true;
 };
