@@ -217,16 +217,16 @@ const drawInvoiceMeta = (
 
   let currentY = startY;
 
-  // Title - slightly reduced so it doesn't dominate and fits in one line
+  // Title - smaller size as requested
   doc.fillColor(colors.darkText)
     .font(fonts.bold)
-    .fontSize(24) // reduced from 34
+    .fontSize(14) // Reduced to 14 for smaller size
     .text('TAX INVOICE', invoiceBoxX, currentY, {
       align: 'right',
       width: invoiceBoxWidth
     });
 
-  currentY += 30;
+  currentY += 25; // Reduced spacing after title
 
   // Invoice number
   doc.fontSize(12)
@@ -249,7 +249,7 @@ const drawInvoiceMeta = (
   currentY += 12;
 
   doc.fillColor(colors.darkText)
-    .fontSize(18) // reduced from 22
+    .fontSize(14) // reduced from 22
     .font(fonts.bold)
     .text(formatCurrency(receivableAmount, currency), invoiceBoxX, currentY, {
       align: 'right',
@@ -281,51 +281,8 @@ const drawInvoiceMeta = (
     width: invoiceBoxWidth
   });
 
-  currentY += 14;
-
-  // INR equivalent - use current market exchange rates with improved conversion logic
-  let exchangeRate = invoice.currencyDetails?.exchangeRate || invoice.exchangeRate;
+  // Removed INR Equivalent line as requested
   
-  // Improved conversion logic: use provided rate, or fallback to current market rates
-  if (currency !== 'INR') {
-    // If exchange rate is not provided, invalid, or equals 1 (which is wrong for non-INR), use market rate
-    if (!exchangeRate || exchangeRate <= 0 || exchangeRate === 1) {
-      exchangeRate = CURRENT_EXCHANGE_RATES[currency] || CURRENT_EXCHANGE_RATES['USD'];
-      console.log(`📊 Using current market rate for ${currency}: ${exchangeRate}`);
-    }
-  } else {
-    exchangeRate = 1;
-  }
-  
-  // Calculate INR equivalent with proper rounding
-  let receivableAmountINR;
-  if (currency === 'INR') {
-    receivableAmountINR = receivableAmount;
-  } else {
-    // Prefer stored inrEquivalent if available, otherwise calculate
-    if (invoice.currencyDetails?.inrEquivalent && invoice.currencyDetails.inrEquivalent > 0) {
-      receivableAmountINR = invoice.currencyDetails.inrEquivalent;
-    } else {
-      // Calculate and round to 2 decimal places for currency precision
-      receivableAmountINR = Math.round((receivableAmount * exchangeRate) * 100) / 100;
-    }
-  }
-
-  doc.text(`INR Equivalent: ${formatCurrency(receivableAmountINR, 'INR')}`, invoiceBoxX, currentY, {
-    align: 'right',
-    width: invoiceBoxWidth
-  });
-
-  if (currency !== 'INR') {
-    currentY += 12;
-    doc.text(
-      `Exchange Rate: ${exchangeRate.toLocaleString('en-IN', { minimumFractionDigits: 2 })}`,
-      invoiceBoxX,
-      currentY,
-      { align: 'right', width: invoiceBoxWidth }
-    );
-  }
-
   return Math.max(startY + invoiceBoxHeight, currentY + spacing.md);
 };
 
@@ -602,24 +559,29 @@ const drawTotalsBlock = (doc, startY, invoice, currency, receivableAmount) => {
   
   currentY = totalsStartY + 15;
   
+  // Consistent positioning for all totals rows
+  const labelWidth = 130; // Uniform label width
+  const labelX = totalsX;
+  const amountX = totalsX + labelWidth;
+  const amountWidth = totalsBoxWidth - labelWidth;
+  const rowSpacing = 20; // Uniform row spacing
+  
   // Sub Total - properly aligned
   doc.fillColor(colors.textGray)
     .font(fonts.regular)
     .fontSize(fontSize.md)
-    .text('Sub Total', totalsX + spacing.md, currentY, { width: 120, align: 'right' });
+    .text('Sub Total', labelX, currentY, { width: labelWidth, align: 'right' });
   
   // Sub Total amount - right-aligned for consistency
-  const subTotalAmountX = totalsX + 135;
-  const subTotalAmountWidth = totalsBoxWidth - 135 + spacing.md;
   doc.fillColor(colors.darkText)
     .font(fonts.bold)
     .fontSize(fontSize.md)
-    .text(formatCurrency(subTotal, currency), subTotalAmountX, currentY, {
-      width: subTotalAmountWidth,
+    .text(formatCurrency(subTotal, currency), amountX, currentY, {
+      width: amountWidth,
       align: 'right'
     });
   
-  currentY += 19;
+  currentY += rowSpacing;
   
   // GST
   if (invoice.gstType === 'CGST_SGST') {
@@ -631,38 +593,34 @@ const drawTotalsBlock = (doc, startY, invoice, currency, receivableAmount) => {
     doc.fillColor(colors.textGray)
       .font(fonts.regular)
       .fontSize(fontSize.md)
-      .text(`CGST (${cgstPercent}%):`, totalsX + spacing.md, currentY, { width: 120, align: 'right' });
+      .text(`CGST (${cgstPercent}%):`, labelX, currentY, { width: labelWidth, align: 'right' });
     
     // CGST amount - right-aligned for consistency
-    const cgstAmountX = totalsX + 135;
-    const cgstAmountWidth = totalsBoxWidth - 135 + spacing.md;
     doc.fillColor(colors.darkText)
       .font(fonts.bold)
       .fontSize(fontSize.md)
-      .text(formatCurrency(cgstAmount, currency), cgstAmountX, currentY, {
-        width: cgstAmountWidth,
+      .text(formatCurrency(cgstAmount, currency), amountX, currentY, {
+        width: amountWidth,
         align: 'right'
       });
     
-    currentY += 19;
+    currentY += rowSpacing;
     
     doc.fillColor(colors.textGray)
       .font(fonts.regular)
       .fontSize(fontSize.md)
-      .text(`SGST (${sgstPercent}%):`, totalsX + spacing.md, currentY, { width: 120, align: 'right' });
+      .text(`SGST (${sgstPercent}%):`, labelX, currentY, { width: labelWidth, align: 'right' });
     
     // SGST amount - right-aligned for consistency
-    const sgstAmountX = totalsX + 135;
-    const sgstAmountWidth = totalsBoxWidth - 135 + spacing.md;
     doc.fillColor(colors.darkText)
       .font(fonts.bold)
       .fontSize(fontSize.md)
-      .text(formatCurrency(sgstAmount, currency), sgstAmountX, currentY, {
-        width: sgstAmountWidth,
+      .text(formatCurrency(sgstAmount, currency), amountX, currentY, {
+        width: amountWidth,
         align: 'right'
       });
     
-    currentY += 19;
+    currentY += rowSpacing;
   } else {
     const igstLabel = `IGST${invoice.gstPercentage ? invoice.gstPercentage.toFixed(0) : '0'}`;
     const igstAmount = invoice.igst || 0;
@@ -671,20 +629,18 @@ const drawTotalsBlock = (doc, startY, invoice, currency, receivableAmount) => {
     doc.fillColor(colors.textGray)
       .font(fonts.regular)
       .fontSize(fontSize.md)
-      .text(`${igstLabel} (${igstPercent}%):`, totalsX + spacing.md, currentY, { width: 120, align: 'right' });
+      .text(`${igstLabel} (${igstPercent}%):`, labelX, currentY, { width: labelWidth, align: 'right' });
     
     // IGST amount - right-aligned for consistency
-    const igstAmountX = totalsX + 135;
-    const igstAmountWidth = totalsBoxWidth - 135 + spacing.md;
     doc.fillColor(colors.darkText)
       .font(fonts.bold)
       .fontSize(fontSize.md)
-      .text(formatCurrency(igstAmount, currency), igstAmountX, currentY, {
-        width: igstAmountWidth,
+      .text(formatCurrency(igstAmount, currency), amountX, currentY, {
+        width: amountWidth,
         align: 'right'
       });
     
-    currentY += 19;
+    currentY += rowSpacing;
   }
   
   // TDS
@@ -692,20 +648,18 @@ const drawTotalsBlock = (doc, startY, invoice, currency, receivableAmount) => {
     doc.fillColor(colors.textGray)
       .font(fonts.regular)
       .fontSize(fontSize.md)
-      .text(`TDS (${invoice.tdsPercentage.toFixed(0)}%):`, totalsX + spacing.md, currentY, { width: 120, align: 'right' });
+      .text(`TDS (${invoice.tdsPercentage.toFixed(0)}%):`, labelX, currentY, { width: labelWidth, align: 'right' });
     
     // TDS amount - right-aligned for consistency
-    const tdsAmountX = totalsX + 135;
-    const tdsAmountWidth = totalsBoxWidth - 135 + spacing.md;
     doc.fillColor(colors.warningRed)
       .font(fonts.bold)
       .fontSize(fontSize.md)
-      .text(`-${formatCurrency(invoice.tdsAmount, currency)}`, tdsAmountX, currentY, {
-        width: tdsAmountWidth,
+      .text(`-${formatCurrency(invoice.tdsAmount, currency)}`, amountX, currentY, {
+        width: amountWidth,
         align: 'right'
       });
     
-    currentY += 18;
+    currentY += rowSpacing;
   }
   
   // TCS
@@ -713,20 +667,18 @@ const drawTotalsBlock = (doc, startY, invoice, currency, receivableAmount) => {
     doc.fillColor(colors.textGray)
       .font(fonts.regular)
       .fontSize(fontSize.md)
-      .text(`TCS (${invoice.tcsPercentage.toFixed(2)}%):`, totalsX + spacing.md, currentY, { width: 120, align: 'right' });
+      .text(`TCS (${invoice.tcsPercentage.toFixed(2)}%):`, labelX, currentY, { width: labelWidth, align: 'right' });
     
     // TCS amount - right-aligned for consistency
-    const tcsAmountX = totalsX + 135;
-    const tcsAmountWidth = totalsBoxWidth - 135 + spacing.md;
     doc.fillColor(colors.warningRed)
       .font(fonts.bold)
       .fontSize(fontSize.md)
-      .text(`-${formatCurrency(invoice.tcsAmount, currency)}`, tcsAmountX, currentY, {
-        width: tcsAmountWidth,
+      .text(`-${formatCurrency(invoice.tcsAmount, currency)}`, amountX, currentY, {
+        width: amountWidth,
         align: 'right'
       });
     
-    currentY += 18;
+    currentY += rowSpacing;
   }
   
   // Remittance Charges
@@ -734,85 +686,60 @@ const drawTotalsBlock = (doc, startY, invoice, currency, receivableAmount) => {
     doc.fillColor(colors.textGray)
       .font(fonts.regular)
       .fontSize(fontSize.md)
-      .text('Remittance Charges:', totalsX + spacing.md, currentY, { width: 120, align: 'right' });
+      .text('Remittance Charges:', labelX, currentY, { width: labelWidth, align: 'right' });
     
     // Remittance Charges amount - right-aligned for consistency
-    const remittanceAmountX = totalsX + 135;
-    const remittanceAmountWidth = totalsBoxWidth - 135 + spacing.md;
     doc.fillColor(colors.warningRed)
       .font(fonts.bold)
       .fontSize(fontSize.md)
-      .text(`-${formatCurrency(invoice.remittanceCharges, currency)}`, remittanceAmountX, currentY, {
-        width: remittanceAmountWidth,
+      .text(`-${formatCurrency(invoice.remittanceCharges, currency)}`, amountX, currentY, {
+        width: amountWidth,
         align: 'right'
       });
     
-    currentY += 18;
+    currentY += rowSpacing;
   }
   
-  // Separator
-  currentY += 8;
+  // Separator - uniform spacing
+  currentY += 10;
   doc.strokeColor(colors.borderGray)
     .lineWidth(1.5);
-  doc.moveTo(totalsX + spacing.md, currentY)
-    .lineTo(totalsX + totalsBoxWidth - spacing.md, currentY)
+  doc.moveTo(labelX, currentY)
+    .lineTo(totalsX + totalsBoxWidth, currentY)
     .stroke();
   
-  currentY += 15;
+  currentY += rowSpacing;
   
-  // Total
+  // Total - uniform styling
   doc.fillColor(colors.textGray)
     .font(fonts.bold)
-    .fontSize(fontSize.lg) // 11
-    .text('Total:', totalsX + spacing.md, currentY, { width: 120, align: 'right' });
+    .fontSize(fontSize.md)
+    .text('Total:', labelX, currentY, { width: labelWidth, align: 'right' });
   
   // Total amount - right-aligned for consistency
-  const totalAmountX = totalsX + 135;
-  const totalAmountWidth = totalsBoxWidth - 135 + spacing.md;
   doc.fillColor(colors.darkText)
-    .fontSize(fontSize.xl) // 12
+    .fontSize(fontSize.md)
     .font(fonts.bold)
-    .text(formatCurrency(invoiceTotal, currency), totalAmountX, currentY, {
-      width: totalAmountWidth,
+    .text(formatCurrency(invoiceTotal, currency), amountX, currentY, {
+      width: amountWidth,
       align: 'right'
     });
   
-  currentY += 25;
+  currentY += rowSpacing;
   
-  // Balance Due - properly aligned with other amounts
+  // Balance Due - uniform styling with other totals
   doc.fillColor(colors.textGray)
     .font(fonts.bold)
-    .fontSize(fontSize.lg) // 11 label
-    .text('Balance Due:', totalsX + spacing.md, currentY, { width: 100, align: 'right' });
+    .fontSize(fontSize.md)
+    .text('Balance Due:', labelX, currentY, { width: labelWidth, align: 'right' });
   
-  // Balance Due amount - dynamically positioned to always fit on one line
-  // Fixed right edge to match items table Amount column
-  const fixedRightEdge = layout.leftMargin + 450 + 65; // 555 - matches items table Amount column
-  
-  // Set font for measurement
+  // Balance Due amount - right-aligned for consistency
   doc.fillColor(colors.darkText)
-    .fontSize(14) // Proper size: not too big (20pt), not too small (12pt)
-    .font(fonts.bold);
-  
-  // Measure the text width
-  const balanceDueText = formatCurrency(receivableAmount, currency);
-  const textWidth = doc.widthOfString(balanceDueText);
-  
-  // Calculate X position dynamically: right edge - text width
-  const balanceDueAmountX = fixedRightEdge - textWidth;
-  
-  // Draw text at calculated position (no width constraint - prevents wrapping)
-  doc.text(balanceDueText, balanceDueAmountX, currentY);
-  
-  currentY += 25;
-  
-  // Total In Words
-  doc.fillColor(colors.textGray)
-    .font(fonts.regular)
-    .fontSize(fontSize.base)
-    .text(`Total In Words: ${numberToWords(receivableAmount, currency)}`, totalsX + spacing.md, currentY, { 
-      width: totalsBoxWidth - spacing.lg, 
-      align: 'left' 
+    .fontSize(fontSize.md)
+    .font(fonts.bold)
+    .text(formatCurrency(receivableAmount, currency), amountX, currentY, {
+      width: amountWidth,
+      align: 'right'
     });
   
   return Math.max(totalsStartY + totalsBoxHeight, currentY + spacing.md);
@@ -1001,17 +928,6 @@ const drawFooter = (doc, startY, invoice, currency, bankDetails, customTerms) =>
 
   const receivableAmount =
     invoice.amountDetails?.receivableAmount || invoice.grandTotal || 0;
-
-  // Thanks note
-  doc.y = currentY;
-  ensureSpace(doc, 40);
-  currentY = doc.y;
-  doc.fillColor(colors.textGray)
-    .font(fonts.oblique)
-    .fontSize(fontSize.md)
-    .text('Thanks for your business.', layout.leftMargin, currentY);
-
-  currentY += spacing.lg;
 
   // ---------------- BANK DETAILS ----------------
   if (bankDetails) {
@@ -1295,20 +1211,28 @@ export const generateInvoicePDF = async (invoice, outputPath, userId = null) => 
       let currentY = 0
       currentY = drawHeader(doc, currentY)
 
-      const invoiceMetaStartY = 20
+      // Draw company block at top left
+      const topSectionStartY = 20
+      currentY = await drawCompanyBlock(doc, topSectionStartY)
+      
+      // Store the Y position where "Bill To:" will be written
+      const billToStartY = currentY
+      
+      // Draw client block below company block on left
+      currentY = drawClientBlock(doc, currentY, invoice)
+      
+      // Position invoice meta block on the right side, starting at the same Y as "Bill To:"
       const invoiceMetaEndY = drawInvoiceMeta(
         doc,
-        invoiceMetaStartY,
+        billToStartY,
         invoice,
         currency,
         receivableAmount,
         paymentTerms
       )
-
-      currentY = Math.max(currentY, invoiceMetaEndY + DESIGN_SYSTEM.spacing.lg)
-
-      currentY = await drawCompanyBlock(doc, currentY)
-      currentY = drawClientBlock(doc, currentY, invoice)
+      
+      // Table starts right after invoice meta block (exactly above table as requested)
+      currentY = invoiceMetaEndY + 10 // Small spacing between meta and table
       currentY = drawItemsTable(doc, currentY, invoice, currency)
       currentY = drawTotalsBlock(doc, currentY, invoice, currency, receivableAmount)
       currentY = drawFooter(doc, currentY, invoice, currency, bankDetails, customTerms)

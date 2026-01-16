@@ -1,7 +1,7 @@
 import { format } from 'date-fns';
 import ActionDropdown from './ActionDropdown';
 
-const PaymentTable = ({ payments, onEdit, onDelete, onView, onViewHistory }) => {
+const PaymentTable = ({ payments, onEdit, onDelete, onView, onViewHistory, onViewPDF }) => {
   const formatDate = (dateString) => {
     if (!dateString) return '-';
     try {
@@ -104,6 +104,16 @@ const PaymentTable = ({ payments, onEdit, onDelete, onView, onViewHistory }) => 
                       onView={onView ? () => onView(payment) : null}
                       onEdit={onEdit ? () => onEdit(payment) : null}
                       onDelete={onDelete ? () => onDelete(payment._id) : null}
+                      additionalActions={onViewPDF && payment.invoice ? [{
+                        label: 'PDF',
+                        icon: (
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                          </svg>
+                        ),
+                        onClick: () => onViewPDF(payment.invoice._id || payment.invoice),
+                        className: 'text-gray-700 hover:bg-blue-50 hover:text-blue-700'
+                      }] : []}
                     />
                   </div>
                 </td>

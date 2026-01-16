@@ -1,5 +1,11 @@
 import axios from "axios";
 import fs from "fs";
+import path from "path";
+import { fileURLToPath } from "url";
+import { generatePaymentReceiptPDF } from "./paymentReceiptPdfGenerator.js";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 /**
  * Send email using Brevo Transactional Email REST API
@@ -197,6 +203,28 @@ export const sendPaymentSlipEmail = async ({
       throw new Error('BREVO_API_KEY is not set in environment variables');
     }
 
+    // Generate Payment Receipt PDF
+    const pdfPath = path.join(__dirname, '../temp', `payment-receipt-${paymentNumber}.pdf`);
+    const tempDir = path.dirname(pdfPath);
+    if (!fs.existsSync(tempDir)) {
+      fs.mkdirSync(tempDir, { recursive: true });
+    }
+
+    await generatePaymentReceiptPDF({
+      paymentNumber,
+      customerName,
+      invoiceNumber,
+      amountReceived,
+      paymentMode,
+      paymentDate,
+      referenceNumber,
+    }, pdfPath);
+
+    // Verify PDF was created
+    if (!fs.existsSync(pdfPath)) {
+      throw new Error('Payment receipt PDF was not created');
+    }
+
     // Format payment date
     const formattedPaymentDate = new Date(paymentDate).toLocaleDateString('en-IN', {
       day: '2-digit',
@@ -280,10 +308,14 @@ export const sendPaymentSlipEmail = async ({
       </html>
     `;
 
+    // Read PDF file and convert to base64
+    const pdfFile = fs.readFileSync(pdfPath);
+    const pdfBase64 = pdfFile.toString('base64');
+
     // Debug: Verify API key is loaded before API call
     console.log("Brevo key loaded:", process.env.BREVO_API_KEY ? "YES" : "NO");
     
-    // Send email via Brevo REST API using exact configuration
+    // Send email via Brevo REST API with PDF attachment
     const response = await axios.post(
       "https://api.brevo.com/v3/smtp/email",
       {
@@ -295,7 +327,13 @@ export const sendPaymentSlipEmail = async ({
           { email: to }
         ],
         subject: subject,
-        htmlContent: htmlContent
+        htmlContent: htmlContent,
+        attachment: [
+          {
+            name: `Payment-Receipt-${paymentNumber}.pdf`,
+            content: pdfBase64
+          }
+        ]
       },
       {
         headers: {

@@ -3,6 +3,13 @@ import Invoice from '../models/Invoice.js';
 import Customer from '../models/Customer.js';
 import { sendPaymentSlipEmail } from '../utils/emailService.js';
 import { generatePaymentNumber } from '../utils/paymentNumberGenerator.js';
+import { generatePaymentHistoryPDF } from '../utils/paymentHistoryPdfGenerator.js';
+import path from 'path';
+import fs from 'fs';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 // @desc    Get all payments
 // @route   GET /api/payments
@@ -619,5 +626,111 @@ export const deletePayment = async (req, res) => {
       message: error.message || 'Failed to delete payment',
       error: process.env.NODE_ENV === 'development' ? error.stack : undefined,
     });
+  }
+};
+
+// @desc    Generate Payment History PDF for an invoice
+// @route   GET /api/payments/invoice/:invoiceId/pdf
+// @access  Private
+export const getPaymentHistoryPDF = async (req, res) => {
+  try {
+    const { invoiceId } = req.params;
+
+    // Get invoice with all details
+    const invoice = await Invoice.findOne({
+      _id: invoiceId,
+      user: req.user._id,
+    })
+      .lean();
+
+    if (!invoice) {
+      return res.status(404).json({ message: 'Invoice not found' });
+    }
+
+    // Ensure complete data structure (same as getInvoice)
+    if (!invoice.clientDetails) {
+      invoice.clientDetails = {};
+    }
+    if (!invoice.amountDetails) {
+      invoice.amountDetails = {
+        baseAmount: invoice.subTotal || 0,
+        invoiceTotal: invoice.grandTotal || 0,
+        receivableAmount: invoice.grandTotal || 0
+      };
+    }
+    if (!invoice.currencyDetails) {
+      invoice.currencyDetails = {
+        invoiceCurrency: invoice.currency || 'INR',
+        exchangeRate: invoice.exchangeRate || 1,
+        inrEquivalent: 0
+      };
+    }
+
+    // Get all payments for this invoice
+    const payments = await Payment.find({
+      invoice: invoiceId,
+      user: req.user._id,
+    })
+      .sort({ paymentDate: 1 })
+      .lean();
+
+    if (payments.length === 0) {
+      return res.status(404).json({ message: 'No payments found for this invoice' });
+    }
+
+    // Generate PDF
+    const pdfPath = path.join(__dirname, '../temp', `payment-history-${invoiceId}-${Date.now()}.pdf`);
+    const tempDir = path.dirname(pdfPath);
+    if (!fs.existsSync(tempDir)) {
+      fs.mkdirSync(tempDir, { recursive: true });
+    }
+
+    await generatePaymentHistoryPDF(invoice, payments, pdfPath);
+
+    // Verify PDF was created
+    if (!fs.existsSync(pdfPath)) {
+      throw new Error('Payment history PDF was not created');
+    }
+
+    // Send PDF as response
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="Payment-History-${invoice.invoiceNumber}.pdf"`);
+    
+    const fileStream = fs.createReadStream(pdfPath);
+    
+    // Handle stream errors
+    fileStream.on('error', (streamError) => {
+      console.error('File stream error:', streamError);
+      if (!res.headersSent) {
+        res.status(500).json({
+          message: 'Error reading PDF file',
+          error: process.env.NODE_ENV === 'development' ? streamError.message : undefined,
+        });
+      }
+    });
+
+    fileStream.pipe(res);
+
+    // Clean up file after sending (optional - can be done in background)
+    res.on('finish', () => {
+      setTimeout(() => {
+        if (fs.existsSync(pdfPath)) {
+          try {
+            fs.unlinkSync(pdfPath);
+          } catch (unlinkError) {
+            console.error('Error deleting temp PDF file:', unlinkError);
+          }
+        }
+      }, 5000); // Delete after 5 seconds
+    });
+  } catch (error) {
+    console.error('Error generating payment history PDF:', error);
+    console.error('Error stack:', error.stack);
+    if (!res.headersSent) {
+      res.status(500).json({
+        message: error.message || 'Failed to generate payment history PDF',
+        error: process.env.NODE_ENV === 'development' ? error.stack : undefined,
+      });
+    }
   }
 };

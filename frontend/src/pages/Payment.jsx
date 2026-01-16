@@ -135,6 +135,30 @@ const Payment = () => {
     }
   };
 
+  const handleViewPDF = async (invoiceId) => {
+    try {
+      const response = await paymentAPI.getPaymentHistoryPDF(invoiceId);
+      
+      // Create blob from response
+      const blob = new Blob([response.data], { type: 'application/pdf' });
+      const url = window.URL.createObjectURL(blob);
+      
+      // Create temporary link and trigger download
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `Payment-History-${invoiceId}.pdf`;
+      document.body.appendChild(link);
+      link.click();
+      
+      // Cleanup
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error('Error downloading payment history PDF:', error);
+      alert('Failed to download payment history PDF. Please try again.');
+    }
+  };
+
   return (
     <div className="animate-fade-in">
       <div className="mb-6 flex justify-between items-center">
@@ -241,6 +265,7 @@ const Payment = () => {
           onDelete={handleDeletePayment}
           onView={handleViewPayment}
           onViewHistory={handleViewPaymentHistory}
+          onViewPDF={handleViewPDF}
         />
       )}
 
