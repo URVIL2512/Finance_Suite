@@ -84,6 +84,17 @@ const ProfileModal = ({ isOpen, onClose }) => {
                     <p className="text-gray-900 font-medium">{user.email || 'N/A'}</p>
                   </div>
                 </div>
+
+                {user.phone && (
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">
+                      Phone Number
+                    </label>
+                    <div className="px-4 py-3 bg-gray-50 rounded-lg border border-gray-200">
+                      <p className="text-gray-900 font-medium">{user.phone}</p>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           ) : (

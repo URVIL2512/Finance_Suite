@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { format } from 'date-fns';
 import { useToast } from '../contexts/ToastContext';
+import { authAPI } from '../services/api';
 
 const ExpenseForm = ({ expense, onSubmit, onCancel }) => {
   const { showToast } = useToast();
@@ -38,6 +39,32 @@ const ExpenseForm = ({ expense, onSubmit, onCancel }) => {
     userPhone: '',
   });
 
+
+  // Fetch user profile and auto-populate user information
+  useEffect(() => {
+    const fetchUserProfile = async () => {
+      try {
+        const response = await authAPI.getMe();
+        const user = response.data;
+        if (user && !expense) {
+          // Auto-populate only for new expenses, not when editing
+          setFormData((prev) => ({
+            ...prev,
+            userName: user.name || prev.userName,
+            userEmail: user.email || prev.userEmail,
+            userPhone: user.phone || prev.userPhone,
+          }));
+        }
+      } catch (error) {
+        console.error('Error fetching user profile:', error);
+        // Silently fail - user can still manually enter the info
+      }
+    };
+    
+    if (!expense) {
+      fetchUserProfile();
+    }
+  }, [expense]);
 
   useEffect(() => {
     if (expense) {

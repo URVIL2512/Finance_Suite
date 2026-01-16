@@ -6,19 +6,21 @@ import { generateToken } from '../utils/generateToken.js';
 // @access  Public
 export const register = async (req, res) => {
   try {
-    const { name, email, password } = req.body;
+    const { name, email, phone, password } = req.body;
 
-    // Check if user exists
-    const userExists = await User.findOne({ email });
-
-    if (userExists) {
-      return res.status(400).json({ message: 'User already exists' });
+    // Check if user exists (only if email is provided)
+    if (email) {
+      const userExists = await User.findOne({ email });
+      if (userExists) {
+        return res.status(400).json({ message: 'User already exists' });
+      }
     }
 
     // Create user
     const user = await User.create({
       name,
-      email,
+      email: email || undefined,
+      phone: phone || undefined,
       password,
     });
 
@@ -27,6 +29,7 @@ export const register = async (req, res) => {
         _id: user._id,
         name: user.name,
         email: user.email,
+        phone: user.phone,
         role: user.role,
         token: generateToken(user._id),
       });
@@ -34,7 +37,7 @@ export const register = async (req, res) => {
       res.status(400).json({ message: 'Invalid user data' });
     }
   } catch (error) {
-    console.error('Login error:', error);
+    console.error('Registration error:', error);
     res.status(500).json({ 
       message: error.message || 'Internal server error',
       error: process.env.NODE_ENV === 'development' ? error.stack : undefined

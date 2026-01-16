@@ -38,7 +38,8 @@ const Register = ({ onLogin }) => {
     try {
       const response = await authAPI.register(
         formData.name,
-        formData.email,
+        formData.email || '',
+        formData.phone || '',
         formData.password
       );
       onLogin(response.data.token);
@@ -86,17 +87,31 @@ const Register = ({ onLogin }) => {
               </div>
               <div>
                 <label htmlFor="email" className="block text-sm font-semibold text-gray-700 mb-2">
-                  Email address
+                  Email address <span className="text-gray-400 font-normal">(Optional)</span>
                 </label>
                 <input
                   id="email"
                   name="email"
                   type="email"
                   autoComplete="email"
-                  required
                   className="input-field"
                   placeholder="Enter your email"
                   value={formData.email}
+                  onChange={handleChange}
+                />
+              </div>
+              <div>
+                <label htmlFor="phone" className="block text-sm font-semibold text-gray-700 mb-2">
+                  Phone Number <span className="text-gray-400 font-normal">(Optional)</span>
+                </label>
+                <input
+                  id="phone"
+                  name="phone"
+                  type="tel"
+                  autoComplete="tel"
+                  className="input-field"
+                  placeholder="Enter your phone number"
+                  value={formData.phone}
                   onChange={handleChange}
                 />
               </div>
