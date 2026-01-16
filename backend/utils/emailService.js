@@ -1,5 +1,5 @@
-import axios from 'axios';
-import fs from 'fs';
+import axios from "axios";
+import fs from "fs";
 
 /**
  * Send email using Brevo Transactional Email REST API
@@ -102,64 +102,38 @@ export const sendInvoiceEmail = async ({
       </html>
     `;
 
-    const textContent = `
-Hello ${clientName},
-
-Please find attached your tax invoice for ${service}.
-
-Invoice No: ${invoiceNumber}
-Amount Due: ${formattedAmount}
-Due Date: ${formattedDueDate}
-
-If you have any questions regarding this invoice, please don't hesitate to contact us.
-
-Thank you for your business!
-
-Regards,
-Kology Ventures Private Limited
-Gandhinagar Gujarat 382421, India
-Email: mihir@kology.in | Phone: 9328850777
-Website: www.kology.co
-    `;
-
     // Read PDF file and convert to base64
     const pdfFile = fs.readFileSync(pdfPath);
     const pdfBase64 = pdfFile.toString('base64');
 
-    // Brevo REST API request
-    const emailData = {
-      sender: {
-        name: 'Kology_Suite',
-        email: 'kafkabigdata@gmail.com'
-      },
-      to: [
-        {
-          email: to,
-          name: clientName
-        }
-      ],
-      subject: subject,
-      htmlContent: htmlContent,
-      textContent: textContent,
-      attachment: [
-        {
-          name: `Invoice-${invoiceNumber}.pdf`,
-          content: pdfBase64
-        }
-      ]
-    };
-
     // Debug: Verify API key is loaded before API call
     console.log("Brevo key loaded:", process.env.BREVO_API_KEY ? "YES" : "NO");
     
-    // Send email via Brevo REST API
+    // Send email via Brevo REST API using exact configuration
     const response = await axios.post(
-      'https://api.brevo.com/v3/smtp/email',
-      emailData,
+      "https://api.brevo.com/v3/smtp/email",
+      {
+        sender: {
+          name: "Kology_Suite",
+          email: "kafkabigdata@gmail.com"
+        },
+        to: [
+          { email: to }
+        ],
+        subject: subject,
+        htmlContent: htmlContent,
+        attachment: [
+          {
+            name: `Invoice-${invoiceNumber}.pdf`,
+            content: pdfBase64
+          }
+        ]
+      },
       {
         headers: {
-          "api-key": brevoApiKey,
-          "Content-Type": "application/json"
+          accept: "application/json",
+          "api-key": process.env.BREVO_API_KEY,
+          "content-type": "application/json"
         }
       }
     );
@@ -306,60 +280,28 @@ export const sendPaymentSlipEmail = async ({
       </html>
     `;
 
-    const textContent = `
-Hello ${customerName},
-
-Thank you for your payment! Please find below the payment receipt details.
-
-Payment Receipt:
-Payment Number: ${paymentNumber}
-Invoice Number: ${invoiceNumber}
-Payment Date: ${formattedPaymentDate}
-Payment Mode: ${paymentMode}
-${referenceNumber ? `Reference Number: ${referenceNumber}\n` : ''}
-Amount Received: ${formattedAmount}
-
-This is your payment receipt. Please keep this for your records.
-
-If you have any questions regarding this payment, please don't hesitate to contact us.
-
-Thank you for your business!
-
-Regards,
-Kology Ventures Private Limited
-Gandhinagar Gujarat 382421, India
-Email: mihir@kology.in | Phone: 9328850777
-Website: www.kology.co
-    `;
-
-    // Brevo REST API request
-    const emailData = {
-      sender: {
-        name: 'Kology_Suite',
-        email: 'kafkabigdata@gmail.com'
-      },
-      to: [
-        {
-          email: to,
-          name: customerName
-        }
-      ],
-      subject: subject,
-      htmlContent: htmlContent,
-      textContent: textContent
-    };
-
     // Debug: Verify API key is loaded before API call
     console.log("Brevo key loaded:", process.env.BREVO_API_KEY ? "YES" : "NO");
     
-    // Send email via Brevo REST API
+    // Send email via Brevo REST API using exact configuration
     const response = await axios.post(
-      'https://api.brevo.com/v3/smtp/email',
-      emailData,
+      "https://api.brevo.com/v3/smtp/email",
+      {
+        sender: {
+          name: "Kology_Suite",
+          email: "kafkabigdata@gmail.com"
+        },
+        to: [
+          { email: to }
+        ],
+        subject: subject,
+        htmlContent: htmlContent
+      },
       {
         headers: {
-          "api-key": brevoApiKey,
-          "Content-Type": "application/json"
+          accept: "application/json",
+          "api-key": process.env.BREVO_API_KEY,
+          "content-type": "application/json"
         }
       }
     );
