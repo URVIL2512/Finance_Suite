@@ -40,84 +40,79 @@ const ExpenseForm = ({ expense, onSubmit, onCancel }) => {
   });
 
 
-  // Fetch user profile and auto-populate user information
   useEffect(() => {
-    const fetchUserProfile = async () => {
-      try {
-        const response = await authAPI.getMe();
-        const user = response.data;
-        if (user && !expense) {
-          // Auto-populate only for new expenses, not when editing
-          setFormData((prev) => ({
-            ...prev,
-            userName: user.name || prev.userName,
-            userEmail: user.email || prev.userEmail,
-            userPhone: user.phone || prev.userPhone,
-          }));
+    const initializeForm = async () => {
+      if (expense) {
+        // Editing existing expense - populate from expense data
+        const expenseDate = new Date(expense.date);
+        setFormData({
+          date: format(expenseDate, 'yyyy-MM-dd'),
+          category: expense.category || '',
+          paymentMode: expense.paymentMode || '',
+          department: expense.department || '',
+          bankAccount: expense.bankAccount || '',
+          vendor: expense.vendor || '',
+          description: expense.description || '',
+          amountExclTax: expense.amountExclTax === 0 || expense.amountExclTax === null || expense.amountExclTax === undefined ? '' : String(expense.amountExclTax),
+          gstPercentage: expense.gstPercentage === 0 || expense.gstPercentage === null || expense.gstPercentage === undefined ? '' : String(expense.gstPercentage),
+          gstAmount: expense.gstAmount === 0 || expense.gstAmount === null || expense.gstAmount === undefined ? '' : String(expense.gstAmount),
+          tdsPercentage: expense.tdsPercentage === 0 || expense.tdsPercentage === null || expense.tdsPercentage === undefined ? '' : String(expense.tdsPercentage),
+          tdsAmount: expense.tdsAmount === 0 || expense.tdsAmount === null || expense.tdsAmount === undefined ? '' : String(expense.tdsAmount),
+          totalAmount: expense.totalAmount === 0 || expense.totalAmount === null || expense.totalAmount === undefined ? '' : String(expense.totalAmount),
+          paidAmount: expense.paidAmount === 0 || expense.paidAmount === null || expense.paidAmount === undefined ? '' : String(expense.paidAmount),
+          paidTransactionRef: expense.paidTransactionRef || '',
+          month: expense.month || format(new Date(), 'MMM'),
+          year: expense.year || new Date().getFullYear(),
+          executive: expense.executive || '',
+          userName: expense.userName || '',
+          userEmail: expense.userEmail || '',
+          userPhone: expense.userPhone || '',
+        });
+      } else {
+        // New expense - initialize form and fetch user profile
+        const initialFormData = {
+          date: format(new Date(), 'yyyy-MM-dd'),
+          category: '',
+          paymentMode: '',
+          department: '',
+          bankAccount: '',
+          vendor: '',
+          description: '',
+          amountExclTax: '',
+          gstPercentage: '',
+          gstAmount: '',
+          tdsPercentage: '',
+          tdsAmount: '',
+          totalAmount: '',
+          paidAmount: '',
+          paidTransactionRef: '',
+          month: format(new Date(), 'MMM'),
+          year: new Date().getFullYear(),
+          executive: '',
+          userName: '',
+          userEmail: '',
+          userPhone: '',
+        };
+
+        // Fetch user profile and auto-populate user information
+        try {
+          const response = await authAPI.getMe();
+          const user = response.data;
+          if (user) {
+            initialFormData.userName = user.name || '';
+            initialFormData.userEmail = user.email || '';
+            initialFormData.userPhone = user.phone || '';
+          }
+        } catch (error) {
+          console.error('Error fetching user profile:', error);
+          // Silently fail - user can still manually enter the info
         }
-      } catch (error) {
-        console.error('Error fetching user profile:', error);
-        // Silently fail - user can still manually enter the info
+
+        setFormData(initialFormData);
       }
     };
-    
-    if (!expense) {
-      fetchUserProfile();
-    }
-  }, [expense]);
 
-  useEffect(() => {
-    if (expense) {
-      const expenseDate = new Date(expense.date);
-      setFormData({
-        date: format(expenseDate, 'yyyy-MM-dd'),
-        category: expense.category || '',
-        paymentMode: expense.paymentMode || '',
-        department: expense.department || '',
-        bankAccount: expense.bankAccount || '',
-        vendor: expense.vendor || '',
-        description: expense.description || '',
-        amountExclTax: expense.amountExclTax === 0 || expense.amountExclTax === null || expense.amountExclTax === undefined ? '' : String(expense.amountExclTax),
-        gstPercentage: expense.gstPercentage === 0 || expense.gstPercentage === null || expense.gstPercentage === undefined ? '' : String(expense.gstPercentage),
-        gstAmount: expense.gstAmount === 0 || expense.gstAmount === null || expense.gstAmount === undefined ? '' : String(expense.gstAmount),
-        tdsPercentage: expense.tdsPercentage === 0 || expense.tdsPercentage === null || expense.tdsPercentage === undefined ? '' : String(expense.tdsPercentage),
-        tdsAmount: expense.tdsAmount === 0 || expense.tdsAmount === null || expense.tdsAmount === undefined ? '' : String(expense.tdsAmount),
-        totalAmount: expense.totalAmount === 0 || expense.totalAmount === null || expense.totalAmount === undefined ? '' : String(expense.totalAmount),
-        paidAmount: expense.paidAmount === 0 || expense.paidAmount === null || expense.paidAmount === undefined ? '' : String(expense.paidAmount),
-        paidTransactionRef: expense.paidTransactionRef || '',
-        month: expense.month || format(new Date(), 'MMM'),
-        year: expense.year || new Date().getFullYear(),
-        executive: expense.executive || '',
-        userName: expense.userName || '',
-        userEmail: expense.userEmail || '',
-        userPhone: expense.userPhone || '',
-      });
-    } else {
-      // Reset form when no expense is being edited
-      setFormData({
-        date: format(new Date(), 'yyyy-MM-dd'),
-        category: '',
-        paymentMode: '',
-        department: '',
-        bankAccount: '',
-        vendor: '',
-        description: '',
-        amountExclTax: '',
-        gstPercentage: '',
-        gstAmount: '',
-        tdsPercentage: '',
-        tdsAmount: '',
-        totalAmount: '',
-        paidAmount: '',
-        paidTransactionRef: '',
-        month: format(new Date(), 'MMM'),
-        year: new Date().getFullYear(),
-        executive: '',
-        userName: '',
-        userEmail: '',
-        userPhone: '',
-      });
-    }
+    initializeForm();
   }, [expense]);
 
   // Track which fields were manually changed to avoid circular updates
