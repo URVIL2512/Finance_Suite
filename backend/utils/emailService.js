@@ -149,14 +149,17 @@ Website: www.kology.co
       ]
     };
 
+    // Debug: Verify API key is loaded before API call
+    console.log("Brevo key loaded:", process.env.BREVO_API_KEY ? "YES" : "NO");
+    
     // Send email via Brevo REST API
     const response = await axios.post(
       'https://api.brevo.com/v3/smtp/email',
       emailData,
       {
         headers: {
-          'api-key': brevoApiKey,
-          'Content-Type': 'application/json'
+          "api-key": brevoApiKey,
+          "Content-Type": "application/json"
         }
       }
     );
@@ -346,14 +349,17 @@ Website: www.kology.co
       textContent: textContent
     };
 
+    // Debug: Verify API key is loaded before API call
+    console.log("Brevo key loaded:", process.env.BREVO_API_KEY ? "YES" : "NO");
+    
     // Send email via Brevo REST API
     const response = await axios.post(
       'https://api.brevo.com/v3/smtp/email',
       emailData,
       {
         headers: {
-          'api-key': brevoApiKey,
-          'Content-Type': 'application/json'
+          "api-key": brevoApiKey,
+          "Content-Type": "application/json"
         }
       }
     );
