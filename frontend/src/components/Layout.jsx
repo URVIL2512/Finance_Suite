@@ -27,9 +27,10 @@ const Layout = ({ onLogout }) => {
   ];
 
   const expensesSubMenu = [
+    { name: 'Dashboard', href: '/expense-dashboard', icon: '📊' },
     { name: 'Expenses', href: '/expenses', icon: '💰' },
     { name: 'Recurring Expenses', href: '/recurring-expenses', icon: '🔄' },
-    { name: 'Expense Dashboard', href: '/expense-dashboard', icon: '📉' },
+    { name: 'Reports', href: '/expense-dashboard', icon: '📈' },
   ];
 
   const isActive = (path) => location.pathname === path;
