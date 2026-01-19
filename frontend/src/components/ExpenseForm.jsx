@@ -277,8 +277,21 @@ const ExpenseForm = ({ expense, onSubmit, onCancel }) => {
     }
   }, [formData.paidAmount, formData.totalAmount]);
 
-  // Calculate balance (Total Amount - Paid Amount)
-  const balance = (parseFloat(formData.totalAmount) || 0) - (parseFloat(formData.paidAmount) || 0);
+  // Calculate balance (Due Amount)
+  // Prefer stored totalAmount, but fall back to derived total (Amount + GST - TDS)
+  // to avoid transient/blank totalAmount causing negative balances (e.g. -4).
+  const computedTotalAmount = (() => {
+    const explicitTotal = parseFloat(formData.totalAmount);
+    if (!Number.isNaN(explicitTotal) && explicitTotal > 0) return explicitTotal;
+
+    const amountExclTax = parseFloat(formData.amountExclTax) || 0;
+    const gstAmount = parseFloat(formData.gstAmount) || 0;
+    const tdsAmount = parseFloat(formData.tdsAmount) || 0;
+    const derivedTotal = amountExclTax + gstAmount - tdsAmount;
+    return derivedTotal > 0 ? derivedTotal : 0;
+  })();
+
+  const balance = Math.max(0, computedTotalAmount - (parseFloat(formData.paidAmount) || 0));
   
   // Check if amount fields should be locked (when status is Paid)
   const isLocked = formData.status === 'Paid';
