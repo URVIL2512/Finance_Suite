@@ -174,25 +174,25 @@ export const generateExpenseAgingPDF = async (agingData, totalOutstanding, asOfD
         doc.text(`${selectedBucket} - Expense Details`, 40, currentY);
         currentY += 25;
 
-        // Detailed table header - Optimized column positions to fit all columns
+        // Detailed table header - Optimized column positions with proper spacing
         const detailHeaderY = currentY;
-        const detailCol1X = 45;   // Date (35 width)
-        const detailCol2X = 85;   // Vendor (90 width)
-        const detailCol3X = 180;  // Category (60 width)
-        const detailCol4X = 245;  // Total Amount (70 width)
-        const detailCol5X = 320;  // Paid Amount (70 width)
-        const detailCol6X = 395;  // Outstanding (70 width)
-        const detailCol7X = 470;  // Days Overdue (45 width)
+        const detailCol1X = 50;   // Date (50 width) - increased for visibility
+        const detailCol2X = 110;  // Vendor (85 width) - proper spacing from Date
+        const detailCol3X = 205;  // Category (55 width) - proper spacing from Vendor
+        const detailCol4X = 270;  // Total Amount (65 width) - proper spacing
+        const detailCol5X = 345;  // Paid Amount (65 width) - proper spacing
+        const detailCol6X = 420;  // Outstanding (65 width) - proper spacing
+        const detailCol7X = 495;  // Days Overdue (50 width) - proper spacing
 
         doc.rect(40, detailHeaderY, 515, 25).fill('#1e293b').stroke('#0f172a');
         doc.fontSize(8).font('Helvetica-Bold').fillColor('#ffffff');
-        doc.text('Date', detailCol1X, detailHeaderY + 8, { width: 35 });
-        doc.text('Vendor', detailCol2X, detailHeaderY + 8, { width: 90 });
-        doc.text('Category', detailCol3X, detailHeaderY + 8, { width: 60 });
-        doc.text('Total Amount', detailCol4X, detailHeaderY + 8, { width: 70, align: 'right' });
-        doc.text('Paid Amount', detailCol5X, detailHeaderY + 8, { width: 70, align: 'right' });
-        doc.text('Outstanding', detailCol6X, detailHeaderY + 8, { width: 70, align: 'right' });
-        doc.text('Days Overdue', detailCol7X, detailHeaderY + 8, { width: 45, align: 'center' });
+        doc.text('Date', detailCol1X, detailHeaderY + 8, { width: 50 });
+        doc.text('Vendor', detailCol2X, detailHeaderY + 8, { width: 85 });
+        doc.text('Category', detailCol3X, detailHeaderY + 8, { width: 55 });
+        doc.text('Total Amount', detailCol4X, detailHeaderY + 8, { width: 65, align: 'right' });
+        doc.text('Paid Amount', detailCol5X, detailHeaderY + 8, { width: 65, align: 'right' });
+        doc.text('Outstanding', detailCol6X, detailHeaderY + 8, { width: 65, align: 'right' });
+        doc.text('Days Overdue', detailCol7X, detailHeaderY + 8, { width: 50, align: 'center' });
 
         currentY += 25;
 
@@ -206,13 +206,13 @@ export const generateExpenseAgingPDF = async (agingData, totalOutstanding, asOfD
             // Redraw header on new page
             doc.rect(40, currentY, 515, 25).fill('#1e293b').stroke('#0f172a');
             doc.fontSize(8).font('Helvetica-Bold').fillColor('#ffffff');
-            doc.text('Date', detailCol1X, currentY + 8, { width: 35 });
-            doc.text('Vendor', detailCol2X, currentY + 8, { width: 90 });
-            doc.text('Category', detailCol3X, currentY + 8, { width: 60 });
-            doc.text('Total Amount', detailCol4X, currentY + 8, { width: 70, align: 'right' });
-            doc.text('Paid Amount', detailCol5X, currentY + 8, { width: 70, align: 'right' });
-            doc.text('Outstanding', detailCol6X, currentY + 8, { width: 70, align: 'right' });
-            doc.text('Days Overdue', detailCol7X, currentY + 8, { width: 45, align: 'center' });
+            doc.text('Date', detailCol1X, currentY + 8, { width: 50 });
+            doc.text('Vendor', detailCol2X, currentY + 8, { width: 85 });
+            doc.text('Category', detailCol3X, currentY + 8, { width: 55 });
+            doc.text('Total Amount', detailCol4X, currentY + 8, { width: 65, align: 'right' });
+            doc.text('Paid Amount', detailCol5X, currentY + 8, { width: 65, align: 'right' });
+            doc.text('Outstanding', detailCol6X, currentY + 8, { width: 65, align: 'right' });
+            doc.text('Days Overdue', detailCol7X, currentY + 8, { width: 50, align: 'center' });
             currentY += 25;
           }
 
@@ -230,16 +230,16 @@ export const generateExpenseAgingPDF = async (agingData, totalOutstanding, asOfD
           const dateStr = expenseDate.toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' });
 
           doc.fillColor('#1e293b');
-          doc.text(dateStr, detailCol1X, rowY + 5, { width: 35 });
-          doc.text((expense.vendor || '-').substring(0, 18), detailCol2X, rowY + 5, { width: 90 });
-          doc.text((expense.category || '-').substring(0, 12), detailCol3X, rowY + 5, { width: 60 });
-          doc.text(`Rs. ${expense.totalAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}`, detailCol4X, rowY + 5, { width: 70, align: 'right' });
+          doc.text(dateStr, detailCol1X, rowY + 5, { width: 50 });
+          doc.text((expense.vendor || '-').substring(0, 20), detailCol2X, rowY + 5, { width: 85 });
+          doc.text((expense.category || '-').substring(0, 15), detailCol3X, rowY + 5, { width: 55 });
+          doc.text(`Rs. ${expense.totalAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}`, detailCol4X, rowY + 5, { width: 65, align: 'right' });
           doc.fillColor('#10b981'); // Green for paid
-          doc.text(`Rs. ${expense.paidAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}`, detailCol5X, rowY + 5, { width: 70, align: 'right' });
+          doc.text(`Rs. ${expense.paidAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}`, detailCol5X, rowY + 5, { width: 65, align: 'right' });
           doc.fillColor('#ef4444'); // Red for outstanding
-          doc.text(`Rs. ${expense.outstandingAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}`, detailCol6X, rowY + 5, { width: 70, align: 'right' });
+          doc.text(`Rs. ${expense.outstandingAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}`, detailCol6X, rowY + 5, { width: 65, align: 'right' });
           doc.fillColor('#1e293b');
-          doc.text(`${expense.daysDifference} days`, detailCol7X, rowY + 5, { width: 45, align: 'center' });
+          doc.text(`${expense.daysDifference} days`, detailCol7X, rowY + 5, { width: 50, align: 'center' });
 
           currentY += 18;
         });
