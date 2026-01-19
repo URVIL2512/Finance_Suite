@@ -9,8 +9,11 @@ import CustomerForm from '../components/CustomerForm';
 import CustomerTable from '../components/CustomerTable';
 import RecurringInvoiceModal from '../components/RecurringInvoiceModal';
 import PaymentModal from '../components/PaymentModal';
+import ConfirmationModal from '../components/ConfirmationModal';
+import { useToast } from '../contexts/ToastContext';
 
 const Sales = () => {
+  const { showToast } = useToast();
   const location = useLocation();
   const [activeMainTab, setActiveMainTab] = useState('invoices'); // 'invoices', 'items'
   const [activeSubTab, setActiveSubTab] = useState('invoices'); // 'invoices' or 'customers' (for invoices tab)
@@ -187,16 +190,24 @@ const Sales = () => {
     setViewingCustomer(customer);
   };
 
-  const handleDeleteCustomer = async (id) => {
-    if (window.confirm('Are you sure you want to delete this customer?')) {
-      try {
-        await customerAPI.delete(id);
-        fetchCustomers();
-        alert('Customer deleted successfully!');
-      } catch (error) {
-        console.error('Error deleting customer:', error);
-        alert('Failed to delete customer');
-      }
+  const handleDeleteCustomer = (id) => {
+    setDeleteCustomerConfirm({ show: true, id });
+  };
+
+  const handleDeleteCustomerConfirm = async () => {
+    if (!deleteCustomerConfirm.id) return;
+    
+    try {
+      setDeleting(true);
+      await customerAPI.delete(deleteCustomerConfirm.id);
+      showToast('Customer deleted successfully!', 'success');
+      setDeleteCustomerConfirm({ show: false, id: null });
+      fetchCustomers();
+    } catch (error) {
+      console.error('Error deleting customer:', error);
+      showToast('Failed to delete customer', 'error');
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -266,15 +277,24 @@ const Sales = () => {
     setShowForm(true);
   };
 
-  const handleDelete = async (id) => {
-    if (window.confirm('Are you sure you want to delete this invoice?')) {
-      try {
-        await invoiceAPI.delete(id);
-        fetchInvoices();
-      } catch (error) {
-        console.error('Error deleting invoice:', error);
-        alert('Failed to delete invoice');
-      }
+  const handleDelete = (id) => {
+    setDeleteInvoiceConfirm({ show: true, id });
+  };
+
+  const handleDeleteInvoiceConfirm = async () => {
+    if (!deleteInvoiceConfirm.id) return;
+    
+    try {
+      setDeleting(true);
+      await invoiceAPI.delete(deleteInvoiceConfirm.id);
+      showToast('Invoice deleted successfully!', 'success');
+      setDeleteInvoiceConfirm({ show: false, id: null });
+      fetchInvoices();
+    } catch (error) {
+      console.error('Error deleting invoice:', error);
+      showToast('Failed to delete invoice', 'error');
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -1299,6 +1319,32 @@ const Sales = () => {
         }}
         invoice={selectedInvoiceForPayment}
         onPaymentRecorded={handlePaymentRecorded}
+      />
+
+      {/* Delete Customer Confirmation Modal */}
+      <ConfirmationModal
+        isOpen={deleteCustomerConfirm.show}
+        onClose={() => setDeleteCustomerConfirm({ show: false, id: null })}
+        onConfirm={handleDeleteCustomerConfirm}
+        title="Confirm Delete"
+        message="Are you sure you want to delete this customer? This action cannot be undone."
+        confirmText="Delete"
+        cancelText="Cancel"
+        confirmButtonColor="red"
+        loading={deleting}
+      />
+
+      {/* Delete Invoice Confirmation Modal */}
+      <ConfirmationModal
+        isOpen={deleteInvoiceConfirm.show}
+        onClose={() => setDeleteInvoiceConfirm({ show: false, id: null })}
+        onConfirm={handleDeleteInvoiceConfirm}
+        title="Confirm Delete"
+        message="Are you sure you want to delete this invoice? This action cannot be undone."
+        confirmText="Delete"
+        cancelText="Cancel"
+        confirmButtonColor="red"
+        loading={deleting}
       />
     </div>
   );
