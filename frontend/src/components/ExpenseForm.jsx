@@ -1,20 +1,30 @@
 import { useState, useEffect, useRef } from 'react';
 import { format } from 'date-fns';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { useToast } from '../contexts/ToastContext';
-import { authAPI } from '../services/api';
+import { authAPI, paymentModeAPI, vendorAPI, bankAccountAPI } from '../services/api';
 
 const ExpenseForm = ({ expense, onSubmit, onCancel }) => {
   const { showToast } = useToast();
+  const navigate = useNavigate();
+  const location = useLocation();
   const [newCategory, setNewCategory] = useState('');
   const [showAddCategory, setShowAddCategory] = useState(false);
   const [showCategoryDropdown, setShowCategoryDropdown] = useState(false);
   const [categorySearchTerm, setCategorySearchTerm] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const categoryDropdownRef = useRef(null);
-  const [bankAccounts, setBankAccounts] = useState(['Kology', 'Kology ICICI']);
+  const [paymentModes, setPaymentModes] = useState([]);
+  const [vendors, setVendors] = useState([]);
+  const [bankAccounts, setBankAccounts] = useState([]);
+  const [showPaymentModeDropdown, setShowPaymentModeDropdown] = useState(false);
+  const [paymentModeSearchTerm, setPaymentModeSearchTerm] = useState('');
+  const [showVendorDropdown, setShowVendorDropdown] = useState(false);
+  const [vendorSearchTerm, setVendorSearchTerm] = useState('');
   const [showBankAccountDropdown, setShowBankAccountDropdown] = useState(false);
-  const [showAddBankAccount, setShowAddBankAccount] = useState(false);
-  const [newBankAccount, setNewBankAccount] = useState('');
+  const [bankAccountSearchTerm, setBankAccountSearchTerm] = useState('');
+  const paymentModeDropdownRef = useRef(null);
+  const vendorDropdownRef = useRef(null);
   const bankAccountDropdownRef = useRef(null);
   const [formData, setFormData] = useState({
     date: format(new Date(), 'yyyy-MM-dd'),
@@ -41,6 +51,35 @@ const ExpenseForm = ({ expense, onSubmit, onCancel }) => {
     userPhone: '',
   });
 
+
+  // Fetch Payment Modes, Vendors, and Bank Accounts
+  useEffect(() => {
+    const fetchMasterData = async () => {
+      try {
+        // Fetch Payment Modes
+        const paymentModesResponse = await paymentModeAPI.getAll({ isActive: true });
+        const activePaymentModes = (paymentModesResponse.data || []).filter(mode => mode.isActive !== false);
+        setPaymentModes(activePaymentModes.map(mode => mode.name));
+
+        // Fetch Vendors
+        const vendorsResponse = await vendorAPI.getAll({ isActive: true });
+        const activeVendors = (vendorsResponse.data || []).filter(vendor => vendor.isActive !== false);
+        setVendors(activeVendors.map(vendor => vendor.name));
+
+        // Fetch Bank Accounts
+        const bankAccountsResponse = await bankAccountAPI.getAll({ isActive: true });
+        const activeBankAccounts = (bankAccountsResponse.data || []).filter(account => account.isActive !== false);
+        setBankAccounts(activeBankAccounts.map(account => account.accountName));
+      } catch (error) {
+        console.error('Error fetching master data:', error);
+        // Set default values if API fails
+        setPaymentModes(['Office Cash', 'Bank Transfer', 'Mihir Personal', 'Komal Personal HDFC', 'Komal Personal Cash', 'HR Personal', 'Other']);
+        setBankAccounts(['Kology', 'Kology ICICI']);
+      }
+    };
+
+    fetchMasterData();
+  }, []);
 
   useEffect(() => {
     const initializeForm = async () => {
@@ -250,20 +289,28 @@ const ExpenseForm = ({ expense, onSubmit, onCancel }) => {
         setShowCategoryDropdown(false);
         setShowAddCategory(false);
       }
+      if (paymentModeDropdownRef.current && !paymentModeDropdownRef.current.contains(event.target)) {
+        setShowPaymentModeDropdown(false);
+        setPaymentModeSearchTerm('');
+      }
+      if (vendorDropdownRef.current && !vendorDropdownRef.current.contains(event.target)) {
+        setShowVendorDropdown(false);
+        setVendorSearchTerm('');
+      }
       if (bankAccountDropdownRef.current && !bankAccountDropdownRef.current.contains(event.target)) {
         setShowBankAccountDropdown(false);
-        setShowAddBankAccount(false);
+        setBankAccountSearchTerm('');
       }
     };
 
-    if (showCategoryDropdown || showBankAccountDropdown) {
+    if (showCategoryDropdown || showPaymentModeDropdown || showVendorDropdown || showBankAccountDropdown) {
       document.addEventListener('mousedown', handleClickOutside);
     }
 
     return () => {
       document.removeEventListener('mousedown', handleClickOutside);
     };
-  }, [showCategoryDropdown, showBankAccountDropdown]);
+  }, [showCategoryDropdown, showPaymentModeDropdown, showVendorDropdown, showBankAccountDropdown]);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -304,14 +351,6 @@ const ExpenseForm = ({ expense, onSubmit, onCancel }) => {
     }
   };
 
-  const handleAddBankAccount = () => {
-    if (newBankAccount.trim() && !bankAccounts.includes(newBankAccount.trim())) {
-      setBankAccounts([...bankAccounts, newBankAccount.trim()]);
-      setFormData({ ...formData, bankAccount: newBankAccount.trim() });
-      setNewBankAccount('');
-      setShowAddBankAccount(false);
-    }
-  };
 
 
   const handleSubmit = async (e) => {
@@ -380,15 +419,6 @@ const ExpenseForm = ({ expense, onSubmit, onCancel }) => {
       setShowAddCategory(false);
     }
   };
-  const paymentModes = [
-    'Office Cash',
-    'Bank Transfer',
-    'Mihir Personal',
-    'Komal Personal HDFC',
-    'Komal Personal Cash',
-    'HR Personal',
-    'Other',
-  ];
   const departments = [
     'OPERATION',
     'SOCIAL MEDIA',
@@ -607,14 +637,141 @@ const ExpenseForm = ({ expense, onSubmit, onCancel }) => {
                 </div>
                 <div className="space-y-2">
                   <label className="block text-sm font-semibold text-gray-700">Vendor/Party</label>
-                  <input
-                    type="text"
-                    name="vendor"
-                    value={formData.vendor}
-                    onChange={handleChange}
-                    placeholder="Enter name"
-                    className="input-field w-full text-sm py-2.5"
-                  />
+                  <div className="relative" ref={vendorDropdownRef}>
+                    <div
+                      onClick={() => {
+                        setShowVendorDropdown(!showVendorDropdown);
+                        if (!showVendorDropdown) {
+                          setVendorSearchTerm('');
+                        }
+                      }}
+                      className="select-field w-full text-sm py-2.5 cursor-pointer flex items-center justify-between"
+                    >
+                      <span className={formData.vendor ? 'text-gray-900' : 'text-gray-400'}>
+                        {formData.vendor || 'Enter name'}
+                      </span>
+                      <svg
+                        className={`w-5 h-5 text-gray-400 transition-transform ${showVendorDropdown ? 'rotate-180' : ''}`}
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                      </svg>
+                    </div>
+                    {showVendorDropdown && (
+                      <div className="absolute z-50 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg max-h-60 overflow-hidden flex flex-col">
+                        {/* Search Input */}
+                        <div className="p-2 border-b border-gray-200">
+                          <div className="relative">
+                            <input
+                              type="text"
+                              value={vendorSearchTerm}
+                              onChange={(e) => setVendorSearchTerm(e.target.value)}
+                              placeholder="Search vendors..."
+                              className="w-full px-3 py-2 pl-9 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+                              onClick={(e) => e.stopPropagation()}
+                              autoFocus
+                            />
+                            <svg
+                              className="absolute left-2.5 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400"
+                              fill="none"
+                              stroke="currentColor"
+                              viewBox="0 0 24 24"
+                            >
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                            </svg>
+                            {vendorSearchTerm && (
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setVendorSearchTerm('');
+                                }}
+                                className="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 active:text-gray-800 active:scale-90 focus:outline-none focus:ring-2 focus:ring-gray-400 rounded transition-all duration-150"
+                              >
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                </svg>
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                        {/* Vendors List */}
+                        <div className="overflow-y-auto max-h-48 py-1">
+                          {vendors
+                            .filter((vendor) =>
+                              vendor.toLowerCase().includes(vendorSearchTerm.toLowerCase())
+                            )
+                            .map((vendor) => (
+                              <div
+                                key={vendor}
+                                onClick={() => {
+                                  setFormData({ ...formData, vendor: vendor });
+                                  setShowVendorDropdown(false);
+                                  setVendorSearchTerm('');
+                                }}
+                                className={`px-4 py-2 cursor-pointer hover:bg-blue-50 active:bg-blue-100 active:scale-[0.98] transition-all duration-150 ${
+                                  formData.vendor === vendor ? 'bg-blue-100 text-blue-700' : 'text-gray-900'
+                                }`}
+                              >
+                                {vendor}
+                              </div>
+                            ))}
+                          {vendors.filter((vendor) =>
+                            vendor.toLowerCase().includes(vendorSearchTerm.toLowerCase())
+                          ).length === 0 && (
+                            <div className="px-4 py-3 text-sm text-gray-500 text-center">
+                              {vendorSearchTerm ? 'No vendors found' : 'No vendors available'}
+                            </div>
+                          )}
+                          {/* Allow manual entry and Add New */}
+                          <div className="border-t border-gray-200 mt-1 space-y-1">
+                            {vendorSearchTerm && (
+                              <div
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  const manualVendor = vendorSearchTerm.trim();
+                                  if (manualVendor) {
+                                    setFormData({ ...formData, vendor: manualVendor });
+                                    setShowVendorDropdown(false);
+                                    setVendorSearchTerm('');
+                                  }
+                                }}
+                                className="px-4 py-2 cursor-pointer hover:bg-blue-50 active:bg-blue-100 active:scale-[0.98] transition-all duration-150 text-blue-600 font-semibold flex items-center gap-2"
+                              >
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                                </svg>
+                                Use "{vendorSearchTerm}"
+                              </div>
+                            )}
+                            <div
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setShowVendorDropdown(false);
+                                setVendorSearchTerm('');
+                                // Navigate to masters page with vendor tab
+                                navigate('/expenses/masters', {
+                                  state: {
+                                    activeTab: 'vendor',
+                                    returnTo: location.pathname,
+                                    returnState: { showExpenseForm: true, editingExpense: expense }
+                                  }
+                                });
+                              }}
+                              className="px-4 py-2 cursor-pointer hover:bg-blue-50 active:bg-blue-100 active:scale-[0.98] transition-all duration-150 text-blue-600 font-semibold flex items-center gap-2 border-t border-gray-200"
+                            >
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                              </svg>
+                              Add New Vendor
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
             </div>
@@ -730,18 +887,127 @@ const ExpenseForm = ({ expense, onSubmit, onCancel }) => {
                   <label className="block text-sm font-semibold text-gray-700">
                     Payment Mode<span className="text-red-500 ml-1">*</span>
                   </label>
-                  <select
+                  <div className="relative" ref={paymentModeDropdownRef}>
+                    <div
+                      onClick={() => {
+                        setShowPaymentModeDropdown(!showPaymentModeDropdown);
+                        if (!showPaymentModeDropdown) {
+                          setPaymentModeSearchTerm('');
+                        }
+                      }}
+                      className="select-field w-full text-sm py-2.5 cursor-pointer flex items-center justify-between"
+                    >
+                      <span className={formData.paymentMode ? 'text-gray-900' : 'text-gray-400'}>
+                        {formData.paymentMode || 'Select'}
+                      </span>
+                      <svg
+                        className={`w-5 h-5 text-gray-400 transition-transform ${showPaymentModeDropdown ? 'rotate-180' : ''}`}
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                      </svg>
+                    </div>
+                    {showPaymentModeDropdown && (
+                      <div className="absolute z-50 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg max-h-60 overflow-hidden flex flex-col">
+                        {/* Search Input */}
+                        <div className="p-2 border-b border-gray-200">
+                          <div className="relative">
+                            <input
+                              type="text"
+                              value={paymentModeSearchTerm}
+                              onChange={(e) => setPaymentModeSearchTerm(e.target.value)}
+                              placeholder="Search payment modes..."
+                              className="w-full px-3 py-2 pl-9 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+                              onClick={(e) => e.stopPropagation()}
+                              autoFocus
+                            />
+                            <svg
+                              className="absolute left-2.5 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400"
+                              fill="none"
+                              stroke="currentColor"
+                              viewBox="0 0 24 24"
+                            >
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                            </svg>
+                            {paymentModeSearchTerm && (
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setPaymentModeSearchTerm('');
+                                }}
+                                className="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 active:text-gray-800 active:scale-90 focus:outline-none focus:ring-2 focus:ring-gray-400 rounded transition-all duration-150"
+                              >
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                </svg>
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                        {/* Payment Modes List */}
+                        <div className="overflow-y-auto max-h-48 py-1">
+                          {paymentModes
+                            .filter((mode) =>
+                              mode.toLowerCase().includes(paymentModeSearchTerm.toLowerCase())
+                            )
+                            .map((mode) => (
+                              <div
+                                key={mode}
+                                onClick={() => {
+                                  setFormData({ ...formData, paymentMode: mode });
+                                  setShowPaymentModeDropdown(false);
+                                  setPaymentModeSearchTerm('');
+                                }}
+                                className={`px-4 py-2 cursor-pointer hover:bg-blue-50 active:bg-blue-100 active:scale-[0.98] transition-all duration-150 ${
+                                  formData.paymentMode === mode ? 'bg-blue-100 text-blue-700' : 'text-gray-900'
+                                }`}
+                              >
+                                {mode}
+                              </div>
+                            ))}
+                          {paymentModes.filter((mode) =>
+                            mode.toLowerCase().includes(paymentModeSearchTerm.toLowerCase())
+                          ).length === 0 && (
+                            <div className="px-4 py-3 text-sm text-gray-500 text-center">
+                              No payment modes found
+                            </div>
+                          )}
+                          <div className="border-t border-gray-200 mt-1">
+                            <div
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setShowPaymentModeDropdown(false);
+                                setPaymentModeSearchTerm('');
+                                // Navigate to masters page with payment mode tab
+                                navigate('/expenses/masters', {
+                                  state: {
+                                    activeTab: 'payment-mode',
+                                    returnTo: location.pathname,
+                                    returnState: { showExpenseForm: true, editingExpense: expense }
+                                  }
+                                });
+                              }}
+                              className="px-4 py-2 cursor-pointer hover:bg-blue-50 active:bg-blue-100 active:scale-[0.98] transition-all duration-150 text-blue-600 font-semibold flex items-center gap-2"
+                            >
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                              </svg>
+                              Add New Payment Mode
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                  <input
+                    type="hidden"
                     name="paymentMode"
                     value={formData.paymentMode}
-                    onChange={handleChange}
                     required
-                    className="select-field w-full text-sm py-2.5"
-                  >
-                    <option value="">Select</option>
-                    {paymentModes.map((mode) => (
-                      <option key={mode} value={mode}>{mode}</option>
-                    ))}
-                  </select>
+                  />
                 </div>
                 <div className="space-y-2">
                   <label className="block text-sm font-semibold text-gray-700">
@@ -766,7 +1032,9 @@ const ExpenseForm = ({ expense, onSubmit, onCancel }) => {
                     <div
                       onClick={() => {
                         setShowBankAccountDropdown(!showBankAccountDropdown);
-                        setShowAddBankAccount(false);
+                        if (!showBankAccountDropdown) {
+                          setBankAccountSearchTerm('');
+                        }
                       }}
                       className="select-field w-full text-sm py-2.5 cursor-pointer flex items-center justify-between"
                     >
@@ -778,58 +1046,95 @@ const ExpenseForm = ({ expense, onSubmit, onCancel }) => {
                       </svg>
                     </div>
                     {showBankAccountDropdown && (
-                      <div className="absolute z-50 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg max-h-60 overflow-auto">
-                        {bankAccounts.map((account) => (
-                          <div
-                            key={account}
-                            onClick={() => {
-                              setFormData({ ...formData, bankAccount: account });
-                              setShowBankAccountDropdown(false);
-                            }}
-                            className={`px-4 py-2.5 cursor-pointer hover:bg-blue-50 active:bg-blue-100 active:scale-[0.98] transition-all duration-150 ${
-                              formData.bankAccount === account ? 'bg-blue-50 text-blue-600 font-medium' : 'text-gray-700'
-                            }`}
-                          >
-                            {account}
-                          </div>
-                        ))}
-                        {!showAddBankAccount ? (
-                          <div
-                            onClick={() => {
-                              setShowAddBankAccount(true);
-                            }}
-                            className="px-4 py-2.5 cursor-pointer hover:bg-gray-100 active:bg-gray-200 active:scale-[0.98] transition-all duration-150 text-blue-600 font-medium border-t border-gray-200 flex items-center gap-2"
-                          >
-                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                            </svg>
-                            Add New
-                          </div>
-                        ) : (
-                          <div className="px-4 py-2.5 border-t border-gray-200 flex gap-2">
+                      <div className="absolute z-50 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg max-h-60 overflow-hidden flex flex-col">
+                        {/* Search Input */}
+                        <div className="p-2 border-b border-gray-200">
+                          <div className="relative">
                             <input
                               type="text"
-                              value={newBankAccount}
-                              onChange={(e) => setNewBankAccount(e.target.value)}
-                              onKeyPress={(e) => {
-                                if (e.key === 'Enter') {
-                                  e.preventDefault();
-                                  handleAddBankAccount();
-                                }
-                              }}
-                              placeholder="Enter bank account name"
-                              className="flex-1 px-2 py-1.5 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
+                              value={bankAccountSearchTerm}
+                              onChange={(e) => setBankAccountSearchTerm(e.target.value)}
+                              placeholder="Search bank accounts..."
+                              className="w-full px-3 py-2 pl-9 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+                              onClick={(e) => e.stopPropagation()}
                               autoFocus
                             />
-                            <button
-                              type="button"
-                              onClick={handleAddBankAccount}
-                              className="px-3 py-1.5 bg-blue-600 text-white rounded hover:bg-blue-700 active:bg-blue-800 active:scale-95 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-all duration-150 text-sm font-medium shadow-sm hover:shadow-md active:shadow-sm"
+                            <svg
+                              className="absolute left-2.5 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400"
+                              fill="none"
+                              stroke="currentColor"
+                              viewBox="0 0 24 24"
                             >
-                              Add
-                            </button>
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                            </svg>
+                            {bankAccountSearchTerm && (
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setBankAccountSearchTerm('');
+                                }}
+                                className="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 active:text-gray-800 active:scale-90 focus:outline-none focus:ring-2 focus:ring-gray-400 rounded transition-all duration-150"
+                              >
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                </svg>
+                              </button>
+                            )}
                           </div>
-                        )}
+                        </div>
+                        {/* Bank Accounts List */}
+                        <div className="overflow-y-auto max-h-48 py-1">
+                          {bankAccounts
+                            .filter((account) =>
+                              account.toLowerCase().includes(bankAccountSearchTerm.toLowerCase())
+                            )
+                            .map((account) => (
+                              <div
+                                key={account}
+                                onClick={() => {
+                                  setFormData({ ...formData, bankAccount: account });
+                                  setShowBankAccountDropdown(false);
+                                  setBankAccountSearchTerm('');
+                                }}
+                                className={`px-4 py-2.5 cursor-pointer hover:bg-blue-50 active:bg-blue-100 active:scale-[0.98] transition-all duration-150 ${
+                                  formData.bankAccount === account ? 'bg-blue-50 text-blue-600 font-medium' : 'text-gray-700'
+                                }`}
+                              >
+                                {account}
+                              </div>
+                            ))}
+                          {bankAccounts.filter((account) =>
+                            account.toLowerCase().includes(bankAccountSearchTerm.toLowerCase())
+                          ).length === 0 && (
+                            <div className="px-4 py-3 text-sm text-gray-500 text-center">
+                              No bank accounts found
+                            </div>
+                          )}
+                          <div className="border-t border-gray-200 mt-1">
+                            <div
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setShowBankAccountDropdown(false);
+                                setBankAccountSearchTerm('');
+                                // Navigate to masters page with bank account tab
+                                navigate('/expenses/masters', {
+                                  state: {
+                                    activeTab: 'bank-account',
+                                    returnTo: location.pathname,
+                                    returnState: { showExpenseForm: true, editingExpense: expense }
+                                  }
+                                });
+                              }}
+                              className="px-4 py-2 cursor-pointer hover:bg-blue-50 active:bg-blue-100 active:scale-[0.98] transition-all duration-150 text-blue-600 font-semibold flex items-center gap-2"
+                            >
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                              </svg>
+                              Add New Bank Account
+                            </div>
+                          </div>
+                        </div>
                       </div>
                     )}
                   </div>

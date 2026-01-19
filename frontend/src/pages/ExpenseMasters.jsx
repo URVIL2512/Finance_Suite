@@ -1,10 +1,24 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useLocation } from 'react-router-dom';
 import PaymentModeMaster from './PaymentModeMaster';
 import VendorMaster from './VendorMaster';
 import BankAccountMaster from './BankAccountMaster';
 
 const ExpenseMasters = () => {
+  const location = useLocation();
   const [activeTab, setActiveTab] = useState('payment-mode');
+
+  // Get return path and state from navigation
+  const returnPath = location.state?.returnTo;
+  const returnState = location.state?.returnState;
+  const initialTab = location.state?.activeTab;
+
+  // Set active tab from navigation state
+  useEffect(() => {
+    if (initialTab && ['payment-mode', 'vendor', 'bank-account'].includes(initialTab)) {
+      setActiveTab(initialTab);
+    }
+  }, [initialTab]);
 
   const tabs = [
     { id: 'payment-mode', name: 'Payment Mode', icon: '💳' },
@@ -13,15 +27,20 @@ const ExpenseMasters = () => {
   ];
 
   const renderTabContent = () => {
+    const commonProps = {
+      returnPath,
+      returnState,
+    };
+
     switch (activeTab) {
       case 'payment-mode':
-        return <PaymentModeMaster />;
+        return <PaymentModeMaster {...commonProps} />;
       case 'vendor':
-        return <VendorMaster />;
+        return <VendorMaster {...commonProps} />;
       case 'bank-account':
-        return <BankAccountMaster />;
+        return <BankAccountMaster {...commonProps} />;
       default:
-        return <PaymentModeMaster />;
+        return <PaymentModeMaster {...commonProps} />;
     }
   };
 

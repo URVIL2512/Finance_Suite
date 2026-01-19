@@ -4,6 +4,7 @@ import { format } from 'date-fns';
 import { invoiceAPI, customerAPI, salespersonAPI, itemAPI, hsnSacAPI, settingsAPI } from '../services/api';
 import { getSacCodeForService } from '../utils/serviceSacCodes';
 import { useToast } from '../contexts/ToastContext';
+import ConfirmationModal from './ConfirmationModal';
 
 // Indian States List
 const INDIAN_STATES = [
@@ -44,6 +45,8 @@ const InvoiceForm = ({ invoice, customers = [], onSubmit, onCancel, onCustomerAd
   const tdsDropdownRef = useRef(null);
   const tcsDropdownRef = useRef(null);
   const autoCreateTimeoutRef = useRef({});
+  const [deleteAllItemsConfirm, setDeleteAllItemsConfirm] = useState(false);
+  const [deleteItemConfirm, setDeleteItemConfirm] = useState({ show: false, itemId: null });
   const [newCustomerData, setNewCustomerData] = useState({
     clientName: '',
     billingAddress: '',
@@ -1836,9 +1839,7 @@ const InvoiceForm = ({ invoice, customers = [], onSubmit, onCancel, onCustomerAd
                             e.preventDefault();
                             e.stopPropagation();
                             if (items.length > 1) {
-                              if (window.confirm('Are you sure you want to delete this item?')) {
-                                handleRemoveItem(item.id);
-                              }
+                              setDeleteItemConfirm({ show: true, itemId: item.id });
                             } else {
                               // If only one item, show warning and don't delete
                               showToast('At least one item is required. You cannot delete the last item.', 'error');

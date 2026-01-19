@@ -30,6 +30,9 @@ const Sales = () => {
   const [viewingInvoice, setViewingInvoice] = useState(null);
   const [redirectFromInvoice, setRedirectFromInvoice] = useState(false);
   const [pendingCustomerSelect, setPendingCustomerSelect] = useState(null);
+  const [deleteCustomerConfirm, setDeleteCustomerConfirm] = useState({ show: false, id: null });
+  const [deleteInvoiceConfirm, setDeleteInvoiceConfirm] = useState({ show: false, id: null });
+  const [deleting, setDeleting] = useState(false);
   const [filters, setFilters] = useState({
     year: '',
     status: '',

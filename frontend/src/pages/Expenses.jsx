@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { useLocation } from 'react-router-dom';
 import { expenseAPI, recurringExpenseAPI } from '../services/api';
 import { useToast } from '../contexts/ToastContext';
 import ExpenseForm from '../components/ExpenseForm';
@@ -13,6 +14,7 @@ import { getAuthToken } from '../utils/auth';
 
 const Expenses = () => {
   const { showToast } = useToast();
+  const location = useLocation();
   const [expenses, setExpenses] = useState([]);
   const [allExpenses, setAllExpenses] = useState([]); // Store all expenses for vendor dropdown
   const [loading, setLoading] = useState(true);
@@ -160,6 +162,34 @@ const Expenses = () => {
   useEffect(() => {
     fetchExpenses();
   }, [searchQuery, appliedFilters]);
+
+  // Check if returning from masters page and should show expense form
+  useEffect(() => {
+    const returnState = location.state?.showExpenseForm;
+    const editingExpenseData = location.state?.editingExpense;
+    
+    if (returnState) {
+      // Set form state immediately
+      setShowForm(true);
+      if (editingExpenseData) {
+        setEditingExpense(editingExpenseData);
+      } else {
+        setEditingExpense(null);
+      }
+      
+      // Clear the state after a delay to prevent re-triggering on refresh
+      const clearTimer = setTimeout(() => {
+        try {
+          window.history.replaceState({}, document.title);
+        } catch (error) {
+          console.error('Error clearing history state:', error);
+        }
+      }, 1000);
+      
+      // Cleanup timer on unmount
+      return () => clearTimeout(clearTimer);
+    }
+  }, [location.state]);
 
   // Get unique vendors from all expenses
   const uniqueVendors = [...new Set(allExpenses
