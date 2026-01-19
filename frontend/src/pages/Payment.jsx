@@ -5,6 +5,7 @@ import PaymentModal from '../components/PaymentModal';
 import PaymentHistory from '../components/PaymentHistory';
 import ConfirmationModal from '../components/ConfirmationModal';
 import { useToast } from '../contexts/ToastContext';
+import MobileSelect from '../components/MobileSelect';
 
 const Payment = () => {
   const [payments, setPayments] = useState([]);
@@ -199,7 +200,7 @@ const Payment = () => {
         <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4">
           <div>
             <label className="form-label">Status</label>
-            <select
+            <MobileSelect
               value={filters.status}
               onChange={(e) => setFilters({ ...filters, status: e.target.value })}
               className="select-field"
@@ -207,7 +208,7 @@ const Payment = () => {
               <option value="">All Status</option>
               <option value="Draft">Draft</option>
               <option value="Paid">Paid</option>
-            </select>
+            </MobileSelect>
           </div>
           <div>
             <label className="form-label">Start Date</label>
@@ -229,7 +230,7 @@ const Payment = () => {
           </div>
           <div>
             <label className="form-label">Invoice</label>
-            <select
+            <MobileSelect
               value={filters.invoiceId}
               onChange={(e) => setFilters({ ...filters, invoiceId: e.target.value })}
               className="select-field"
@@ -240,11 +241,11 @@ const Payment = () => {
                   {invoice.invoiceNumber}
                 </option>
               ))}
-            </select>
+            </MobileSelect>
           </div>
           <div>
             <label className="form-label">Customer</label>
-            <select
+            <MobileSelect
               value={filters.customerId}
               onChange={(e) => setFilters({ ...filters, customerId: e.target.value })}
               className="select-field"
@@ -255,7 +256,7 @@ const Payment = () => {
                   {customer.displayName || customer.companyName || customer.clientName}
                 </option>
               ))}
-            </select>
+            </MobileSelect>
           </div>
         </div>
       </div>

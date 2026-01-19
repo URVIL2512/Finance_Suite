@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { dashboardAPI } from '../services/api';
 import { Link } from 'react-router-dom';
+import MobileSelect from '../components/MobileSelect';
 
 const Dashboard = () => {
   const [summary, setSummary] = useState(null);
@@ -48,7 +49,7 @@ const Dashboard = () => {
         </div>
         <div className="flex items-center gap-2">
           <span className="text-sm font-medium text-slate-600">Year</span>
-          <select
+          <MobileSelect
             value={year}
             onChange={(e) => setYear(e.target.value)}
             className="h-10 w-full sm:w-44 rounded-lg border border-slate-300 bg-white px-3 text-sm font-medium text-slate-800 shadow-sm outline-none transition focus:border-finance-blue focus:ring-2 focus:ring-finance-blue/20"
@@ -59,7 +60,7 @@ const Dashboard = () => {
                 {y}
               </option>
             ))}
-          </select>
+          </MobileSelect>
         </div>
       </div>
 

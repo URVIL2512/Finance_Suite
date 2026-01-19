@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { format } from 'date-fns';
+import MobileSelect from './MobileSelect';
 
 const RevenueForm = ({ revenue, onSubmit, onCancel }) => {
   const { showToast } = useToast();
@@ -276,7 +277,7 @@ const RevenueForm = ({ revenue, onSubmit, onCancel }) => {
         <div className="grid grid-cols-3 gap-3">
           <div>
             <label className="form-label">Country *</label>
-            <select
+            <MobileSelect
               name="country"
               value={formData.country}
               onChange={handleChange}
@@ -287,11 +288,11 @@ const RevenueForm = ({ revenue, onSubmit, onCancel }) => {
               {countries.map((c) => (
                 <option key={c} value={c}>{c}</option>
               ))}
-            </select>
+            </MobileSelect>
           </div>
           <div>
             <label className="form-label">Service *</label>
-            <select
+            <MobileSelect
               name="service"
               value={formData.service}
               onChange={handleChange}
@@ -302,11 +303,11 @@ const RevenueForm = ({ revenue, onSubmit, onCancel }) => {
               {services.map((s) => (
                 <option key={s} value={s}>{s}</option>
               ))}
-            </select>
+            </MobileSelect>
           </div>
           <div>
             <label className="form-label">Engagement Type *</label>
-            <select
+            <MobileSelect
               name="engagementType"
               value={formData.engagementType}
               onChange={handleChange}
@@ -317,7 +318,7 @@ const RevenueForm = ({ revenue, onSubmit, onCancel }) => {
               {engagementTypes.map((t) => (
                 <option key={t} value={t}>{t}</option>
               ))}
-            </select>
+            </MobileSelect>
           </div>
           <div>
             <label className="form-label">Remittance Charges</label>

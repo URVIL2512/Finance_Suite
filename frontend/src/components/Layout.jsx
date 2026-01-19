@@ -6,6 +6,7 @@ const Layout = ({ onLogout }) => {
   const [salesExpanded, setSalesExpanded] = useState(false);
   const [revenueExpanded, setRevenueExpanded] = useState(false);
   const [expensesExpanded, setExpensesExpanded] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   const navigation = [
     { name: 'Dashboard', href: '/dashboard', icon: '📊' },
@@ -60,13 +61,44 @@ const Layout = ({ onLogout }) => {
     }
   }, [location.pathname]);
 
+  // Close mobile sidebar on navigation
+  useEffect(() => {
+    setSidebarOpen(false);
+  }, [location.pathname]);
+
+  // Prevent background scroll when sidebar is open (mobile)
+  useEffect(() => {
+    if (!sidebarOpen) return;
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = prevOverflow;
+    };
+  }, [sidebarOpen]);
+
   return (
     <div className="min-h-screen flex">
+      {/* Mobile overlay */}
+      <div
+        className={`fixed inset-0 z-30 bg-black/40 backdrop-blur-[1px] md:hidden ${
+          sidebarOpen ? 'block' : 'hidden'
+        }`}
+        onClick={() => setSidebarOpen(false)}
+        aria-hidden="true"
+      />
+
       {/* Sidebar */}
-      <aside className="w-64 bg-white/95 backdrop-blur-md border-r border-slate-200/80 flex flex-col fixed h-full shadow-[2px_0_8px_rgba(0,0,0,0.04)]">
+      <aside
+        className={`fixed inset-y-0 left-0 z-40 w-64 bg-white/95 backdrop-blur-md border-r border-slate-200/80 flex flex-col h-full shadow-[2px_0_8px_rgba(0,0,0,0.04)]
+        transform transition-transform duration-200 ease-out
+        ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}
+        md:translate-x-0`}
+        aria-label="Sidebar"
+      >
         {/* Logo Section */}
         <div className="p-6 border-b border-slate-200/60 bg-gradient-to-br from-white to-slate-50/50">
-          <div className="flex items-center space-x-3">
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex items-center space-x-3">
             <div className="w-11 h-11 bg-gradient-to-br from-blue-600 to-blue-700 rounded-xl flex items-center justify-center shadow-lg ring-2 ring-blue-500/20">
               <span className="text-white text-xl font-bold">K</span>
             </div>
@@ -76,6 +108,19 @@ const Layout = ({ onLogout }) => {
               </h1>
               <p className="text-xs text-slate-500 -mt-0.5 font-medium">Financial Management</p>
             </div>
+            </div>
+
+            {/* Close button (mobile) */}
+            <button
+              type="button"
+              className="md:hidden inline-flex items-center justify-center rounded-lg p-2 text-slate-600 hover:bg-slate-100 hover:text-slate-900 transition"
+              onClick={() => setSidebarOpen(false)}
+              aria-label="Close sidebar"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
           </div>
         </div>
 
@@ -289,8 +334,27 @@ const Layout = ({ onLogout }) => {
       </aside>
 
       {/* Main Content */}
-      <main className="flex-1 ml-64 animate-fade-in min-w-0">
+      <main className="flex-1 md:ml-64 animate-fade-in min-w-0">
         <div className="w-full max-w-full px-3 sm:px-4 lg:px-5 xl:px-6 py-6 lg:py-8 xl:py-10">
+          {/* Mobile top bar */}
+          <div className="md:hidden mb-4 flex items-center justify-between">
+            <button
+              type="button"
+              className="inline-flex items-center justify-center rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 shadow-sm hover:bg-slate-50 transition"
+              onClick={() => setSidebarOpen(true)}
+              aria-label="Open sidebar"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+              </svg>
+            </button>
+            <div className="text-sm font-semibold text-slate-900">
+              {location.pathname === '/dashboard'
+                ? 'Dashboard'
+                : location.pathname.split('/').filter(Boolean).slice(-1)[0]?.replace(/-/g, ' ') || 'Menu'}
+            </div>
+            <div className="w-10" />
+          </div>
           <Outlet />
         </div>
       </main>

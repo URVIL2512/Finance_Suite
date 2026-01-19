@@ -4,6 +4,7 @@ import { useToast } from '../contexts/ToastContext';
 import RevenueForm from '../components/RevenueForm';
 import RevenueTable from '../components/RevenueTable';
 import ConfirmationModal from '../components/ConfirmationModal';
+import MobileSelect from '../components/MobileSelect';
 
 const Revenue = () => {
   const { showToast } = useToast();
@@ -231,7 +232,7 @@ const Revenue = () => {
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
             <div>
               <label className="form-label">Year</label>
-              <select
+              <MobileSelect
                 value={filters.year}
                 onChange={(e) => setFilters({ ...filters, year: e.target.value })}
                 className="select-field"
@@ -242,11 +243,11 @@ const Revenue = () => {
                     {y}
                   </option>
                 ))}
-              </select>
+              </MobileSelect>
             </div>
             <div>
               <label className="block text-sm font-semibold text-gray-700 mb-2">Month</label>
-              <select
+              <MobileSelect
                 value={filters.month}
                 onChange={(e) => setFilters({ ...filters, month: e.target.value })}
                 className="select-field"
@@ -257,11 +258,11 @@ const Revenue = () => {
                     {m}
                   </option>
                 ))}
-              </select>
+              </MobileSelect>
             </div>
             <div>
               <label className="block text-sm font-semibold text-gray-700 mb-2">Country</label>
-              <select
+              <MobileSelect
                 value={filters.country}
                 onChange={(e) => setFilters({ ...filters, country: e.target.value })}
                 className="select-field"
@@ -272,11 +273,11 @@ const Revenue = () => {
                     {c}
                   </option>
                 ))}
-              </select>
+              </MobileSelect>
             </div>
             <div>
               <label className="block text-sm font-semibold text-gray-700 mb-2">Service</label>
-              <select
+              <MobileSelect
                 value={filters.service}
                 onChange={(e) => setFilters({ ...filters, service: e.target.value })}
                 className="select-field"
@@ -287,7 +288,7 @@ const Revenue = () => {
                     {s}
                   </option>
                 ))}
-              </select>
+              </MobileSelect>
             </div>
           </div>
         </div>

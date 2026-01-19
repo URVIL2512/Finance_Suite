@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { paymentAPI, customerAPI, invoiceAPI } from '../services/api';
 import { useToast } from '../contexts/ToastContext';
+import MobileSelect from './MobileSelect';
 
 const PaymentModal = ({ isOpen, onClose, invoice, payment, mode = 'edit', onPaymentRecorded }) => {
   const { showToast } = useToast();
@@ -702,7 +703,7 @@ const PaymentModal = ({ isOpen, onClose, invoice, payment, mode = 'edit', onPaym
                           </svg>
                           Customer Name <span className="text-red-500">*</span>
                         </label>
-                        <select
+                        <MobileSelect
                           name="customer"
                           value={formData.customer || ''}
                           onChange={(e) => handleCustomerSelect(e.target.value)}
@@ -715,7 +716,7 @@ const PaymentModal = ({ isOpen, onClose, invoice, payment, mode = 'edit', onPaym
                               {customer.displayName || customer.companyName || customer.clientName}
                             </option>
                           ))}
-                        </select>
+                        </MobileSelect>
                         {selectedCustomer && selectedCustomer.pan && (
                           <p className="mt-1.5 text-xs text-slate-600 bg-blue-50 px-2 py-1 rounded border border-blue-100 inline-block">
                             PAN: <span className="font-semibold text-blue-700">{selectedCustomer.pan}</span>
@@ -731,7 +732,7 @@ const PaymentModal = ({ isOpen, onClose, invoice, payment, mode = 'edit', onPaym
                             </svg>
                             Invoice <span className="text-red-500">*</span>
                           </label>
-                          <select
+                          <MobileSelect
                             value={selectedInvoice?._id || ''}
                             onChange={(e) => handleInvoiceSelect(e.target.value)}
                             className="w-full px-4 py-2.5 border-2 border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 font-medium bg-white text-slate-900 transition-all hover:border-slate-400"
@@ -749,7 +750,7 @@ const PaymentModal = ({ isOpen, onClose, invoice, payment, mode = 'edit', onPaym
                                   {inv.invoiceNumber} - ₹{(inv.amountDetails?.receivableAmount || inv.grandTotal || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
                                 </option>
                               ))}
-                          </select>
+                          </MobileSelect>
                         </div>
                       )}
 
@@ -847,7 +848,7 @@ const PaymentModal = ({ isOpen, onClose, invoice, payment, mode = 'edit', onPaym
                           </svg>
                           Payment Mode
                         </label>
-                        <select
+                        <MobileSelect
                           name="paymentMode"
                           value={formData.paymentMode || 'Cash'}
                           onChange={handleInputChange}
@@ -856,7 +857,7 @@ const PaymentModal = ({ isOpen, onClose, invoice, payment, mode = 'edit', onPaym
                           {paymentModes.map(mode => (
                             <option key={mode} value={mode}>{mode}</option>
                           ))}
-                        </select>
+                        </MobileSelect>
                       </div>
 
                       <div>
@@ -866,7 +867,7 @@ const PaymentModal = ({ isOpen, onClose, invoice, payment, mode = 'edit', onPaym
                           </svg>
                           Deposit To <span className="text-red-500">*</span>
                         </label>
-                        <select
+                        <MobileSelect
                           name="depositTo"
                           value={formData.depositTo || 'Petty Cash'}
                           onChange={handleInputChange}
@@ -876,7 +877,7 @@ const PaymentModal = ({ isOpen, onClose, invoice, payment, mode = 'edit', onPaym
                           {depositAccounts.map(account => (
                             <option key={account} value={account}>{account}</option>
                           ))}
-                        </select>
+                        </MobileSelect>
                       </div>
                     </div>
 
@@ -995,7 +996,7 @@ const PaymentModal = ({ isOpen, onClose, invoice, payment, mode = 'edit', onPaym
                           <label className="block text-sm font-semibold text-slate-700 mb-2">
                             TDS Tax Account <span className="text-red-500">*</span>
                           </label>
-                          <select
+                          <MobileSelect
                             name="tdsTaxAccount"
                             value={formData.tdsTaxAccount || 'Advance Tax'}
                             onChange={handleInputChange}
@@ -1005,7 +1006,7 @@ const PaymentModal = ({ isOpen, onClose, invoice, payment, mode = 'edit', onPaym
                             {tdsTaxAccounts.map(account => (
                               <option key={account} value={account}>{account}</option>
                             ))}
-                          </select>
+                          </MobileSelect>
                         </div>
                       </div>
                     )}

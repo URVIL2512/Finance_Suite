@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { customerAPI } from '../services/api';
 import { useToast } from '../contexts/ToastContext';
+import MobileSelect from './MobileSelect';
 
 const CustomerForm = ({ customer, onSubmit, onCancel }) => {
   const { showToast } = useToast();
@@ -325,7 +326,7 @@ const CustomerForm = ({ customer, onSubmit, onCancel }) => {
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <div>
                       <label className="form-label text-xs font-medium text-gray-700 mb-1.5 block">Salutation</label>
-                      <select
+                      <MobileSelect
                         name="salutation"
                         value={formData.salutation}
                         onChange={handleChange}
@@ -335,7 +336,7 @@ const CustomerForm = ({ customer, onSubmit, onCancel }) => {
                         {salutations.map((sal) => (
                           <option key={sal} value={sal}>{sal}</option>
                         ))}
-                      </select>
+                      </MobileSelect>
                     </div>
                     <div>
                       <label className="form-label text-xs font-medium text-gray-700 mb-1.5 block">First Name</label>
@@ -430,7 +431,7 @@ const CustomerForm = ({ customer, onSubmit, onCancel }) => {
                           </svg>
                         </span>
                       </label>
-                      <select
+                      <MobileSelect
                         name="customerLanguage"
                         value={formData.customerLanguage}
                         onChange={handleChange}
@@ -439,7 +440,7 @@ const CustomerForm = ({ customer, onSubmit, onCancel }) => {
                         {languages.map((lang) => (
                           <option key={lang} value={lang}>{lang}</option>
                         ))}
-                      </select>
+                      </MobileSelect>
                     </div>
                   </div>
 
@@ -448,7 +449,7 @@ const CustomerForm = ({ customer, onSubmit, onCancel }) => {
                     <div>
                       <label className="form-label text-xs font-medium text-gray-700 mb-1.5 block">Work Phone</label>
                       <div className="flex gap-2">
-                        <select
+                        <MobileSelect
                           value={formData.workPhone?.countryCode || '+91'}
                           onChange={(e) => handlePhoneChange('workPhone', 'countryCode', e.target.value)}
                           className="select-field w-20 text-sm py-2"
@@ -456,7 +457,7 @@ const CustomerForm = ({ customer, onSubmit, onCancel }) => {
                           {countryCodes.map((cc) => (
                             <option key={cc.code} value={cc.code}>{cc.code}</option>
                           ))}
-                        </select>
+                        </MobileSelect>
                         <input
                           type="tel"
                           value={formData.workPhone?.number || ''}
@@ -470,7 +471,7 @@ const CustomerForm = ({ customer, onSubmit, onCancel }) => {
                     <div>
                       <label className="form-label text-xs font-medium text-gray-700 mb-1.5 block">Mobile</label>
                       <div className="flex gap-2">
-                        <select
+                        <MobileSelect
                           value={formData.mobile?.countryCode || '+91'}
                           onChange={(e) => handlePhoneChange('mobile', 'countryCode', e.target.value)}
                           className="select-field w-20 text-sm py-2"
@@ -478,7 +479,7 @@ const CustomerForm = ({ customer, onSubmit, onCancel }) => {
                           {countryCodes.map((cc) => (
                             <option key={cc.code} value={cc.code}>{cc.code}</option>
                           ))}
-                        </select>
+                        </MobileSelect>
                         <input
                           type="tel"
                           value={formData.mobile?.number || ''}
@@ -517,7 +518,7 @@ const CustomerForm = ({ customer, onSubmit, onCancel }) => {
                     </div>
                     <div>
                       <label className="form-label text-xs font-medium text-gray-700 mb-1.5 block">Currency</label>
-                      <select
+                      <MobileSelect
                         name="currency"
                         value={formData.currency}
                         onChange={handleChange}
@@ -528,11 +529,11 @@ const CustomerForm = ({ customer, onSubmit, onCancel }) => {
                             {curr.code} - {curr.name}
                           </option>
                         ))}
-                      </select>
+                      </MobileSelect>
                     </div>
                     <div>
                       <label className="form-label text-xs font-medium text-gray-700 mb-1.5 block">Payment Terms</label>
-                      <select
+                      <MobileSelect
                         name="paymentTerms"
                         value={formData.paymentTerms}
                         onChange={handleChange}
@@ -541,7 +542,7 @@ const CustomerForm = ({ customer, onSubmit, onCancel }) => {
                         {paymentTermsOptions.map((term) => (
                           <option key={term} value={term}>{term}</option>
                         ))}
-                      </select>
+                      </MobileSelect>
                     </div>
                   </div>
                 </div>
@@ -566,7 +567,7 @@ const CustomerForm = ({ customer, onSubmit, onCancel }) => {
                   </div>
                   <div>
                     <label className="form-label text-xs font-medium text-gray-700 mb-1.5 block">Country/Region</label>
-                    <select
+                    <MobileSelect
                       value={formData.billingAddress.country || ''}
                       onChange={(e) => handleNestedChange('billingAddress', 'country', e.target.value)}
                       className="select-field w-full text-sm py-2"
@@ -576,7 +577,7 @@ const CustomerForm = ({ customer, onSubmit, onCancel }) => {
                       <option value="USA">USA</option>
                       <option value="Canada">Canada</option>
                       <option value="Australia">Australia</option>
-                    </select>
+                    </MobileSelect>
                   </div>
                 </div>
 
@@ -613,7 +614,7 @@ const CustomerForm = ({ customer, onSubmit, onCancel }) => {
                   </div>
                   <div>
                     <label className="form-label text-xs font-medium text-gray-700 mb-1.5 block">State</label>
-                    <select
+                    <MobileSelect
                       value={formData.billingAddress.state || ''}
                       onChange={(e) => handleNestedChange('billingAddress', 'state', e.target.value)}
                       className="select-field w-full text-sm py-2"
@@ -623,7 +624,7 @@ const CustomerForm = ({ customer, onSubmit, onCancel }) => {
                       <option value="Gujarat">Gujarat</option>
                       <option value="Karnataka">Karnataka</option>
                       <option value="Delhi">Delhi</option>
-                    </select>
+                    </MobileSelect>
                   </div>
                   <div>
                     <label className="form-label text-xs font-medium text-gray-700 mb-1.5 block">Pin Code</label>
@@ -642,7 +643,7 @@ const CustomerForm = ({ customer, onSubmit, onCancel }) => {
                   <div>
                     <label className="form-label text-xs font-medium text-gray-700 mb-1.5 block">Phone</label>
                     <div className="flex gap-2">
-                      <select
+                      <MobileSelect
                         value={formData.billingAddress.phone?.countryCode || '+91'}
                         onChange={(e) => handlePhoneChange('billingAddress', 'countryCode', e.target.value)}
                         className="select-field w-20 text-sm py-2"
@@ -650,7 +651,7 @@ const CustomerForm = ({ customer, onSubmit, onCancel }) => {
                         {countryCodes.map((cc) => (
                           <option key={cc.code} value={cc.code}>{cc.code}</option>
                         ))}
-                      </select>
+                      </MobileSelect>
                       <input
                         type="tel"
                         value={formData.billingAddress.phone?.number || ''}
@@ -683,7 +684,7 @@ const CustomerForm = ({ customer, onSubmit, onCancel }) => {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
                     <label className="form-label text-xs font-medium text-gray-700 mb-1.5 block">Place of Supply</label>
-                    <select
+                    <MobileSelect
                       name="placeOfSupply"
                       value={formData.placeOfSupply}
                       onChange={handleChange}
@@ -693,7 +694,7 @@ const CustomerForm = ({ customer, onSubmit, onCancel }) => {
                       {indianStates.map((state) => (
                         <option key={state} value={state}>{state}</option>
                       ))}
-                    </select>
+                    </MobileSelect>
                   </div>
                   <div>
                     <label className="form-label text-xs font-medium text-gray-700 mb-1.5 block">GST No</label>

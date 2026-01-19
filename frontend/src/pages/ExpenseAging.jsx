@@ -94,9 +94,6 @@ const ExpenseAging = () => {
       <div className="mb-6 flex justify-between items-center">
         <div>
           <h1 className="text-3xl lg:text-4xl xl:text-5xl font-bold text-gray-900 mb-2">Expense Aging Report</h1>
-          <p className="text-slate-600">
-            Track overdue payments by age buckets {asOfDate && `(As of ${format(new Date(asOfDate), 'dd MMM yyyy')})`}
-          </p>
         </div>
         <button
           onClick={handleDownloadPDF}

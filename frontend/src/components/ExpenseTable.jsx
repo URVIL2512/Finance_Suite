@@ -20,12 +20,13 @@ const ExpenseTable = ({ expenses, onEdit, onView, onViewHistory, onMarkPaid, onD
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 p-6 border-b border-gray-200 bg-gradient-to-r from-gray-50 to-white">
         <h2 className="text-xl font-bold text-gray-900">Expenses List</h2>
       </div>
+      {/* On mobile, force horizontal scroll instead of squishing columns */}
       <div className="overflow-x-auto">
-        <table className="w-full divide-y divide-gray-200 table-auto min-w-full">
+        <table className="w-full min-w-[1100px] divide-y divide-gray-200 table-auto">
             <thead className="table-header">
               <tr>
                 {onSelectExpense && (
-                  <th className="px-4 py-4 text-left text-xs font-medium uppercase tracking-wider border-r border-white/20 w-12">
+                  <th className="px-3 sm:px-4 py-3 sm:py-4 text-left text-xs font-medium uppercase tracking-wider border-r border-white/20 w-12">
                     <input
                       type="checkbox"
                       checked={selectedExpenses.length === expenses.length && expenses.length > 0}
@@ -40,37 +41,38 @@ const ExpenseTable = ({ expenses, onEdit, onView, onViewHistory, onMarkPaid, onD
                     />
                   </th>
                 )}
-                <th className="px-3 py-4 text-left text-xs font-medium uppercase tracking-wider border-r border-white/20">
+                <th className="px-2 sm:px-3 py-3 sm:py-4 text-left text-xs font-medium uppercase tracking-wider border-r border-white/20">
                 Date
               </th>
-              <th className="px-3 py-4 text-left text-xs font-medium uppercase tracking-wider border-r border-white/20">
+              <th className="px-2 sm:px-3 py-3 sm:py-4 text-left text-xs font-medium uppercase tracking-wider border-r border-white/20">
                 Category
               </th>
-              <th className="px-3 py-4 text-left text-xs font-medium uppercase tracking-wider border-r border-white/20">
+              <th className="px-2 sm:px-3 py-3 sm:py-4 text-left text-xs font-medium uppercase tracking-wider border-r border-white/20">
                 Department
               </th>
-              <th className="px-3 py-4 text-left text-xs font-medium uppercase tracking-wider border-r border-white/20 max-w-[120px]">
+              <th className="px-2 sm:px-3 py-3 sm:py-4 text-left text-xs font-medium uppercase tracking-wider border-r border-white/20 max-w-[120px]">
                 <div className="truncate">Vendor</div>
               </th>
-              <th className="px-3 py-4 text-left text-xs font-medium uppercase tracking-wider border-r border-white/20 max-w-[100px]">
+              <th className="px-2 sm:px-3 py-3 sm:py-4 text-left text-xs font-medium uppercase tracking-wider border-r border-white/20 max-w-[100px]">
                 <div className="truncate">Payment Mode</div>
               </th>
-              <th className="px-3 py-4 text-right text-xs font-medium uppercase tracking-wider border-r border-white/20">
+              <th className="px-2 sm:px-3 py-3 sm:py-4 text-right text-xs font-medium uppercase tracking-wider border-r border-white/20">
                 Amount Excl Tax
               </th>
-              <th className="px-3 py-4 text-right text-xs font-medium uppercase tracking-wider border-r border-white/20">
+              <th className="px-2 sm:px-3 py-3 sm:py-4 text-right text-xs font-medium uppercase tracking-wider border-r border-white/20">
                 Total Amount
               </th>
-              <th className="px-3 py-4 text-right text-xs font-medium uppercase tracking-wider border-r border-white/20">
+              <th className="px-2 sm:px-3 py-3 sm:py-4 text-right text-xs font-medium uppercase tracking-wider border-r border-white/20">
                 Paid Amount
               </th>
-              <th className="px-3 py-4 text-center text-xs font-medium uppercase tracking-wider border-r border-white/20 sticky right-[140px] bg-slate-800 z-10">
+              {/* Disable sticky on mobile to avoid weird overlay */}
+              <th className="px-2 sm:px-3 py-3 sm:py-4 text-center text-xs font-medium uppercase tracking-wider border-r border-white/20 lg:sticky lg:right-[140px] bg-slate-800 lg:z-10">
                 Status
               </th>
-              <th className="px-3 py-4 text-right text-xs font-medium uppercase tracking-wider border-r border-white/20 sticky right-[70px] bg-slate-800 z-10">
+              <th className="px-2 sm:px-3 py-3 sm:py-4 text-right text-xs font-medium uppercase tracking-wider border-r border-white/20 lg:sticky lg:right-[70px] bg-slate-800 lg:z-10">
                 Due Amount
               </th>
-              <th className="px-3 py-4 text-center text-xs font-medium uppercase tracking-wider sticky right-0 bg-slate-800 z-10">
+              <th className="px-2 sm:px-3 py-3 sm:py-4 text-center text-xs font-medium uppercase tracking-wider lg:sticky lg:right-0 bg-slate-800 lg:z-10">
                 Actions
               </th>
             </tr>
@@ -79,7 +81,7 @@ const ExpenseTable = ({ expenses, onEdit, onView, onViewHistory, onMarkPaid, onD
             {expenses.map((expense, index) => (
               <tr key={expense._id} className="hover:bg-slate-50 transition-all duration-150 border-b border-slate-200">
                 {onSelectExpense && (
-                  <td className="px-4 py-4 whitespace-nowrap">
+                  <td className="px-3 sm:px-4 py-3 sm:py-4 whitespace-nowrap">
                     <input
                       type="checkbox"
                       checked={selectedExpenses.includes(expense._id)}
@@ -94,11 +96,11 @@ const ExpenseTable = ({ expenses, onEdit, onView, onViewHistory, onMarkPaid, onD
                     />
                   </td>
                 )}
-                <td className="px-3 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                <td className="px-2 sm:px-3 py-3 sm:py-4 whitespace-nowrap text-sm font-medium text-gray-900">
                   {format(new Date(expense.date), 'dd/MM/yyyy')}
                 </td>
                 <td 
-                  className="px-3 py-4 whitespace-nowrap cursor-pointer"
+                  className="px-2 sm:px-3 py-3 sm:py-4 whitespace-nowrap cursor-pointer"
                   onClick={(e) => {
                     if (expense.category && onViewCategoryHistory) {
                       e.stopPropagation();
@@ -112,7 +114,7 @@ const ExpenseTable = ({ expenses, onEdit, onView, onViewHistory, onMarkPaid, onD
                   </span>
                 </td>
                 <td 
-                  className="px-3 py-4 whitespace-nowrap text-sm text-gray-700 cursor-pointer"
+                  className="px-2 sm:px-3 py-3 sm:py-4 whitespace-nowrap text-sm text-gray-700 cursor-pointer"
                   onClick={(e) => {
                     if (expense.department && expense.department !== '-' && onViewDepartmentHistory) {
                       e.stopPropagation();
@@ -126,7 +128,7 @@ const ExpenseTable = ({ expenses, onEdit, onView, onViewHistory, onMarkPaid, onD
                   </span>
                 </td>
                 <td 
-                  className="px-3 py-4 text-sm text-gray-700 max-w-[120px] cursor-pointer"
+                  className="px-2 sm:px-3 py-3 sm:py-4 text-sm text-gray-700 max-w-[120px] cursor-pointer"
                   onClick={(e) => {
                     if (expense.vendor && expense.vendor !== '-' && onViewVendorHistory) {
                       e.stopPropagation();
@@ -139,21 +141,21 @@ const ExpenseTable = ({ expenses, onEdit, onView, onViewHistory, onMarkPaid, onD
                     {expense.vendor || '-'}
                   </div>
                 </td>
-                <td className="px-3 py-4 text-sm text-gray-700 max-w-[100px]">
+                <td className="px-2 sm:px-3 py-3 sm:py-4 text-sm text-gray-700 max-w-[100px]">
                   <div className="truncate" title={expense.paymentMode || '-'}>
                     {expense.paymentMode || '-'}
                   </div>
                 </td>
-                <td className="px-3 py-4 whitespace-nowrap text-sm font-semibold text-gray-900 text-right">
+                <td className="px-2 sm:px-3 py-3 sm:py-4 whitespace-nowrap text-sm font-semibold text-gray-900 text-right">
                   ₹{expense.amountExclTax?.toLocaleString('en-IN', { minimumFractionDigits: 2 }) || '0.00'}
                 </td>
-                <td className="px-3 py-4 whitespace-nowrap text-sm font-bold text-gray-900 text-right">
+                <td className="px-2 sm:px-3 py-3 sm:py-4 whitespace-nowrap text-sm font-bold text-gray-900 text-right">
                   ₹{expense.totalAmount?.toLocaleString('en-IN', { minimumFractionDigits: 2 }) || '0.00'}
                 </td>
-                <td className="px-3 py-4 whitespace-nowrap text-sm font-semibold text-green-700 text-right">
+                <td className="px-2 sm:px-3 py-3 sm:py-4 whitespace-nowrap text-sm font-semibold text-green-700 text-right">
                   ₹{expense.paidAmount?.toLocaleString('en-IN', { minimumFractionDigits: 2 }) || '0.00'}
                 </td>
-                <td className="px-3 py-4 whitespace-nowrap text-sm font-medium text-center sticky right-[140px] bg-white hover:bg-slate-50 z-10">
+                <td className="px-2 sm:px-3 py-3 sm:py-4 whitespace-nowrap text-sm font-medium text-center lg:sticky lg:right-[140px] bg-white hover:bg-slate-50 lg:z-10">
                   <span className={`px-2.5 py-1 text-xs font-semibold rounded-full border shadow-sm ${
                     expense.status === 'Paid' 
                       ? 'bg-green-100 text-green-800 border-green-200' 
@@ -164,10 +166,10 @@ const ExpenseTable = ({ expenses, onEdit, onView, onViewHistory, onMarkPaid, onD
                     {expense.status || 'Unpaid'}
                   </span>
                 </td>
-                <td className="px-3 py-4 whitespace-nowrap text-sm font-semibold text-red-700 text-right sticky right-[70px] bg-white hover:bg-slate-50 z-10">
+                <td className="px-2 sm:px-3 py-3 sm:py-4 whitespace-nowrap text-sm font-semibold text-red-700 text-right lg:sticky lg:right-[70px] bg-white hover:bg-slate-50 lg:z-10">
                   ₹{((expense.totalAmount || 0) - (expense.paidAmount || 0)).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
                 </td>
-                <td className="px-3 py-4 whitespace-nowrap text-sm font-medium text-center sticky right-0 bg-white hover:bg-slate-50 z-10">
+                <td className="px-2 sm:px-3 py-3 sm:py-4 whitespace-nowrap text-sm font-medium text-center lg:sticky lg:right-0 bg-white hover:bg-slate-50 lg:z-10">
                   <div className="flex items-center justify-center">
                     <ActionDropdown
                       onViewHistory={onViewHistory ? () => onViewHistory(expense) : null}

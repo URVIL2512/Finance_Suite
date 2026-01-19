@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { itemAPI } from '../services/api';
 import { getSacCodeForService, SERVICE_SAC_CODES } from '../utils/serviceSacCodes';
+import MobileSelect from './MobileSelect';
 
 const ItemForm = ({ item, onSubmit, onCancel }) => {
   const [formData, setFormData] = useState({
@@ -336,7 +337,7 @@ const ItemForm = ({ item, onSubmit, onCancel }) => {
                         </svg>
                       </span>
                     </label>
-                    <select
+                    <MobileSelect
                       name="unit"
                       value={formData.unit}
                       onChange={handleChange}
@@ -348,7 +349,7 @@ const ItemForm = ({ item, onSubmit, onCancel }) => {
                           {unit}
                         </option>
                       ))}
-                    </select>
+                    </MobileSelect>
                   </div>
                 )}
 
@@ -417,7 +418,7 @@ const ItemForm = ({ item, onSubmit, onCancel }) => {
                       <label className="form-label text-xs font-medium text-gray-700 mb-1.5 block">
                         Account<span className="text-red-500">*</span>
                       </label>
-                      <select
+                      <MobileSelect
                         name="salesAccount"
                         value={formData.salesAccount}
                         onChange={handleChange}
@@ -429,7 +430,7 @@ const ItemForm = ({ item, onSubmit, onCancel }) => {
                             {account}
                           </option>
                         ))}
-                      </select>
+                      </MobileSelect>
                     </div>
 
                     <div>
@@ -490,7 +491,7 @@ const ItemForm = ({ item, onSubmit, onCancel }) => {
                       <label className="form-label text-xs font-medium text-gray-700 mb-1.5 block">
                         Account<span className="text-red-500">*</span>
                       </label>
-                      <select
+                      <MobileSelect
                         name="purchaseAccount"
                         value={formData.purchaseAccount}
                         onChange={handleChange}
@@ -502,7 +503,7 @@ const ItemForm = ({ item, onSubmit, onCancel }) => {
                             {account}
                           </option>
                         ))}
-                      </select>
+                      </MobileSelect>
                     </div>
 
                     <div>
@@ -519,14 +520,14 @@ const ItemForm = ({ item, onSubmit, onCancel }) => {
 
                     <div>
                       <label className="form-label text-xs font-medium text-gray-700 mb-1.5 block">Preferred Vendor</label>
-                      <select
+                      <MobileSelect
                         name="preferredVendor"
                         value={formData.preferredVendor}
                         onChange={handleChange}
                         className="select-field w-full text-sm py-2"
                       >
                         <option value="">Select vendor</option>
-                      </select>
+                      </MobileSelect>
                     </div>
                   </div>
                 )}

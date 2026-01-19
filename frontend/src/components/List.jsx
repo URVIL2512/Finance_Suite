@@ -5,6 +5,7 @@ import { invoiceAPI, customerAPI, salespersonAPI, itemAPI, hsnSacAPI, settingsAP
 import { getSacCodeForService } from '../utils/serviceSacCodes';
 import { useToast } from '../contexts/ToastContext';
 import ConfirmationModal from './ConfirmationModal';
+import MobileSelect from './MobileSelect';
 
 // Indian States List
 const INDIAN_STATES = [
@@ -1157,7 +1158,7 @@ const InvoiceForm = ({ invoice, customers = [], onSubmit, onCancel, onCustomerAd
             <div>
               <label className="form-label">Customer Name *</label>
               <div className="flex gap-3">
-                <select
+                <MobileSelect
                   value={selectedCustomerId}
                   onChange={handleCustomerSelect}
                   required
@@ -1169,7 +1170,7 @@ const InvoiceForm = ({ invoice, customers = [], onSubmit, onCancel, onCustomerAd
                       {customer.clientName} - {customer.email} - {customer.country} ({customer.currency})
                     </option>
                   ))}
-                </select>
+                </MobileSelect>
                 <button
                   type="button"
                   onClick={(e) => {
@@ -1245,7 +1246,7 @@ const InvoiceForm = ({ invoice, customers = [], onSubmit, onCancel, onCustomerAd
                     </div>
                     <div>
                       <label className="form-label">Country *</label>
-                      <select
+                      <MobileSelect
                         name="country"
                         value={newCustomerData.country}
                         onChange={handleNewCustomerChange}
@@ -1256,11 +1257,11 @@ const InvoiceForm = ({ invoice, customers = [], onSubmit, onCancel, onCustomerAd
                         <option value="USA">USA</option>
                         <option value="Canada">Canada</option>
                         <option value="Australia">Australia</option>
-                      </select>
+                      </MobileSelect>
                     </div>
                     <div>
                       <label className="form-label">Currency *</label>
-                      <select
+                      <MobileSelect
                         name="currency"
                         value={newCustomerData.currency}
                         onChange={handleNewCustomerChange}
@@ -1271,7 +1272,7 @@ const InvoiceForm = ({ invoice, customers = [], onSubmit, onCancel, onCustomerAd
                         <option value="USD">USD</option>
                         <option value="CAD">CAD</option>
                         <option value="AUD">AUD</option>
-                      </select>
+                      </MobileSelect>
                     </div>
                     <div>
                       <label className="form-label">Client State</label>
@@ -1372,7 +1373,7 @@ const InvoiceForm = ({ invoice, customers = [], onSubmit, onCancel, onCustomerAd
           <div className={invoice ? 'mb-4' : ''}>
             <label className="form-label">Salesperson</label>
             <div className="flex gap-3">
-              <select
+              <MobileSelect
                 value={selectedSalespersonId}
                 onChange={handleSalespersonSelect}
                 className="select-field-compact flex-1"
@@ -1383,7 +1384,7 @@ const InvoiceForm = ({ invoice, customers = [], onSubmit, onCancel, onCustomerAd
                     {salesperson.name} {salesperson.email ? `- ${salesperson.email}` : ''} {salesperson.phone ? `- ${salesperson.phone}` : ''}
                   </option>
                 ))}
-              </select>
+              </MobileSelect>
               <button
                 type="button"
                 onClick={(e) => {
@@ -1573,7 +1574,7 @@ const InvoiceForm = ({ invoice, customers = [], onSubmit, onCancel, onCustomerAd
           </div>
           <div>
             <label className="form-label">Status *</label>
-            <select
+            <MobileSelect
               name="status"
               value={formData.status}
               onChange={handleChange}
@@ -1601,7 +1602,7 @@ const InvoiceForm = ({ invoice, customers = [], onSubmit, onCancel, onCustomerAd
                   )}
                 </>
               )}
-            </select>
+            </MobileSelect>
             {invoice && formData.status === 'Paid' && (
               <p className="text-xs text-gray-500 mt-1">Status is frozen once set to "Paid"</p>
             )}
@@ -2146,7 +2147,7 @@ const InvoiceForm = ({ invoice, customers = [], onSubmit, onCancel, onCustomerAd
               )}
               <div>
                 <label className="form-label">Currency *</label>
-                <select
+                <MobileSelect
                   name="currency"
                   value={formData.currency}
                   onChange={handleChange}
@@ -2157,7 +2158,7 @@ const InvoiceForm = ({ invoice, customers = [], onSubmit, onCancel, onCustomerAd
                   <option value="USD">USD</option>
                   <option value="CAD">CAD</option>
                   <option value="AUD">AUD</option>
-                </select>
+                </MobileSelect>
               </div>
               <div>
                 <label className="form-label">
@@ -2322,7 +2323,7 @@ const InvoiceForm = ({ invoice, customers = [], onSubmit, onCancel, onCustomerAd
               {formData.clientCountry === 'India' && (
                 <div>
                   <label className="form-label">Client State</label>
-                  <select
+                  <MobileSelect
                     name="clientState"
                     value={formData.clientState}
                     onChange={handleChange}
@@ -2332,13 +2333,13 @@ const InvoiceForm = ({ invoice, customers = [], onSubmit, onCancel, onCustomerAd
                     {INDIAN_STATES.map((state) => (
                       <option key={state} value={state}>{state}</option>
                     ))}
-                  </select>
+                  </MobileSelect>
                 </div>
               )}
               {formData.clientCountry === 'India' && (
                 <div>
                   <label className="form-label">Place of Supply</label>
-                  <select
+                  <MobileSelect
                     name="placeOfSupply"
                     value={formData.placeOfSupply}
                     onChange={handleChange}
@@ -2348,7 +2349,7 @@ const InvoiceForm = ({ invoice, customers = [], onSubmit, onCancel, onCustomerAd
                     {INDIAN_STATES.map((state) => (
                       <option key={state} value={state}>{state}</option>
                     ))}
-                  </select>
+                  </MobileSelect>
                 </div>
               )}
               {formData.clientCountry === 'India' && (

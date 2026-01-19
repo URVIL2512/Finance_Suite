@@ -11,6 +11,7 @@ import ExpenseHistoryModal from '../components/ExpenseHistoryModal';
 import ConfirmationModal from '../components/ConfirmationModal';
 import { exportExpensesToExcel, exportExpensesToPDF } from '../utils/expenseExports';
 import { getAuthToken } from '../utils/auth';
+import MobileSelect from '../components/MobileSelect';
 
 const Expenses = () => {
   const { showToast } = useToast();
@@ -647,12 +648,13 @@ const Expenses = () => {
           </h1>
           <p className="text-sm lg:text-base text-gray-600 font-medium">Track and manage your business expenses efficiently</p>
         </div>
-        <div className="flex items-center gap-3 lg:gap-4 flex-nowrap">
+        {/* Action bar: grid on mobile, wraps on larger screens */}
+        <div className="w-full sm:w-auto grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:items-center sm:justify-end sm:gap-3 lg:gap-4">
           {!showForm && (
             <>
               <button
                 onClick={() => setShowFilters(!showFilters)}
-                className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 transition-colors flex items-center gap-2"
+                className="w-full sm:w-auto px-3 sm:px-4 py-2 text-xs sm:text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 transition-colors flex items-center justify-center gap-2"
               >
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
@@ -669,7 +671,7 @@ const Expenses = () => {
               <button
                 onClick={handleImportClick}
                 disabled={importing}
-                className="px-4 py-2 text-sm font-medium text-white bg-purple-600 border border-purple-700 rounded-md hover:bg-purple-700 transition-colors flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="w-full sm:w-auto px-3 sm:px-4 py-2 text-xs sm:text-sm font-medium text-white bg-purple-600 border border-purple-700 rounded-md hover:bg-purple-700 transition-colors flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {importing ? (
                   <>
@@ -684,33 +686,36 @@ const Expenses = () => {
                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
                     </svg>
-                    <span>Import Excel</span>
+                    <span className="hidden sm:inline">Import Excel</span>
+                    <span className="sm:hidden">Import</span>
                   </>
                 )}
               </button>
               <button
                 onClick={async () => await exportExpensesToExcel(expenses, filters)}
-                className="px-4 py-2 text-sm font-medium text-white bg-green-600 border border-green-700 rounded-md hover:bg-green-700 transition-colors flex items-center gap-2"
+                className="w-full sm:w-auto px-3 sm:px-4 py-2 text-xs sm:text-sm font-medium text-white bg-green-600 border border-green-700 rounded-md hover:bg-green-700 transition-colors flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                 disabled={expenses.length === 0}
               >
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                 </svg>
-                <span>Download as Excel</span>
+                <span className="hidden sm:inline">Download as Excel</span>
+                <span className="sm:hidden">Excel</span>
               </button>
               <button
                 onClick={() => exportExpensesToPDF(expenses, getAuthToken, filters)}
-                className="px-4 py-2 text-sm font-medium text-white bg-red-600 border border-red-700 rounded-md hover:bg-red-700 transition-colors flex items-center gap-2"
+                className="w-full sm:w-auto px-3 sm:px-4 py-2 text-xs sm:text-sm font-medium text-white bg-red-600 border border-red-700 rounded-md hover:bg-red-700 transition-colors flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                 disabled={expenses.length === 0}
               >
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                 </svg>
-                <span>Download as PDF</span>
+                <span className="hidden sm:inline">Download as PDF</span>
+                <span className="sm:hidden">PDF</span>
               </button>
               <button
                 onClick={handleCreate}
-                className="btn-primary flex items-center gap-2 shadow-lg hover:shadow-xl transition-all"
+                className="col-span-2 sm:col-auto w-full sm:w-auto btn-primary flex items-center justify-center gap-2 shadow-lg hover:shadow-xl transition-all"
               >
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
@@ -737,7 +742,7 @@ const Expenses = () => {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5 mb-5 relative" style={{ overflow: 'visible' }}>
             <div className="space-y-2">
               <label className="block text-sm font-semibold text-gray-700">Month</label>
-              <select
+              <MobileSelect
                 value={filters.month}
                 onChange={(e) => {
                   const newFilters = { ...filters, month: e.target.value };
@@ -759,11 +764,11 @@ const Expenses = () => {
                 <option value="Oct">October</option>
                 <option value="Nov">November</option>
                 <option value="Dec">December</option>
-              </select>
+              </MobileSelect>
             </div>
             <div className="space-y-2">
               <label className="block text-sm font-semibold text-gray-700">Category</label>
-              <select
+              <MobileSelect
                 value={filters.category}
                 onChange={(e) => {
                   const newFilters = { ...filters, category: e.target.value };
@@ -778,11 +783,11 @@ const Expenses = () => {
                     {c}
                   </option>
                 ))}
-              </select>
+              </MobileSelect>
             </div>
             <div className="space-y-2">
               <label className="block text-sm font-semibold text-gray-700">Department</label>
-              <select
+              <MobileSelect
                 value={filters.department}
                 onChange={(e) => {
                   const newFilters = { ...filters, department: e.target.value };
@@ -797,11 +802,11 @@ const Expenses = () => {
                     {t}
                   </option>
                 ))}
-              </select>
+              </MobileSelect>
             </div>
             <div className="space-y-2">
               <label className="block text-sm font-semibold text-gray-700">Status</label>
-              <select
+              <MobileSelect
                 value={filters.status}
                 onChange={(e) => {
                   const newFilters = { ...filters, status: e.target.value };
@@ -814,7 +819,7 @@ const Expenses = () => {
                 <option value="Paid">Paid</option>
                 <option value="Unpaid">Unpaid</option>
                 <option value="Partial">Partial</option>
-              </select>
+              </MobileSelect>
             </div>
             <div className="space-y-2">
               <label className="block text-sm font-semibold text-gray-700">Start Date</label>

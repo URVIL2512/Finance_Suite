@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { format } from 'date-fns';
+import MobileSelect from './MobileSelect';
 
 const RecurringExpenseModal = ({ isOpen, onClose, selectedExpenseIds, expenses, onSubmit, editingRecurringExpense }) => {
   const [formData, setFormData] = useState({
@@ -158,7 +159,7 @@ const RecurringExpenseModal = ({ isOpen, onClose, selectedExpenseIds, expenses, 
             <label className="block text-sm font-medium text-gray-700 mb-2">
               Repeat Every *
             </label>
-            <select
+            <MobileSelect
               name="repeatEvery"
               value={formData.repeatEvery}
               onChange={handleChange}
@@ -171,7 +172,7 @@ const RecurringExpenseModal = ({ isOpen, onClose, selectedExpenseIds, expenses, 
               <option value="Quarter">Quarter</option>
               <option value="Half Yearly">Half Yearly (6 Months)</option>
               <option value="Year">Year</option>
-            </select>
+            </MobileSelect>
             <p className="mt-1 text-xs text-gray-500">
               How often the expense should be created automatically
             </p>

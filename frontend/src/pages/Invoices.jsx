@@ -10,6 +10,7 @@ import PaymentModal from '../components/PaymentModal';
 import ConfirmationModal from '../components/ConfirmationModal';
 import { getAuthToken } from '../utils/auth';
 import { useToast } from '../contexts/ToastContext';
+import MobileSelect from '../components/MobileSelect';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
@@ -382,7 +383,7 @@ const Invoices = () => {
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div>
                   <label className="form-label">Year</label>
-                  <select
+                  <MobileSelect
                     value={filters.year}
                     onChange={(e) => setFilters({ ...filters, year: e.target.value })}
                     className="select-field"
@@ -393,11 +394,11 @@ const Invoices = () => {
                         {y}
                       </option>
                     ))}
-                  </select>
+                  </MobileSelect>
                 </div>
                 <div>
                   <label className="form-label">Status</label>
-                  <select
+                  <MobileSelect
                     value={filters.status}
                     onChange={(e) => setFilters({ ...filters, status: e.target.value })}
                     className="select-field"
@@ -406,11 +407,11 @@ const Invoices = () => {
                     <option value="Paid">Paid</option>
                     <option value="Unpaid">Unpaid</option>
                     <option value="Partial">Partial</option>
-                  </select>
+                  </MobileSelect>
                 </div>
                 <div>
                   <label className="form-label">Client Name</label>
-                  <select
+                  <MobileSelect
                     value={filters.clientName}
                     onChange={(e) => setFilters({ ...filters, clientName: e.target.value })}
                     className="select-field"
@@ -429,7 +430,7 @@ const Invoices = () => {
                           {clientName}
                         </option>
                       ))}
-                  </select>
+                  </MobileSelect>
                 </div>
               </div>
             </div>

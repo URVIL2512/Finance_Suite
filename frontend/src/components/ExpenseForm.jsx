@@ -3,6 +3,7 @@ import { format } from 'date-fns';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useToast } from '../contexts/ToastContext';
 import { authAPI, paymentModeAPI, vendorAPI, bankAccountAPI } from '../services/api';
+import MobileSelect from './MobileSelect';
 
 const ExpenseForm = ({ expense, onSubmit, onCancel }) => {
   const { showToast } = useToast();
@@ -1019,7 +1020,7 @@ const ExpenseForm = ({ expense, onSubmit, onCancel }) => {
                   <label className="block text-sm font-semibold text-gray-700">
                     Department<span className="text-red-500 ml-1">*</span>
                   </label>
-                  <select
+                  <MobileSelect
                     name="department"
                     value={formData.department}
                     onChange={handleChange}
@@ -1030,7 +1031,7 @@ const ExpenseForm = ({ expense, onSubmit, onCancel }) => {
                     {departments.map((dept) => (
                       <option key={dept} value={dept}>{dept}</option>
                     ))}
-                  </select>
+                  </MobileSelect>
                 </div>
                 <div className="space-y-2">
                   <label className="block text-sm font-semibold text-gray-700">Bank Account</label>
@@ -1157,7 +1158,7 @@ const ExpenseForm = ({ expense, onSubmit, onCancel }) => {
                   <label className="block text-sm font-semibold text-gray-700">
                     Status<span className="text-red-500 ml-1">*</span>
                   </label>
-                  <select
+                  <MobileSelect
                     name="status"
                     value={formData.status}
                     onChange={handleChange}
@@ -1169,7 +1170,7 @@ const ExpenseForm = ({ expense, onSubmit, onCancel }) => {
                     <option value="Unpaid">Unpaid</option>
                     <option value="Partial">Partial</option>
                     <option value="Paid">Paid</option>
-                  </select>
+                  </MobileSelect>
                 </div>
                 <div className="space-y-2">
                   <label className="block text-sm font-semibold text-gray-700">Paid Amount</label>

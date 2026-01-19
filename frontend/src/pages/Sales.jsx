@@ -11,6 +11,7 @@ import RecurringInvoiceModal from '../components/RecurringInvoiceModal';
 import PaymentModal from '../components/PaymentModal';
 import ConfirmationModal from '../components/ConfirmationModal';
 import { useToast } from '../contexts/ToastContext';
+import MobileSelect from '../components/MobileSelect';
 
 const Sales = () => {
   const { showToast } = useToast();
@@ -448,7 +449,7 @@ const Sales = () => {
       {/* Main Tabs - Dropdown */}
       <div className="mb-6 flex items-center gap-4">
         <div className="relative">
-          <select
+          <MobileSelect
             value={activeMainTab}
             onChange={(e) => {
               const newTab = e.target.value;
@@ -462,16 +463,11 @@ const Sales = () => {
                 setEditingInvoice(null);
               }
             }}
-            className="appearance-none bg-white border-2 border-slate-300 rounded-lg px-4 py-2.5 pr-10 text-sm font-medium text-slate-700 hover:border-finance-blue focus:outline-none focus:border-finance-blue focus:ring-2 focus:ring-finance-blue/20 transition-colors cursor-pointer"
+            className="bg-white border-2 border-slate-300 rounded-lg px-4 py-2.5 text-sm font-medium text-slate-700 hover:border-finance-blue focus:outline-none focus:border-finance-blue focus:ring-2 focus:ring-finance-blue/20 transition-colors cursor-pointer w-44"
           >
             <option value="items">Items</option>
             <option value="invoices">Invoices</option>
-          </select>
-          <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-slate-700">
-            <svg className="fill-current h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20">
-              <path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z" />
-            </svg>
-          </div>
+          </MobileSelect>
         </div>
       </div>
 
@@ -535,7 +531,7 @@ const Sales = () => {
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <div>
                       <label className="form-label">Year</label>
-                      <select
+                      <MobileSelect
                         value={filters.year}
                         onChange={(e) => setFilters({ ...filters, year: e.target.value })}
                         className="select-field"
@@ -546,11 +542,11 @@ const Sales = () => {
                             {y}
                           </option>
                         ))}
-                      </select>
+                      </MobileSelect>
                     </div>
                     <div>
                       <label className="form-label">Status</label>
-                      <select
+                      <MobileSelect
                         value={filters.status}
                         onChange={(e) => setFilters({ ...filters, status: e.target.value })}
                         className="select-field"
@@ -559,11 +555,11 @@ const Sales = () => {
                         <option value="Paid">Paid</option>
                         <option value="Unpaid">Unpaid</option>
                         <option value="Partial">Partial</option>
-                      </select>
+                      </MobileSelect>
                     </div>
                     <div>
                       <label className="form-label">Client Name</label>
-                      <select
+                      <MobileSelect
                         value={filters.clientName}
                         onChange={(e) => setFilters({ ...filters, clientName: e.target.value })}
                         className="select-field"
@@ -582,7 +578,7 @@ const Sales = () => {
                               {clientName}
                             </option>
                           ))}
-                      </select>
+                      </MobileSelect>
                     </div>
                   </div>
                 </div>

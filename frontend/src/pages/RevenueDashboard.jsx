@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { dashboardAPI } from '../services/api';
 import { BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, LineChart, Line } from 'recharts';
+import MobileSelect from '../components/MobileSelect';
 
 const RevenueDashboard = () => {
   const [data, setData] = useState(null);
@@ -58,18 +59,18 @@ const RevenueDashboard = () => {
 
   return (
     <div className="animate-fade-in">
-      <div className="mb-8 flex justify-between items-center">
+      <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="page-header">
             Revenue Dashboard
           </h1>
           <p className="page-subtitle">Comprehensive revenue analytics and reports</p>
         </div>
-        <div className="flex gap-3">
-          <select
+        <div className="w-full sm:w-auto flex flex-col gap-3 sm:flex-row">
+          <MobileSelect
             value={month}
             onChange={(e) => setMonth(e.target.value)}
-            className="select-field px-5 py-2.5 font-semibold"
+            className="select-field w-full sm:w-48 px-5 py-2.5 font-semibold"
           >
             <option value="">All Months</option>
             {monthOrder.map((m) => (
@@ -77,11 +78,11 @@ const RevenueDashboard = () => {
                 {m}
               </option>
             ))}
-          </select>
-          <select
+          </MobileSelect>
+          <MobileSelect
             value={year}
             onChange={(e) => setYear(e.target.value)}
-            className="select-field px-5 py-2.5 font-semibold"
+            className="select-field w-full sm:w-44 px-5 py-2.5 font-semibold"
           >
             <option value="">All Years</option>
             {Array.from({ length: 5 }, (_, i) => new Date().getFullYear() - i).map((y) => (
@@ -89,7 +90,7 @@ const RevenueDashboard = () => {
                 {y}
               </option>
             ))}
-          </select>
+          </MobileSelect>
         </div>
       </div>
 

@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { dashboardAPI } from '../services/api';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line, LabelList } from 'recharts';
+import MobileSelect from '../components/MobileSelect';
 
 const ExpenseDashboard = () => {
   const [data, setData] = useState(null);
@@ -58,18 +59,18 @@ const ExpenseDashboard = () => {
 
   return (
     <div className="animate-fade-in">
-      <div className="mb-8 lg:mb-10 xl:mb-12 flex justify-between items-center gap-4 lg:gap-6">
+      <div className="mb-8 lg:mb-10 xl:mb-12 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between lg:gap-6">
         <div>
           <h1 className="page-header">
             Expense Dashboard
           </h1>
           <p className="page-subtitle">Comprehensive expense analytics and reports</p>
         </div>
-        <div className="flex gap-3">
-          <select
+        <div className="w-full sm:w-auto">
+          <MobileSelect
             value={month}
             onChange={(e) => setMonth(e.target.value)}
-            className="select-field px-5 py-2.5 font-semibold"
+            className="select-field w-full sm:w-48 px-5 py-2.5 font-semibold"
           >
             <option value="">All Months</option>
             {monthOrder.map((m) => (
@@ -77,7 +78,7 @@ const ExpenseDashboard = () => {
                 {m}
               </option>
             ))}
-          </select>
+          </MobileSelect>
         </div>
       </div>
 

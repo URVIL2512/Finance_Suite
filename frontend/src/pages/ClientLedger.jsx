@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { format } from 'date-fns';
 import { ledgerAPI } from '../services/api';
+import MobileSelect from '../components/MobileSelect';
 
 const ClientLedger = () => {
   const [customers, setCustomers] = useState([]);
@@ -82,7 +83,7 @@ const ClientLedger = () => {
           <p className="page-subtitle">View accounting statements with debit, credit, and running balance</p>
         </div>
         <div className="flex-shrink-0 sm:w-64">
-          <select
+          <MobileSelect
             value={selectedCustomerId}
             onChange={(e) => setSelectedCustomerId(e.target.value)}
             className="select-field w-full text-sm py-2"
@@ -94,7 +95,7 @@ const ClientLedger = () => {
                 {customer.name}
               </option>
             ))}
-          </select>
+          </MobileSelect>
         </div>
       </div>
 
