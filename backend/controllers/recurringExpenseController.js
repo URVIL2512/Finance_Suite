@@ -93,16 +93,38 @@ export const getRecurringExpenses = async (req, res) => {
       .sort({ createdAt: -1 })
       .lean();
 
-    // Filter out recurring expenses where base expense is deleted
-    const validRecurringExpenses = recurringExpenses.filter(rec => {
-      // If baseExpense is null or just an ID (not populated), it means the expense was deleted
-      return rec.baseExpense !== null && 
-             rec.baseExpense !== undefined && 
-             typeof rec.baseExpense === 'object' && 
-             rec.baseExpense._id; // Ensure it's a full object with _id, not just an ID string
+    // If an expense (baseExpense) is deleted, the recurring schedule becomes orphaned.
+    // To keep data consistent, we delete orphan recurring schedules automatically.
+    const orphanIds = recurringExpenses
+      .filter((rec) => !(rec.baseExpense && typeof rec.baseExpense === 'object' && rec.baseExpense._id))
+      .map((rec) => rec._id);
+
+    if (orphanIds.length > 0) {
+      await RecurringExpense.deleteMany({ user: req.user._id, _id: { $in: orphanIds } });
+    }
+
+    // Keep only valid recurring expenses where base expense exists
+    const validRecurringExpenses = recurringExpenses.filter((rec) => {
+      return rec.baseExpense && typeof rec.baseExpense === 'object' && rec.baseExpense._id;
     });
 
-    res.json(validRecurringExpenses);
+    // IMPORTANT:
+    // Recurring expenses are templates. Payment status belongs to actual generated expenses,
+    // not the template used to generate them. To avoid "paid" leaking into recurring views
+    // (and to keep behavior consistent), we sanitize payment-related fields on the baseExpense
+    // in the API response.
+    const sanitized = validRecurringExpenses.map((rec) => {
+      const base = rec.baseExpense;
+      if (base && typeof base === 'object') {
+        base.paidAmount = 0;
+        base.status = 'Unpaid';
+        base.paidTransactionRef = '';
+        base.paymentHistory = [];
+      }
+      return rec;
+    });
+
+    res.json(sanitized);
   } catch (error) {
     console.error('Error fetching recurring expenses:', error);
     res.status(500).json({ message: error.message });
@@ -127,7 +149,17 @@ export const getRecurringExpense = async (req, res) => {
 
     // Check if base expense is deleted
     if (!recurringExpense.baseExpense) {
+      // Auto-clean orphan recurring schedule
+      await RecurringExpense.deleteOne({ _id: req.params.id, user: req.user._id });
       return res.status(404).json({ message: 'Base expense for this recurring expense has been deleted' });
+    }
+
+    // Sanitize payment-related fields (recurring is a template)
+    if (recurringExpense.baseExpense && typeof recurringExpense.baseExpense === 'object') {
+      recurringExpense.baseExpense.paidAmount = 0;
+      recurringExpense.baseExpense.status = 'Unpaid';
+      recurringExpense.baseExpense.paidTransactionRef = '';
+      recurringExpense.baseExpense.paymentHistory = [];
     }
 
     res.json(recurringExpense);
@@ -232,7 +264,8 @@ export const processRecurringExpenses = async (req, res) => {
 
         const baseExpense = recurringExpense.baseExpense;
         if (!baseExpense) {
-          console.error(`Base expense not found for recurring expense ${recurringExpense._id}`);
+          // Base expense deleted -> delete the recurring schedule to keep data matching
+          await recurringExpense.deleteOne();
           continue;
         }
 
@@ -243,6 +276,12 @@ export const processRecurringExpenses = async (req, res) => {
         delete newExpenseData._id;
         delete newExpenseData.createdAt;
         delete newExpenseData.updatedAt;
+
+        // Recurring generates a fresh occurrence. Never carry payment state from the template.
+        newExpenseData.paidAmount = 0;
+        newExpenseData.status = 'Unpaid';
+        newExpenseData.paidTransactionRef = '';
+        newExpenseData.paymentHistory = [];
 
         // Update expense date to now (for 10 seconds) or today (for others)
         const expenseDate = recurringExpense.repeatEvery === '10 Seconds' ? now : today;
@@ -365,7 +404,8 @@ export const processRecurringExpensesDirect = async () => {
 
         const baseExpense = recurringExpense.baseExpense;
         if (!baseExpense) {
-          console.error(`Base expense not found for recurring expense ${recurringExpense._id}`);
+          // Base expense deleted -> delete the recurring schedule to keep data matching
+          await recurringExpense.deleteOne();
           continue;
         }
 
@@ -376,6 +416,12 @@ export const processRecurringExpensesDirect = async () => {
         delete newExpenseData._id;
         delete newExpenseData.createdAt;
         delete newExpenseData.updatedAt;
+
+        // Recurring generates a fresh occurrence. Never carry payment state from the template.
+        newExpenseData.paidAmount = 0;
+        newExpenseData.status = 'Unpaid';
+        newExpenseData.paidTransactionRef = '';
+        newExpenseData.paymentHistory = [];
 
         // Update expense date to now (for 10 seconds) or today (for others)
         const expenseDate = recurringExpense.repeatEvery === '10 Seconds' ? now : today;

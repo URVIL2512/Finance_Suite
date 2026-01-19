@@ -22,9 +22,17 @@ export const getExpenseDashboard = async (req, res) => {
     const expenses = await Expense.find(filter);
 
     // Total expenses for the year
-    const totalExpenses = expenses.reduce((sum, exp) => sum + exp.totalAmount, 0);
-    const totalGST = expenses.reduce((sum, exp) => sum + exp.gstAmount, 0);
-    const totalTDS = expenses.reduce((sum, exp) => sum + exp.tdsAmount, 0);
+    const totalExpenses = expenses.reduce((sum, exp) => sum + (exp.totalAmount || 0), 0);
+    const totalGST = expenses.reduce((sum, exp) => sum + (exp.gstAmount || 0), 0);
+    const totalTDS = expenses.reduce((sum, exp) => sum + (exp.tdsAmount || 0), 0);
+    
+    // Calculate paid and unpaid amounts from expenses
+    const paidAmount = expenses.reduce((sum, exp) => sum + (exp.paidAmount || 0), 0);
+    const unpaidAmount = expenses.reduce((sum, exp) => {
+      const total = exp.totalAmount || 0;
+      const paid = exp.paidAmount || 0;
+      return sum + (total - paid);
+    }, 0);
 
     // Category-wise summary
     const categorySummary = expenses.reduce((acc, exp) => {
@@ -99,9 +107,11 @@ export const getExpenseDashboard = async (req, res) => {
       year: year || 'All',
       month: month || 'All',
       totalExpenses: Math.round(totalExpenses * 100) / 100,
+      paidAmount: Math.round(paidAmount * 100) / 100,
+      unpaidAmount: Math.round(unpaidAmount * 100) / 100,
+      allTimeTotal: Math.round(allTimeTotal * 100) / 100,
       totalGST: Math.round(totalGST * 100) / 100,
       totalTDS: Math.round(totalTDS * 100) / 100,
-      allTimeTotal: Math.round(allTimeTotal * 100) / 100,
       categorySummary: Object.entries(categorySummary).map(([category, data]) => ({
         category,
         totalExpense: Math.round(data.totalExpense * 100) / 100,

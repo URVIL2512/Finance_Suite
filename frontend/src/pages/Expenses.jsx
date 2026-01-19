@@ -639,6 +639,42 @@ const Expenses = () => {
     'TELE CALLING',
   ];
 
+  // Use computed totals so amounts stay correct even for older records where totalAmount is missing.
+  const getComputedTotalAmount = (expense) => {
+    const explicitTotal = parseFloat(expense?.totalAmount);
+    if (!Number.isNaN(explicitTotal) && explicitTotal > 0) return explicitTotal;
+
+    const amountExclTax = parseFloat(expense?.amountExclTax) || 0;
+    const gstAmount = parseFloat(expense?.gstAmount) || 0;
+    const tdsAmount = parseFloat(expense?.tdsAmount) || 0;
+    const derivedTotal = amountExclTax + gstAmount - tdsAmount;
+    return derivedTotal > 0 ? derivedTotal : 0;
+  };
+
+  const getPaidAmount = (expense, total) => {
+    const paid = parseFloat(expense?.paidAmount) || 0;
+    if (paid <= 0) return 0;
+    return Math.min(paid, total);
+  };
+
+  const expenseSummary = (expenses || []).reduce(
+    (acc, expense) => {
+      const total = getComputedTotalAmount(expense);
+      const paid = getPaidAmount(expense, total);
+      const due = Math.max(0, total - paid);
+
+      acc.total += total;
+      acc.paid += paid;
+      acc.pending += due;
+
+      // Unpaid: no payment made yet (due > 0, paid ~ 0)
+      if (due > 0 && paid <= 0.01) acc.unpaid += due;
+
+      return acc;
+    },
+    { total: 0, paid: 0, pending: 0, unpaid: 0 }
+  );
+
   return (
     <div className="animate-fade-in min-h-screen">
       <div className="mb-8 lg:mb-10 xl:mb-12 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 lg:gap-6">
@@ -726,6 +762,76 @@ const Expenses = () => {
           )}
         </div>
       </div>
+
+      {/* Summary Cards */}
+      {!showForm && (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6 lg:mb-8">
+          <div className="card p-5">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <p className="text-sm font-medium text-slate-600">Total Expenses</p>
+                <p className="mt-2 text-2xl font-semibold text-slate-900">
+                  ₹{expenseSummary.total.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                </p>
+              </div>
+              <div className="rounded-lg border border-blue-100 bg-blue-50 p-2.5">
+                <svg className="h-5 w-5 text-blue-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+              </div>
+            </div>
+          </div>
+
+          <div className="card p-5">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <p className="text-sm font-medium text-slate-600">Paid Amount</p>
+                <p className="mt-2 text-2xl font-semibold text-emerald-700">
+                  ₹{expenseSummary.paid.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                </p>
+              </div>
+              <div className="rounded-lg border border-emerald-100 bg-emerald-50 p-2.5">
+                <svg className="h-5 w-5 text-emerald-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+              </div>
+            </div>
+          </div>
+
+          <div className="card p-5">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <p className="text-sm font-medium text-slate-600">Pending (Due)</p>
+                <p className="mt-2 text-2xl font-semibold text-rose-700">
+                  ₹{expenseSummary.pending.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                </p>
+              </div>
+              <div className="rounded-lg border border-rose-100 bg-rose-50 p-2.5">
+                <svg className="h-5 w-5 text-rose-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+              </div>
+            </div>
+          </div>
+
+          <div className="card p-5">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <p className="text-sm font-medium text-slate-600">Unpaid (Due)</p>
+                <p className="mt-2 text-2xl font-semibold text-slate-900">
+                  ₹{expenseSummary.unpaid.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                </p>
+              </div>
+              <div className="rounded-lg border border-slate-200 bg-slate-50 p-2.5">
+                <svg className="h-5 w-5 text-slate-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      )}
 
       {/* Filters */}
       {!showForm && showFilters && (
@@ -1228,22 +1334,29 @@ const Expenses = () => {
 
             {/* Content */}
             <div className="p-6 bg-slate-50">
+              {(() => {
+                const total = getComputedTotalAmount(markPaidExpense);
+                const paid = getPaidAmount(markPaidExpense, total);
+                const due = Math.max(0, total - paid);
+                return (
               <div className="mb-4">
                 <p className="text-sm text-slate-600 mb-2">
                   <span className="font-semibold">Vendor:</span> {markPaidExpense.vendor || '-'}
                 </p>
                 <p className="text-sm text-slate-600 mb-4">
-                  <span className="font-semibold">Total Amount:</span> ₹{markPaidExpense.totalAmount?.toLocaleString('en-IN', { minimumFractionDigits: 2 }) || '0.00'}
+                  <span className="font-semibold">Total Amount:</span> ₹{total.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
                 </p>
-                {markPaidExpense.paidAmount > 0 && (
+                {paid > 0 && (
                   <p className="text-sm text-slate-600 mb-4">
-                    <span className="font-semibold">Current Paid:</span> ₹{markPaidExpense.paidAmount?.toLocaleString('en-IN', { minimumFractionDigits: 2 }) || '0.00'}
+                    <span className="font-semibold">Current Paid:</span> ₹{paid.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
                   </p>
                 )}
                 <p className="text-sm text-red-600 mb-4">
-                  <span className="font-semibold">Due Amount:</span> ₹{((markPaidExpense.totalAmount || 0) - (markPaidExpense.paidAmount || 0)).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                  <span className="font-semibold">Due Amount:</span> ₹{due.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
                 </p>
               </div>
+                );
+              })()}
 
               <div className="space-y-3">
                 <label className="block text-sm font-semibold text-gray-700">Enter Paid Amount</label>
@@ -1257,12 +1370,12 @@ const Expenses = () => {
                     placeholder="Enter amount"
                     step="0.01"
                     min="0"
-                    max={(markPaidExpense.totalAmount || 0) - (markPaidExpense.paidAmount || 0)}
+                    max={Math.max(0, getComputedTotalAmount(markPaidExpense) - getPaidAmount(markPaidExpense, getComputedTotalAmount(markPaidExpense)))}
                     className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-500 w-40"
                     autoFocus
                   />
                   <span className="text-sm text-gray-600">
-                    / ₹{((markPaidExpense.totalAmount || 0) - (markPaidExpense.paidAmount || 0)).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                    / ₹{Math.max(0, getComputedTotalAmount(markPaidExpense) - getPaidAmount(markPaidExpense, getComputedTotalAmount(markPaidExpense))).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
                   </span>
                 </div>
               </div>

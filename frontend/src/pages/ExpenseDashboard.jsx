@@ -83,7 +83,8 @@ const ExpenseDashboard = () => {
       </div>
 
       {/* Summary Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 lg:gap-8 mb-8 lg:mb-10 xl:mb-12">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 lg:gap-8 mb-8 lg:mb-10 xl:mb-12">
+        {/* First Row - Main 4 Cards */}
         <div className="bg-white rounded-lg shadow-lg p-6 lg:p-8">
           <h3 className="text-lg font-semibold text-gray-700 mb-2">Total Expenses</h3>
           <p className="text-3xl font-bold text-red-600">
@@ -91,23 +92,39 @@ const ExpenseDashboard = () => {
           </p>
         </div>
         <div className="bg-white rounded-lg shadow-lg p-6 lg:p-8">
-          <h3 className="text-lg font-semibold text-gray-700 mb-2">Total GST</h3>
-          <p className="text-3xl font-bold text-orange-600">
-            ₹{data?.totalGST?.toLocaleString('en-IN', { minimumFractionDigits: 2 }) || '0.00'}
+          <h3 className="text-lg font-semibold text-gray-700 mb-2">Paid Amount</h3>
+          <p className="text-3xl font-bold text-green-600">
+            ₹{data?.paidAmount?.toLocaleString('en-IN', { minimumFractionDigits: 2 }) || '0.00'}
           </p>
         </div>
         <div className="bg-white rounded-lg shadow-lg p-6 lg:p-8">
-          <h3 className="text-lg font-semibold text-gray-700 mb-2">Total TDS</h3>
-          <p className="text-3xl font-bold text-blue-600">
-            ₹{data?.totalTDS?.toLocaleString('en-IN', { minimumFractionDigits: 2 }) || '0.00'}
+          <h3 className="text-lg font-semibold text-gray-700 mb-2">Unpaid Amount</h3>
+          <p className="text-3xl font-bold text-orange-600">
+            ₹{data?.unpaidAmount?.toLocaleString('en-IN', { minimumFractionDigits: 2 }) || '0.00'}
           </p>
         </div>
+      </div>
+      
+      {/* Second Row - All Time Total and Smaller GST/TDS Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 lg:gap-8 mb-8 lg:mb-10 xl:mb-12">
         <div className="bg-white rounded-lg shadow-lg p-6 lg:p-8">
           <h3 className="text-lg font-semibold text-gray-700 mb-2">All Time Total</h3>
           <p className="text-3xl font-bold text-gray-600">
             ₹{data?.allTimeTotal?.toLocaleString('en-IN', { minimumFractionDigits: 2 }) || '0.00'}
           </p>
           <p className="text-xs text-gray-500 mt-1">Current Year ({currentYear})</p>
+        </div>
+        <div className="bg-white rounded-lg shadow-lg p-4 lg:p-5">
+          <h3 className="text-base font-semibold text-gray-700 mb-2">Total GST</h3>
+          <p className="text-2xl font-bold text-orange-600">
+            ₹{data?.totalGST?.toLocaleString('en-IN', { minimumFractionDigits: 2 }) || '0.00'}
+          </p>
+        </div>
+        <div className="bg-white rounded-lg shadow-lg p-4 lg:p-5">
+          <h3 className="text-base font-semibold text-gray-700 mb-2">Total TDS</h3>
+          <p className="text-2xl font-bold text-blue-600">
+            ₹{data?.totalTDS?.toLocaleString('en-IN', { minimumFractionDigits: 2 }) || '0.00'}
+          </p>
         </div>
       </div>
 
@@ -178,10 +195,17 @@ const ExpenseDashboard = () => {
         <div className="bg-white rounded-lg shadow-lg p-6 lg:p-8 xl:p-10">
           <h2 className="text-xl lg:text-2xl font-bold mb-4 lg:mb-6">Department-wise Expenses</h2>
           <p className="text-sm lg:text-base text-gray-600 mb-6 lg:mb-8">Reporting Year: {currentYear}</p>
-          <ResponsiveContainer width="100%" height={350}>
-            <BarChart data={departmentChartData}>
+          <ResponsiveContainer width="100%" height={400}>
+            <BarChart data={departmentChartData} margin={{ top: 20, right: 30, left: 20, bottom: 120 }}>
               <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="name" angle={-45} textAnchor="end" height={100} />
+              <XAxis 
+                dataKey="name" 
+                angle={-45} 
+                textAnchor="end" 
+                height={140}
+                interval={0}
+                tick={{ fontSize: 12 }}
+              />
               <YAxis />
               <Tooltip formatter={(value) => `₹${value.toLocaleString('en-IN', { minimumFractionDigits: 2 })}`} />
               <Legend />

@@ -249,9 +249,10 @@ const ExpenseForm = ({ expense, onSubmit, onCancel }) => {
     }));
   }, [formData.date]);
 
-  // Auto-update status when paidAmount changes
+  // Auto-update status when paidAmount/total changes
+  // Use computed total so status stays correct even when totalAmount is missing.
   useEffect(() => {
-    const totalAmount = parseFloat(formData.totalAmount) || 0;
+    const totalAmount = computedTotalAmount;
     const paidAmount = parseFloat(formData.paidAmount) || 0;
     
     if (totalAmount > 0) {
@@ -275,7 +276,7 @@ const ExpenseForm = ({ expense, onSubmit, onCancel }) => {
         }));
       }
     }
-  }, [formData.paidAmount, formData.totalAmount]);
+  }, [formData.paidAmount, formData.totalAmount, formData.amountExclTax, formData.gstAmount, formData.tdsAmount]);
 
   // Calculate balance (Due Amount)
   // Prefer stored totalAmount, but fall back to derived total (Amount + GST - TDS)
@@ -292,6 +293,27 @@ const ExpenseForm = ({ expense, onSubmit, onCancel }) => {
   })();
 
   const balance = Math.max(0, computedTotalAmount - (parseFloat(formData.paidAmount) || 0));
+
+  // Ensure totalAmount is always populated for display/submission (backfills older records)
+  // Guarded to avoid unnecessary re-renders/loops.
+  const computedTotalAmountStr = computedTotalAmount > 0 ? String(Math.round(computedTotalAmount * 100) / 100) : '';
+  useEffect(() => {
+    setFormData((prev) => {
+      if (computedTotalAmountStr === '') {
+        return prev.totalAmount === '' ? prev : { ...prev, totalAmount: '' };
+      }
+
+      const prevNum = parseFloat(prev.totalAmount);
+      const nextNum = parseFloat(computedTotalAmountStr);
+      const isSame =
+        !Number.isNaN(prevNum) &&
+        !Number.isNaN(nextNum) &&
+        Math.abs(prevNum - nextNum) < 0.005;
+
+      if (isSame) return prev;
+      return { ...prev, totalAmount: computedTotalAmountStr };
+    });
+  }, [computedTotalAmountStr]);
   
   // Check if amount fields should be locked (when status is Paid)
   const isLocked = formData.status === 'Paid';
@@ -393,7 +415,8 @@ const ExpenseForm = ({ expense, onSubmit, onCancel }) => {
         gstAmount: parseFloat(formData.gstAmount) || 0,
         tdsPercentage: parseFloat(formData.tdsPercentage) || 0,
         tdsAmount: parseFloat(formData.tdsAmount) || 0,
-        totalAmount: parseFloat(formData.totalAmount) || 0,
+        // totalAmount can be missing in older records; always submit a computed total
+        totalAmount: Math.round(computedTotalAmount * 100) / 100,
         paidAmount: parseFloat(formData.paidAmount) || 0,
         status: formData.status || 'Unpaid',
       };
@@ -889,7 +912,7 @@ const ExpenseForm = ({ expense, onSubmit, onCancel }) => {
                   <input
                     type="text"
                     name="totalAmount"
-                    value={formData.totalAmount || ''}
+                    value={formData.totalAmount || computedTotalAmount.toFixed(2)}
                     readOnly
                     disabled={isLocked}
                     className="input-field w-full text-sm py-2.5 bg-gray-50 cursor-not-allowed font-semibold text-blue-600"

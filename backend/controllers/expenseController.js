@@ -1,4 +1,5 @@
 import Expense from '../models/Expense.js';
+import RecurringExpense from '../models/RecurringExpense.js';
 import { generateExpensesPDF } from '../utils/expensePdfGenerator.js';
 import path from 'path';
 import fs from 'fs';
@@ -270,6 +271,13 @@ export const deleteExpense = async (req, res) => {
     if (!expense) {
       return res.status(404).json({ message: 'Expense not found' });
     }
+
+    // If an expense is used as a recurring base template, removing the expense should
+    // also remove its recurring schedules to avoid orphan records and mismatched UI.
+    await RecurringExpense.deleteMany({
+      user: req.user._id,
+      baseExpense: expense._id,
+    });
 
     res.json({ message: 'Expense removed' });
   } catch (error) {
