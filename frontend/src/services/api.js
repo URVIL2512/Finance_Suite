@@ -100,6 +100,7 @@ export const invoiceAPI = {
 export const dashboardAPI = {
   getExpenseDashboard: (params) => api.get('/dashboard/expenses', { params }),
   getExpenseAging: () => api.get('/dashboard/expenses/aging'),
+  getExpenseAgingPDF: () => api.get('/dashboard/expenses/aging/pdf', { responseType: 'blob' }),
   getRevenueDashboard: (params) => api.get('/dashboard/revenue', { params }),
   getSummary: (params) => api.get('/dashboard/summary', { params }),
 };

@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { format } from 'date-fns';
 import { dashboardAPI } from '../services/api';
 import { useToast } from '../contexts/ToastContext';
+import { getAuthToken } from '../utils/auth';
 
 const ExpenseAging = () => {
   const { showToast } = useToast();
@@ -10,6 +11,7 @@ const ExpenseAging = () => {
   const [asOfDate, setAsOfDate] = useState('');
   const [loading, setLoading] = useState(true);
   const [selectedBucket, setSelectedBucket] = useState(null);
+  const [downloadingPDF, setDownloadingPDF] = useState(false);
 
   useEffect(() => {
     fetchAgingData();
@@ -37,6 +39,43 @@ const ExpenseAging = () => {
     return { bg: 'from-red-500 to-red-600', text: 'text-red-50', border: 'border-red-300' };
   };
 
+  const handleDownloadPDF = async () => {
+    try {
+      setDownloadingPDF(true);
+      const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+      const token = getAuthToken();
+      
+      const response = await fetch(`${API_URL}/dashboard/expenses/aging/pdf`, {
+        method: 'GET',
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      if (response.ok) {
+        const blob = await response.blob();
+        const blobUrl = window.URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = blobUrl;
+        const dateStr = asOfDate || format(new Date(), 'yyyy-MM-dd');
+        link.download = `expense-aging-${dateStr}.pdf`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        window.URL.revokeObjectURL(blobUrl);
+        showToast('PDF downloaded successfully', 'success');
+      } else {
+        const error = await response.json();
+        throw new Error(error.message || 'Failed to generate PDF');
+      }
+    } catch (error) {
+      console.error('Error downloading PDF:', error);
+      showToast('Error downloading PDF: ' + (error.message || 'Unknown error'), 'error');
+    } finally {
+      setDownloadingPDF(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="text-center py-12">
@@ -55,6 +94,28 @@ const ExpenseAging = () => {
             Track overdue payments by age buckets {asOfDate && `(As of ${format(new Date(asOfDate), 'dd MMM yyyy')})`}
           </p>
         </div>
+        <button
+          onClick={handleDownloadPDF}
+          disabled={downloadingPDF}
+          className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-blue-400 disabled:cursor-not-allowed transition-colors font-semibold shadow-md"
+        >
+          {downloadingPDF ? (
+            <>
+              <svg className="animate-spin h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+              </svg>
+              <span>Generating...</span>
+            </>
+          ) : (
+            <>
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+              </svg>
+              <span>Download as PDF</span>
+            </>
+          )}
+        </button>
       </div>
 
       {/* Total Outstanding Card */}
