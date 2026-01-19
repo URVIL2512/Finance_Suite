@@ -159,6 +159,92 @@ export const generateExpenseAgingPDF = async (agingData, totalOutstanding, asOfD
       doc.text(agingData.reduce((sum, b) => sum + b.count, 0).toString(), col3X, totalY + 8, { width: 90, align: 'center' });
       doc.text('100%', col4X, totalY + 8, { width: 75, align: 'center' });
 
+      // Detailed Expense Table (if bucket is selected and expenses exist)
+      if (selectedBucket && detailedExpenses && detailedExpenses.length > 0) {
+        currentY = totalY + 40;
+        
+        // Check if we need a new page
+        if (currentY > 700) {
+          doc.addPage();
+          currentY = 40;
+        }
+
+        // Section title
+        doc.fontSize(16).font('Helvetica-Bold').fillColor('#1e293b');
+        doc.text(`${selectedBucket} - Expense Details`, 40, currentY);
+        currentY += 25;
+
+        // Detailed table header
+        const detailHeaderY = currentY;
+        const detailCol1X = 50;   // Date
+        const detailCol2X = 110;  // Vendor
+        const detailCol3X = 220;  // Category
+        const detailCol4X = 300;  // Total Amount
+        const detailCol5X = 380;  // Paid Amount
+        const detailCol6X = 460;  // Outstanding
+        const detailCol7X = 520;  // Days Overdue
+
+        doc.rect(40, detailHeaderY, 515, 25).fill('#1e293b').stroke('#0f172a');
+        doc.fontSize(9).font('Helvetica-Bold').fillColor('#ffffff');
+        doc.text('Date', detailCol1X, detailHeaderY + 8);
+        doc.text('Vendor', detailCol2X, detailHeaderY + 8, { width: 100 });
+        doc.text('Category', detailCol3X, detailHeaderY + 8, { width: 70 });
+        doc.text('Total Amount', detailCol4X, detailHeaderY + 8, { width: 75, align: 'right' });
+        doc.text('Paid Amount', detailCol5X, detailHeaderY + 8, { width: 75, align: 'right' });
+        doc.text('Outstanding', detailCol6X, detailHeaderY + 8, { width: 55, align: 'right' });
+        doc.text('Days Overdue', detailCol7X, detailHeaderY + 8, { width: 35, align: 'center' });
+
+        currentY += 25;
+
+        // Detailed expense rows
+        doc.fontSize(8).font('Helvetica').fillColor('#1e293b');
+        detailedExpenses.forEach((expense, index) => {
+          // Check if we need a new page
+          if (currentY > 750) {
+            doc.addPage();
+            currentY = 40;
+            // Redraw header on new page
+            doc.rect(40, currentY, 515, 25).fill('#1e293b').stroke('#0f172a');
+            doc.fontSize(9).font('Helvetica-Bold').fillColor('#ffffff');
+            doc.text('Date', detailCol1X, currentY + 8);
+            doc.text('Vendor', detailCol2X, currentY + 8, { width: 100 });
+            doc.text('Category', detailCol3X, currentY + 8, { width: 70 });
+            doc.text('Total Amount', detailCol4X, currentY + 8, { width: 75, align: 'right' });
+            doc.text('Paid Amount', detailCol5X, currentY + 8, { width: 75, align: 'right' });
+            doc.text('Outstanding', detailCol6X, currentY + 8, { width: 55, align: 'right' });
+            doc.text('Days Overdue', detailCol7X, currentY + 8, { width: 35, align: 'center' });
+            currentY += 25;
+          }
+
+          const rowY = currentY;
+
+          // Alternate row color
+          if (index % 2 === 0) {
+            doc.rect(40, rowY, 515, 18).fill('#f8fafc').stroke('#e2e8f0');
+          } else {
+            doc.rect(40, rowY, 515, 18).fill('#ffffff').stroke('#e2e8f0');
+          }
+
+          // Format date
+          const expenseDate = new Date(expense.date);
+          const dateStr = expenseDate.toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' });
+
+          doc.fillColor('#1e293b');
+          doc.text(dateStr, detailCol1X, rowY + 5);
+          doc.text((expense.vendor || '-').substring(0, 20), detailCol2X, rowY + 5, { width: 100 });
+          doc.text((expense.category || '-').substring(0, 15), detailCol3X, rowY + 5, { width: 70 });
+          doc.text(`Rs. ${expense.totalAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}`, detailCol4X, rowY + 5, { width: 75, align: 'right' });
+          doc.fillColor('#10b981'); // Green for paid
+          doc.text(`Rs. ${expense.paidAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}`, detailCol5X, rowY + 5, { width: 75, align: 'right' });
+          doc.fillColor('#ef4444'); // Red for outstanding
+          doc.text(`Rs. ${expense.outstandingAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}`, detailCol6X, rowY + 5, { width: 55, align: 'right' });
+          doc.fillColor('#1e293b');
+          doc.text(`${expense.daysDifference} days`, detailCol7X, rowY + 5, { width: 35, align: 'center' });
+
+          currentY += 18;
+        });
+      }
+
       // Finalize PDF
       doc.end();
 
