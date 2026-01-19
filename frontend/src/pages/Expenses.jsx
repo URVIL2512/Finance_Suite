@@ -159,37 +159,6 @@ const Expenses = () => {
 
   useEffect(() => {
     fetchExpenses();
-    
-    let intervalId = null;
-    
-    // Sync refresh to 10-second intervals (00, 10, 20, 30, 40, 50 seconds of each minute)
-    // This ensures Expenses, Recurring Expenses, and Dashboard all refresh at the same time
-    const syncToNext10Second = () => {
-      const now = new Date();
-      const seconds = now.getSeconds();
-      const milliseconds = now.getMilliseconds();
-      const remainder = seconds % 10;
-      const delayToNext = remainder === 0 
-        ? 10000 - milliseconds // Already at a 10-second mark, wait for next one
-        : (10 - remainder) * 1000 - milliseconds; // Wait until next 10-second mark
-      
-      return delayToNext;
-    };
-    
-    const delay = syncToNext10Second();
-    
-    const timeoutId = setTimeout(() => {
-      fetchExpenses();
-      // Then continue with regular 10-second intervals
-      intervalId = setInterval(() => {
-        fetchExpenses();
-      }, 10000);
-    }, delay);
-    
-    return () => {
-      clearTimeout(timeoutId);
-      if (intervalId) clearInterval(intervalId);
-    };
   }, [searchQuery, appliedFilters]);
 
   // Get unique vendors from all expenses
