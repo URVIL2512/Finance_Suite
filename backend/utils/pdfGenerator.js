@@ -282,7 +282,7 @@ const drawInvoiceMeta = (
   });
 
   // Removed INR Equivalent line as requested
-  
+
   return Math.max(startY + invoiceBoxHeight, currentY + spacing.md);
 };
 
@@ -1230,7 +1230,7 @@ export const generateInvoicePDF = async (invoice, outputPath, userId = null) => 
         receivableAmount,
         paymentTerms
       )
-      
+
       // Table starts right after invoice meta block (exactly above table as requested)
       currentY = invoiceMetaEndY + 10 // Small spacing between meta and table
       currentY = drawItemsTable(doc, currentY, invoice, currency)

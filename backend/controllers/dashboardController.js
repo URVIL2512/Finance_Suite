@@ -129,6 +129,84 @@ export const getExpenseDashboard = async (req, res) => {
   }
 };
 
+// @desc    Get expense aging report
+// @route   GET /api/dashboard/expenses/aging
+// @access  Private
+export const getExpenseAging = async (req, res) => {
+  try {
+    const expenses = await Expense.find({ user: req.user._id }).lean();
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    // Initialize age buckets
+    const ageBuckets = {
+      '0-5': { label: '0-5 Days', amount: 0, count: 0, expenses: [] },
+      '6-15': { label: '6-15 Days', amount: 0, count: 0, expenses: [] },
+      '16-30': { label: '16-30 Days', amount: 0, count: 0, expenses: [] },
+      '30+': { label: '30+ Days', amount: 0, count: 0, expenses: [] },
+    };
+
+    let totalOutstanding = 0;
+
+    expenses.forEach((expense) => {
+      const totalAmount = expense.totalAmount || 0;
+      const paidAmount = expense.paidAmount || 0;
+      const outstandingAmount = totalAmount - paidAmount;
+
+      // Only consider expenses with outstanding amount
+      if (outstandingAmount > 0) {
+        // Calculate age in days
+        const expenseDate = new Date(expense.date);
+        expenseDate.setHours(0, 0, 0, 0);
+        const daysDifference = Math.floor((today - expenseDate) / (1000 * 60 * 60 * 24));
+
+        // Determine age bucket
+        let bucket;
+        if (daysDifference <= 5) {
+          bucket = '0-5';
+        } else if (daysDifference <= 15) {
+          bucket = '6-15';
+        } else if (daysDifference <= 30) {
+          bucket = '16-30';
+        } else {
+          bucket = '30+';
+        }
+
+        // Add to bucket
+        ageBuckets[bucket].amount += outstandingAmount;
+        ageBuckets[bucket].count += 1;
+        ageBuckets[bucket].expenses.push({
+          _id: expense._id,
+          date: expense.date,
+          vendor: expense.vendor || '',
+          category: expense.category || '',
+          totalAmount,
+          paidAmount,
+          outstandingAmount,
+          daysDifference,
+        });
+
+        totalOutstanding += outstandingAmount;
+      }
+    });
+
+    // Convert to array and round amounts
+    const agingData = Object.values(ageBuckets).map((bucket) => ({
+      ...bucket,
+      amount: Math.round(bucket.amount * 100) / 100,
+    }));
+
+    res.json({
+      agingData,
+      totalOutstanding: Math.round(totalOutstanding * 100) / 100,
+      asOfDate: today.toISOString().split('T')[0],
+    });
+  } catch (error) {
+    console.error('Error fetching expense aging:', error);
+    res.status(500).json({ message: error.message || 'Failed to fetch expense aging report' });
+  }
+};
+
 // @desc    Get revenue dashboard summary
 // @route   GET /api/dashboard/revenue
 // @access  Private

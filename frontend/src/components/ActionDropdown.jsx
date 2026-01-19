@@ -3,6 +3,8 @@ import { createPortal } from 'react-dom';
 
 const ActionDropdown = ({ 
   onView, 
+  onViewHistory,
+  onMarkPaid,
   onEdit, 
   onDelete, 
   onActivate, 
@@ -109,7 +111,7 @@ const ActionDropdown = ({
     }
   };
 
-  const hasActions = onView || onEdit || onDelete || onToggleActive || (onActivate && !isActive) || (onDeactivate && isActive) || additionalActions.length > 0;
+  const hasActions = onView || onViewHistory || onMarkPaid || onEdit || onDelete || onToggleActive || (onActivate && !isActive) || (onDeactivate && isActive) || additionalActions.length > 0;
 
   if (!hasActions) {
     return null;
@@ -146,6 +148,40 @@ const ActionDropdown = ({
           }}
         >
           <div className="py-1" role="menu" aria-orientation="vertical">
+            {onViewHistory && (
+              <button
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  handleAction(onViewHistory);
+                }}
+                className="w-full text-left px-4 py-2.5 text-sm text-gray-700 hover:bg-blue-50 hover:text-blue-700 flex items-center gap-2 transition-colors duration-150"
+                role="menuitem"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <span>View History</span>
+              </button>
+            )}
+
+            {onMarkPaid && (
+              <button
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  handleAction(onMarkPaid);
+                }}
+                className="w-full text-left px-4 py-2.5 text-sm text-gray-700 hover:bg-green-50 hover:text-green-700 flex items-center gap-2 transition-colors duration-150"
+                role="menuitem"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <span>Mark Paid</span>
+              </button>
+            )}
+
             {onView && (
               <button
                 onClick={(e) => {
@@ -232,7 +268,7 @@ const ActionDropdown = ({
 
             {onDelete && (
               <>
-                {(onView || onEdit || onToggleActive || additionalActions.length > 0) && (
+                {(onViewHistory || onMarkPaid || onView || onEdit || onToggleActive || additionalActions.length > 0) && (
                   <div className="border-t border-gray-200 my-1"></div>
                 )}
                 <button

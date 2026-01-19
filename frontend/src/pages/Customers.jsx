@@ -4,6 +4,7 @@ import { format } from 'date-fns';
 import { customerAPI, invoiceAPI } from '../services/api';
 import CustomerForm from '../components/CustomerForm';
 import CustomerTable from '../components/CustomerTable';
+import ConfirmationModal from '../components/ConfirmationModal';
 import { useToast } from '../contexts/ToastContext';
 
 const Customers = () => {
@@ -17,6 +18,7 @@ const Customers = () => {
   const [viewingCustomer, setViewingCustomer] = useState(null);
   const [customerInvoices, setCustomerInvoices] = useState([]);
   const [customerSummary, setCustomerSummary] = useState({ totalInvoices: 0, totalAmount: 0, totalPaid: 0, totalDue: 0 });
+  const [deleteConfirm, setDeleteConfirm] = useState({ show: false, id: null });
   
   // Get return path and state from navigation
   const returnPath = location.state?.returnTo;
@@ -91,15 +93,20 @@ const Customers = () => {
   };
 
   const handleDeleteCustomer = async (id) => {
-    if (window.confirm('Are you sure you want to delete this customer?')) {
-      try {
-        await customerAPI.delete(id);
-        fetchCustomers();
-        showToast('Customer deleted successfully!', 'success');
-      } catch (error) {
-        console.error('Error deleting customer:', error);
-        showToast('Failed to delete customer', 'error');
-      }
+    setDeleteConfirm({ show: true, id });
+  };
+
+  const handleDeleteConfirm = async () => {
+    if (!deleteConfirm.id) return;
+    try {
+      await customerAPI.delete(deleteConfirm.id);
+      fetchCustomers();
+      showToast('Customer deleted successfully!', 'success');
+      setDeleteConfirm({ show: false, id: null });
+    } catch (error) {
+      console.error('Error deleting customer:', error);
+      showToast('Failed to delete customer', 'error');
+      setDeleteConfirm({ show: false, id: null });
     }
   };
 
@@ -555,6 +562,18 @@ const Customers = () => {
           )}
         </>
       )}
+
+      {/* Delete Confirmation Modal */}
+      <ConfirmationModal
+        isOpen={deleteConfirm.show}
+        onClose={() => setDeleteConfirm({ show: false, id: null })}
+        onConfirm={handleDeleteConfirm}
+        title="Confirm Delete"
+        message="Are you sure you want to delete this customer? This action cannot be undone."
+        confirmText="Delete"
+        cancelText="Cancel"
+        confirmButtonColor="red"
+      />
     </div>
   );
 };

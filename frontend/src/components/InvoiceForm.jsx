@@ -973,6 +973,19 @@ const InvoiceForm = ({ invoice, customers = [], onSubmit, onCancel, onCustomerAd
     }
   };
 
+  // Prevent arrow keys and scroll from changing number input values
+  const handleNumberInputKeyDown = (e) => {
+    if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
+      e.preventDefault();
+    }
+  };
+
+  const handleNumberInputWheel = (e) => {
+    if (e.target.type === 'number') {
+      e.target.blur();
+    }
+  };
+
   const handleChange = (e) => {
     const { name, value } = e.target;
     // Prevent editing email if customer is selected
@@ -1763,6 +1776,8 @@ const InvoiceForm = ({ invoice, customers = [], onSubmit, onCancel, onCustomerAd
                         type="number"
                         value={item.quantity}
                         onChange={(e) => handleItemChange(item.id, 'quantity', e.target.value)}
+                        onKeyDown={handleNumberInputKeyDown}
+                        onWheel={handleNumberInputWheel}
                         step="0.01"
                         min="0"
                         className="w-full px-2 py-1.5 text-sm text-center border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-finance-blue"
@@ -1773,6 +1788,8 @@ const InvoiceForm = ({ invoice, customers = [], onSubmit, onCancel, onCustomerAd
                         type="number"
                         value={item.rate}
                         onChange={(e) => handleItemChange(item.id, 'rate', e.target.value)}
+                        onKeyDown={handleNumberInputKeyDown}
+                        onWheel={handleNumberInputWheel}
                         step="0.01"
                         min="0"
                         className="w-full px-2 py-1.5 text-sm text-center border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-finance-blue"
@@ -1784,6 +1801,8 @@ const InvoiceForm = ({ invoice, customers = [], onSubmit, onCancel, onCustomerAd
                           type="number"
                           value={item.discount}
                           onChange={(e) => handleItemChange(item.id, 'discount', e.target.value)}
+                          onKeyDown={handleNumberInputKeyDown}
+                          onWheel={handleNumberInputWheel}
                           step="0.01"
                           min="0"
                           max="100"
@@ -1862,6 +1881,8 @@ const InvoiceForm = ({ invoice, customers = [], onSubmit, onCancel, onCustomerAd
                   name="baseAmount"
                   value={formData.baseAmount}
                   onChange={handleChange}
+                  onKeyDown={handleNumberInputKeyDown}
+                  onWheel={handleNumberInputWheel}
                   step="0.01"
                   placeholder="0.00"
                   className="input-field-compact bg-gray-50"
@@ -1883,6 +1904,8 @@ const InvoiceForm = ({ invoice, customers = [], onSubmit, onCancel, onCustomerAd
                               : parseFloat(formData.gstPercentage) || '')
                           : ''}
                         onChange={handleChange}
+                        onKeyDown={handleNumberInputKeyDown}
+                        onWheel={handleNumberInputWheel}
                         onFocus={() => {
                           if (formData.currency === 'INR') {
                             setOpenGstDropdown(true);
@@ -1958,6 +1981,8 @@ const InvoiceForm = ({ invoice, customers = [], onSubmit, onCancel, onCustomerAd
                         name="tdsPercentage"
                         value={formData.tdsPercentage || ''}
                         onChange={handleChange}
+                        onKeyDown={handleNumberInputKeyDown}
+                        onWheel={handleNumberInputWheel}
                         onFocus={() => {
                           if (formData.currency === 'INR') {
                             setOpenTdsDropdown(true);
@@ -2039,6 +2064,8 @@ const InvoiceForm = ({ invoice, customers = [], onSubmit, onCancel, onCustomerAd
                       name="tcsPercentage"
                       value={formData.tcsPercentage || ''}
                       onChange={handleChange}
+                      onKeyDown={handleNumberInputKeyDown}
+                      onWheel={handleNumberInputWheel}
                       onFocus={() => {
                         if (formData.currency === 'INR') {
                           setOpenTcsDropdown(true);
@@ -2132,6 +2159,8 @@ const InvoiceForm = ({ invoice, customers = [], onSubmit, onCancel, onCustomerAd
                   name="exchangeRate"
                   value={formData.exchangeRate}
                   onChange={handleChange}
+                  onKeyDown={handleNumberInputKeyDown}
+                  onWheel={handleNumberInputWheel}
                   step="0.01"
                   placeholder="1"
                   required={formData.currency !== 'INR'}
@@ -2145,6 +2174,8 @@ const InvoiceForm = ({ invoice, customers = [], onSubmit, onCancel, onCustomerAd
                   name="remittanceCharges"
                   value={formData.remittanceCharges}
                   onChange={handleChange}
+                  onKeyDown={handleNumberInputKeyDown}
+                  onWheel={handleNumberInputWheel}
                   step="0.01"
                   placeholder="0.00"
                   className="input-field-compact"
@@ -2345,6 +2376,8 @@ const InvoiceForm = ({ invoice, customers = [], onSubmit, onCancel, onCustomerAd
                       name="gstPercentage"
                       value={formData.gstPercentage}
                       onChange={handleChange}
+                      onKeyDown={handleNumberInputKeyDown}
+                      onWheel={handleNumberInputWheel}
                       onFocus={() => setOpenGstDropdown(true)}
                       step="0.01"
                       placeholder="0"
@@ -2412,6 +2445,8 @@ const InvoiceForm = ({ invoice, customers = [], onSubmit, onCancel, onCustomerAd
                       name="tdsPercentage"
                       value={formData.tdsPercentage || ''}
                       onChange={handleChange}
+                      onKeyDown={handleNumberInputKeyDown}
+                      onWheel={handleNumberInputWheel}
                       onFocus={() => setOpenTdsDropdown(true)}
                       step="0.01"
                       placeholder="Select TDS %"
@@ -2477,6 +2512,8 @@ const InvoiceForm = ({ invoice, customers = [], onSubmit, onCancel, onCustomerAd
                       name="tcsPercentage"
                       value={formData.tcsPercentage || ''}
                       onChange={handleChange}
+                      onKeyDown={handleNumberInputKeyDown}
+                      onWheel={handleNumberInputWheel}
                       onFocus={() => setOpenTcsDropdown(true)}
                       step="0.01"
                       min="0"
@@ -2597,6 +2634,8 @@ const InvoiceForm = ({ invoice, customers = [], onSubmit, onCancel, onCustomerAd
                     type="number"
                     value={newRateValue}
                     onChange={(e) => setNewRateValue(e.target.value)}
+                    onKeyDown={handleNumberInputKeyDown}
+                    onWheel={handleNumberInputWheel}
                     placeholder="18"
                     step="0.01"
                     min="0"

@@ -10,6 +10,37 @@ const ExpenseDashboard = () => {
 
   useEffect(() => {
     fetchData();
+    
+    let intervalId = null;
+    
+    // Sync refresh to 10-second intervals (00, 10, 20, 30, 40, 50 seconds of each minute)
+    // This ensures both Recurring Expenses and Dashboard refresh at the same time
+    const syncToNext10Second = () => {
+      const now = new Date();
+      const seconds = now.getSeconds();
+      const milliseconds = now.getMilliseconds();
+      const remainder = seconds % 10;
+      const delayToNext = remainder === 0 
+        ? 10000 - milliseconds // Already at a 10-second mark, wait for next one
+        : (10 - remainder) * 1000 - milliseconds; // Wait until next 10-second mark
+      
+      return delayToNext;
+    };
+    
+    const delay = syncToNext10Second();
+    
+    const timeoutId = setTimeout(() => {
+      fetchData();
+      // Then continue with regular 10-second intervals
+      intervalId = setInterval(() => {
+        fetchData();
+      }, 10000);
+    }, delay);
+    
+    return () => {
+      clearTimeout(timeoutId);
+      if (intervalId) clearInterval(intervalId);
+    };
   }, [month]);
 
   const fetchData = async () => {
@@ -58,7 +89,7 @@ const ExpenseDashboard = () => {
 
   return (
     <div className="animate-fade-in">
-      <div className="mb-8 flex justify-between items-center">
+      <div className="mb-8 lg:mb-10 xl:mb-12 flex justify-between items-center gap-4 lg:gap-6">
         <div>
           <h1 className="page-header">
             Expense Dashboard
@@ -82,26 +113,26 @@ const ExpenseDashboard = () => {
       </div>
 
       {/* Summary Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-        <div className="bg-white rounded-lg shadow p-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 lg:gap-8 mb-8 lg:mb-10 xl:mb-12">
+        <div className="bg-white rounded-lg shadow-lg p-6 lg:p-8">
           <h3 className="text-lg font-semibold text-gray-700 mb-2">Total Expenses</h3>
           <p className="text-3xl font-bold text-red-600">
             ₹{data?.totalExpenses?.toLocaleString('en-IN', { minimumFractionDigits: 2 }) || '0.00'}
           </p>
         </div>
-        <div className="bg-white rounded-lg shadow p-6">
+        <div className="bg-white rounded-lg shadow-lg p-6 lg:p-8">
           <h3 className="text-lg font-semibold text-gray-700 mb-2">Total GST</h3>
           <p className="text-3xl font-bold text-orange-600">
             ₹{data?.totalGST?.toLocaleString('en-IN', { minimumFractionDigits: 2 }) || '0.00'}
           </p>
         </div>
-        <div className="bg-white rounded-lg shadow p-6">
+        <div className="bg-white rounded-lg shadow-lg p-6 lg:p-8">
           <h3 className="text-lg font-semibold text-gray-700 mb-2">Total TDS</h3>
           <p className="text-3xl font-bold text-blue-600">
             ₹{data?.totalTDS?.toLocaleString('en-IN', { minimumFractionDigits: 2 }) || '0.00'}
           </p>
         </div>
-        <div className="bg-white rounded-lg shadow p-6">
+        <div className="bg-white rounded-lg shadow-lg p-6 lg:p-8">
           <h3 className="text-lg font-semibold text-gray-700 mb-2">All Time Total</h3>
           <p className="text-3xl font-bold text-gray-600">
             ₹{data?.allTimeTotal?.toLocaleString('en-IN', { minimumFractionDigits: 2 }) || '0.00'}
@@ -110,38 +141,44 @@ const ExpenseDashboard = () => {
         </div>
       </div>
 
-      {/* Category-wise Expenses - Graphs */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-        {/* Category-wise Bar Chart */}
-        <div className="bg-white rounded-lg shadow p-6">
-          <h2 className="text-xl font-bold mb-4">Category-wise Expenses</h2>
-          <p className="text-sm text-gray-600 mb-4">Reporting Year: {currentYear}{month ? `, Month: ${month}` : ''}</p>
-          <ResponsiveContainer width="100%" height={350}>
-            <BarChart data={categoryChartData}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="name" angle={-45} textAnchor="end" height={100} />
-              <YAxis />
-              <Tooltip formatter={(value) => `₹${value.toLocaleString('en-IN', { minimumFractionDigits: 2 })}`} />
-              <Legend />
-              <Bar dataKey="value" fill="#eab308" name="Total Expense" />
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
-
-        {/* Category-wise Pie Chart */}
-        <div className="bg-white rounded-lg shadow p-6">
-          <h2 className="text-xl font-bold mb-4">Category-wise Expenses </h2>
-          <p className="text-sm text-gray-600 mb-4">Reporting Year: {currentYear}</p>
-          <ResponsiveContainer width="100%" height={350}>
+      {/* Category-wise Expenses - Pie Chart Only */}
+      <div className="mb-8 lg:mb-10 xl:mb-12">
+        <div className="bg-white rounded-lg shadow-lg p-8 lg:p-10 xl:p-12">
+          <h2 className="text-xl lg:text-2xl font-bold mb-4 lg:mb-6">Category-wise Expenses</h2>
+          <p className="text-sm lg:text-base text-gray-600 mb-6 lg:mb-8">Reporting Year: {currentYear}{month ? `, Month: ${month}` : ''}</p>
+          <ResponsiveContainer width="100%" height={500}>
             <PieChart>
               <Pie
                 data={categoryChartData}
                 cx="50%"
                 cy="50%"
                 labelLine={true}
-                label={({ name, percent }) => percent > 0.05 ? `${(percent * 100).toFixed(0)}%` : ''}
-                outerRadius={80}
-                innerRadius={20}
+                label={({ name, percent, cx, cy, midAngle, innerRadius, outerRadius }) => {
+                  const RADIAN = Math.PI / 180;
+                  // Position labels outside the pie for better visibility
+                  const radius = outerRadius + 30;
+                  const x = cx + radius * Math.cos(-midAngle * RADIAN);
+                  const y = cy + radius * Math.sin(-midAngle * RADIAN);
+                  
+                  // Only show label if percentage is significant enough to avoid clutter
+                  if (percent < 0.01) return null;
+                  
+                  return (
+                    <text 
+                      x={x} 
+                      y={y} 
+                      fill="#333" 
+                      textAnchor={x > cx ? 'start' : 'end'} 
+                      dominantBaseline="central"
+                      fontSize={13}
+                      fontWeight="500"
+                    >
+                      {`${name} (${(percent * 100).toFixed(0)}%)`}
+                    </text>
+                  );
+                }}
+                outerRadius={140}
+                innerRadius={50}
                 fill="#8884d8"
                 dataKey="value"
               >
@@ -150,13 +187,15 @@ const ExpenseDashboard = () => {
                 ))}
               </Pie>
               <Tooltip 
-                formatter={(value) => `₹${value.toLocaleString('en-IN', { minimumFractionDigits: 2 })}`}
-                contentStyle={{ backgroundColor: 'white', border: '1px solid #ccc', borderRadius: '4px' }}
+                formatter={(value, name) => [`₹${value.toLocaleString('en-IN', { minimumFractionDigits: 2 })}`, name]}
+                contentStyle={{ backgroundColor: 'white', border: '1px solid #ccc', borderRadius: '4px', fontSize: '14px' }}
               />
               <Legend 
                 verticalAlign="bottom" 
-                height={36}
-                wrapperStyle={{ fontSize: '12px' }}
+                height={60}
+                wrapperStyle={{ fontSize: '14px', paddingTop: '20px' }}
+                iconSize={16}
+                formatter={(value) => value}
               />
             </PieChart>
           </ResponsiveContainer>
@@ -164,12 +203,11 @@ const ExpenseDashboard = () => {
       </div>
 
 
-      {/* Department-wise Expenses - Graphs */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-        {/* Department-wise Bar Chart */}
-        <div className="bg-white rounded-lg shadow p-6">
-          <h2 className="text-xl font-bold mb-4">Department-wise Expenses </h2>
-          <p className="text-sm text-gray-600 mb-4">Reporting Year: {currentYear}</p>
+      {/* Department-wise Expenses - Bar Chart Only */}
+      <div className="mb-8 lg:mb-10 xl:mb-12">
+        <div className="bg-white rounded-lg shadow-lg p-6 lg:p-8 xl:p-10">
+          <h2 className="text-xl lg:text-2xl font-bold mb-4 lg:mb-6">Department-wise Expenses</h2>
+          <p className="text-sm lg:text-base text-gray-600 mb-6 lg:mb-8">Reporting Year: {currentYear}</p>
           <ResponsiveContainer width="100%" height={350}>
             <BarChart data={departmentChartData}>
               <CartesianGrid strokeDasharray="3 3" />
@@ -181,49 +219,15 @@ const ExpenseDashboard = () => {
             </BarChart>
           </ResponsiveContainer>
         </div>
-
-        {/* Department-wise Pie Chart */}
-        <div className="bg-white rounded-lg shadow p-6">
-          <h2 className="text-xl font-bold mb-4">Department-wise Expenses </h2>
-          <p className="text-sm text-gray-600 mb-4">Reporting Year: {currentYear}</p>
-          <ResponsiveContainer width="100%" height={350}>
-            <PieChart>
-              <Pie
-                data={departmentChartData}
-                cx="50%"
-                cy="50%"
-                labelLine={true}
-                label={({ name, percent }) => percent > 0.05 ? `${(percent * 100).toFixed(0)}%` : ''}
-                outerRadius={80}
-                innerRadius={20}
-                fill="#8884d8"
-                dataKey="value"
-              >
-                {departmentChartData.map((entry, index) => (
-                  <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                ))}
-              </Pie>
-              <Tooltip 
-                formatter={(value) => `₹${value.toLocaleString('en-IN', { minimumFractionDigits: 2 })}`}
-                contentStyle={{ backgroundColor: 'white', border: '1px solid #ccc', borderRadius: '4px' }}
-              />
-              <Legend 
-                verticalAlign="bottom" 
-                height={36}
-                wrapperStyle={{ fontSize: '12px' }}
-              />
-            </PieChart>
-          </ResponsiveContainer>
-        </div>
       </div>
 
 
       {/* Monthly Expense Summary - Graphs */}
-      <div className="mb-6">
+      <div className="mb-8 lg:mb-10 xl:mb-12">
         {/* Monthly Summary Line Chart */}
-        <div className="bg-white rounded-lg shadow p-6">
-          <h2 className="text-xl font-bold mb-4">Monthly Expense Trend</h2>
-          <p className="text-sm text-gray-600 mb-4">Reporting Year: {currentYear}{month ? `, Month: ${month}` : ''}</p>
+        <div className="bg-white rounded-lg shadow-lg p-6 lg:p-8 xl:p-10">
+          <h2 className="text-xl lg:text-2xl font-bold mb-4 lg:mb-6">Monthly Expense Trend</h2>
+          <p className="text-sm lg:text-base text-gray-600 mb-6 lg:mb-8">Reporting Year: {currentYear}{month ? `, Month: ${month}` : ''}</p>
           <ResponsiveContainer width="100%" height={350}>
             <LineChart data={sortedMonthSummary}>
               <CartesianGrid strokeDasharray="3 3" />

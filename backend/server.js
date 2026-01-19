@@ -19,6 +19,9 @@ import recurringInvoiceRoutes from './routes/recurringInvoiceRoutes.js';
 import recurringExpenseRoutes from './routes/recurringExpenseRoutes.js';
 import paymentRoutes from './routes/paymentRoutes.js';
 import ledgerRoutes from './routes/ledgerRoutes.js';
+import paymentModeRoutes from './routes/paymentModeRoutes.js';
+import vendorRoutes from './routes/vendorRoutes.js';
+import bankAccountRoutes from './routes/bankAccountRoutes.js';
 import { startRecurringInvoiceScheduler } from './utils/recurringInvoiceScheduler.js';
 import { startRecurringExpenseScheduler } from './utils/recurringExpenseScheduler.js';
 import { verifyBrevoSMTP } from './utils/emailService.js';
@@ -89,6 +92,9 @@ app.use('/api/recurring-invoices', recurringInvoiceRoutes);
 app.use('/api/recurring-expenses', recurringExpenseRoutes);
 app.use('/api/payments', paymentRoutes);
 app.use('/api/ledger', ledgerRoutes);
+app.use('/api/payment-modes', paymentModeRoutes);
+app.use('/api/vendors', vendorRoutes);
+app.use('/api/bank-accounts', bankAccountRoutes);
 
 // Health check
 app.get('/api/health', (req, res) => {

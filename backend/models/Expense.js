@@ -76,10 +76,48 @@ const expenseSchema = new mongoose.Schema(
       type: Number,
       default: 0,
     },
+    status: {
+      type: String,
+      enum: ['Unpaid', 'Paid', 'Partial'],
+      default: 'Unpaid',
+    },
     paidTransactionRef: {
       type: String,
       default: '',
     },
+    paymentHistory: [
+      {
+        paymentDate: {
+          type: Date,
+          default: Date.now,
+        },
+        amountPaid: {
+          type: Number,
+          required: true,
+        },
+        cumulativePaid: {
+          type: Number,
+          required: true,
+        },
+        status: {
+          type: String,
+          enum: ['Unpaid', 'Paid', 'Partial'],
+          required: true,
+        },
+        transactionRef: {
+          type: String,
+          default: '',
+        },
+        notes: {
+          type: String,
+          default: '',
+        },
+        updatedBy: {
+          type: String,
+          default: '',
+        },
+      },
+    ],
     month: {
       type: String,
       required: true,
@@ -103,7 +141,7 @@ const expenseSchema = new mongoose.Schema(
     },
     userName: {
       type: String,
-      required: [true, 'Please enter user name'],
+      default: '',
     },
     userEmail: {
       type: String,

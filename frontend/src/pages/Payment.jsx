@@ -3,6 +3,7 @@ import { paymentAPI, invoiceAPI, customerAPI } from '../services/api';
 import PaymentTable from '../components/PaymentTable';
 import PaymentModal from '../components/PaymentModal';
 import PaymentHistory from '../components/PaymentHistory';
+import ConfirmationModal from '../components/ConfirmationModal';
 import { useToast } from '../contexts/ToastContext';
 
 const Payment = () => {
@@ -24,6 +25,7 @@ const Payment = () => {
   const [customers, setCustomers] = useState([]);
   const [showHistoryModal, setShowHistoryModal] = useState(false);
   const [selectedInvoiceForHistory, setSelectedInvoiceForHistory] = useState(null);
+  const [deleteConfirm, setDeleteConfirm] = useState({ show: false, id: null });
 
   useEffect(() => {
     fetchPayments();
@@ -99,15 +101,20 @@ const Payment = () => {
   };
 
   const handleDeletePayment = async (id) => {
-    if (window.confirm('Are you sure you want to delete this payment?')) {
-      try {
-        await paymentAPI.delete(id);
-        showToast('Payment deleted successfully!', 'success');
-        fetchPayments();
-      } catch (error) {
-        console.error('Error deleting payment:', error);
-        showToast('Failed to delete payment', 'error');
-      }
+    setDeleteConfirm({ show: true, id });
+  };
+
+  const handleDeleteConfirm = async () => {
+    if (!deleteConfirm.id) return;
+    try {
+      await paymentAPI.delete(deleteConfirm.id);
+      showToast('Payment deleted successfully!', 'success');
+      setDeleteConfirm({ show: false, id: null });
+      fetchPayments();
+    } catch (error) {
+      console.error('Error deleting payment:', error);
+      showToast('Failed to delete payment', 'error');
+      setDeleteConfirm({ show: false, id: null });
     }
   };
 
@@ -294,6 +301,18 @@ const Payment = () => {
           }}
         />
       )}
+
+      {/* Delete Confirmation Modal */}
+      <ConfirmationModal
+        isOpen={deleteConfirm.show}
+        onClose={() => setDeleteConfirm({ show: false, id: null })}
+        onConfirm={handleDeleteConfirm}
+        title="Confirm Delete"
+        message="Are you sure you want to delete this payment? This action cannot be undone."
+        confirmText="Delete"
+        cancelText="Cancel"
+        confirmButtonColor="red"
+      />
     </div>
   );
 };

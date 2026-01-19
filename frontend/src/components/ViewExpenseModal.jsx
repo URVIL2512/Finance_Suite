@@ -1,9 +1,40 @@
 import { format } from 'date-fns';
+import { useState } from 'react';
 
-const ViewExpenseModal = ({ isOpen, onClose, expense }) => {
+const ViewExpenseModal = ({ isOpen, onClose, expense, onMarkPaid }) => {
+  const [showPaidAmountInput, setShowPaidAmountInput] = useState(false);
+  const [paidAmount, setPaidAmount] = useState('');
+  const [updating, setUpdating] = useState(false);
+
   if (!isOpen || !expense) return null;
 
   const dueAmount = (expense.totalAmount || 0) - (expense.paidAmount || 0);
+  const isAlreadyPaid = expense.status === 'Paid' || (expense.paidAmount >= (expense.totalAmount || 0) && (expense.totalAmount || 0) > 0);
+
+  const handleMarkPaidClick = async () => {
+    if (showPaidAmountInput) {
+      // Submit with entered amount
+      if (!paidAmount || parseFloat(paidAmount) < 0) {
+        return;
+      }
+      setUpdating(true);
+      // Add to existing paid amount
+      const currentPaidAmount = expense.paidAmount || 0;
+      const newPaidAmount = currentPaidAmount + parseFloat(paidAmount);
+      const updatedExpense = {
+        ...expense,
+        paidAmount: newPaidAmount,
+      };
+      await onMarkPaid(updatedExpense);
+      setShowPaidAmountInput(false);
+      setPaidAmount('');
+      setUpdating(false);
+    } else {
+      // Show input field
+      setShowPaidAmountInput(true);
+      setPaidAmount(''); // Start with blank input
+    }
+  };
 
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={onClose}>
@@ -218,14 +249,75 @@ const ViewExpenseModal = ({ isOpen, onClose, expense }) => {
         </div>
 
         {/* Footer */}
-        <div className="border-t border-slate-200 px-6 py-4 bg-white flex justify-end">
-          <button
-            type="button"
-            onClick={onClose}
-            className="px-6 py-2.5 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 transition-colors text-sm shadow-md"
-          >
-            Close
-          </button>
+        <div className="border-t border-slate-200 px-6 py-4 bg-white">
+          {onMarkPaid && !isAlreadyPaid && showPaidAmountInput && (
+            <div className="mb-4 p-4 bg-green-50 border border-green-200 rounded-lg">
+              <label className="block text-sm font-semibold text-gray-700 mb-2">Enter Paid Amount</label>
+              <div className="flex items-center gap-3">
+                <input
+                  type="number"
+                  value={paidAmount}
+                  onChange={(e) => setPaidAmount(e.target.value)}
+                  placeholder="Enter amount"
+                  step="0.01"
+                  min="0"
+                  max={dueAmount}
+                  className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-500 w-40"
+                  autoFocus
+                />
+                <span className="text-sm text-gray-600">/ ₹{dueAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
+              </div>
+            </div>
+          )}
+          <div className="flex justify-end gap-3">
+            {onMarkPaid && !isAlreadyPaid && (
+              <>
+                {showPaidAmountInput && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowPaidAmountInput(false);
+                      setPaidAmount('');
+                    }}
+                    disabled={updating}
+                    className="px-6 py-2.5 bg-gray-600 text-white font-semibold rounded-lg hover:bg-gray-700 transition-colors text-sm shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    Cancel
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={handleMarkPaidClick}
+                  disabled={updating || (showPaidAmountInput && (!paidAmount || parseFloat(paidAmount) < 0))}
+                  className="px-6 py-2.5 bg-green-600 text-white font-semibold rounded-lg hover:bg-green-700 transition-colors text-sm shadow-md flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {updating ? (
+                    <>
+                      <svg className="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647A7.962 7.962 0 0112 20c0-4.418-3.582-8-8-8z"></path>
+                      </svg>
+                      Updating...
+                    </>
+                  ) : (
+                    <>
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                      {showPaidAmountInput ? 'Update Paid Amount' : 'Mark as Paid'}
+                    </>
+                  )}
+                </button>
+              </>
+            )}
+            <button
+              type="button"
+              onClick={onClose}
+              className="px-6 py-2.5 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 transition-colors text-sm shadow-md"
+            >
+              Close
+            </button>
+          </div>
         </div>
       </div>
     </div>

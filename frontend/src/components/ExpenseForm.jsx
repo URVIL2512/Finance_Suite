@@ -5,10 +5,11 @@ import { authAPI } from '../services/api';
 
 const ExpenseForm = ({ expense, onSubmit, onCancel }) => {
   const { showToast } = useToast();
-  const [activeTab, setActiveTab] = useState('expense');
   const [newCategory, setNewCategory] = useState('');
   const [showAddCategory, setShowAddCategory] = useState(false);
   const [showCategoryDropdown, setShowCategoryDropdown] = useState(false);
+  const [categorySearchTerm, setCategorySearchTerm] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const categoryDropdownRef = useRef(null);
   const [bankAccounts, setBankAccounts] = useState(['Kology', 'Kology ICICI']);
   const [showBankAccountDropdown, setShowBankAccountDropdown] = useState(false);
@@ -29,7 +30,8 @@ const ExpenseForm = ({ expense, onSubmit, onCancel }) => {
     tdsPercentage: '',
     tdsAmount: '',
     totalAmount: '',
-    paidAmount: '',
+    paidAmount: '0',
+    status: 'Unpaid',
     paidTransactionRef: '',
     month: format(new Date(), 'MMM'),
     year: new Date().getFullYear(),
@@ -59,7 +61,8 @@ const ExpenseForm = ({ expense, onSubmit, onCancel }) => {
           tdsPercentage: expense.tdsPercentage === 0 || expense.tdsPercentage === null || expense.tdsPercentage === undefined ? '' : String(expense.tdsPercentage),
           tdsAmount: expense.tdsAmount === 0 || expense.tdsAmount === null || expense.tdsAmount === undefined ? '' : String(expense.tdsAmount),
           totalAmount: expense.totalAmount === 0 || expense.totalAmount === null || expense.totalAmount === undefined ? '' : String(expense.totalAmount),
-          paidAmount: expense.paidAmount === 0 || expense.paidAmount === null || expense.paidAmount === undefined ? '' : String(expense.paidAmount),
+          paidAmount: expense.paidAmount === 0 || expense.paidAmount === null || expense.paidAmount === undefined ? '0' : String(expense.paidAmount),
+          status: expense.status || 'Unpaid',
           paidTransactionRef: expense.paidTransactionRef || '',
           month: expense.month || format(new Date(), 'MMM'),
           year: expense.year || new Date().getFullYear(),
@@ -84,7 +87,8 @@ const ExpenseForm = ({ expense, onSubmit, onCancel }) => {
           tdsPercentage: '',
           tdsAmount: '',
           totalAmount: '',
-          paidAmount: '',
+          paidAmount: '0',
+          status: 'Unpaid',
           paidTransactionRef: '',
           month: format(new Date(), 'MMM'),
           year: new Date().getFullYear(),
@@ -94,7 +98,7 @@ const ExpenseForm = ({ expense, onSubmit, onCancel }) => {
           userPhone: '',
         };
 
-        // Fetch user profile and auto-populate user information
+        // Fetch user profile and auto-populate user information (hidden from user)
         try {
           const response = await authAPI.getMe();
           const user = response.data;
@@ -105,7 +109,6 @@ const ExpenseForm = ({ expense, onSubmit, onCancel }) => {
           }
         } catch (error) {
           console.error('Error fetching user profile:', error);
-          // Silently fail - user can still manually enter the info
         }
 
         setFormData(initialFormData);
@@ -206,6 +209,40 @@ const ExpenseForm = ({ expense, onSubmit, onCancel }) => {
     }));
   }, [formData.date]);
 
+  // Auto-update status when paidAmount changes
+  useEffect(() => {
+    const totalAmount = parseFloat(formData.totalAmount) || 0;
+    const paidAmount = parseFloat(formData.paidAmount) || 0;
+    
+    if (totalAmount > 0) {
+      if (paidAmount >= totalAmount) {
+        // Fully paid
+        setFormData((prev) => ({
+          ...prev,
+          status: 'Paid',
+        }));
+      } else if (paidAmount > 0) {
+        // Partially paid
+        setFormData((prev) => ({
+          ...prev,
+          status: 'Partial',
+        }));
+      } else {
+        // Not paid
+        setFormData((prev) => ({
+          ...prev,
+          status: 'Unpaid',
+        }));
+      }
+    }
+  }, [formData.paidAmount, formData.totalAmount]);
+
+  // Calculate balance (Total Amount - Paid Amount)
+  const balance = (parseFloat(formData.totalAmount) || 0) - (parseFloat(formData.paidAmount) || 0);
+  
+  // Check if amount fields should be locked (when status is Paid)
+  const isLocked = formData.status === 'Paid';
+
   // Close dropdown when clicking outside
   useEffect(() => {
     const handleClickOutside = (event) => {
@@ -231,17 +268,40 @@ const ExpenseForm = ({ expense, onSubmit, onCancel }) => {
   const handleChange = (e) => {
     const { name, value } = e.target;
     
+    // Lock amount fields when status is Paid
+    const lockedFields = ['amountExclTax', 'gstPercentage', 'gstAmount', 'tdsPercentage', 'tdsAmount', 'totalAmount'];
+    if (isLocked && lockedFields.includes(name)) {
+      return; // Prevent editing locked fields
+    }
+    
     // Track which field was changed for bidirectional calculation
     if (name === 'gstAmount' || name === 'tdsAmount' || name === 'gstPercentage' || name === 'tdsPercentage' || name === 'amountExclTax') {
       lastChangedField.current = name;
     }
     
+    // Status is now auto-calculated, so we remove manual status change handlers
+    
     setFormData({
       ...formData,
-      [name]: name === 'amountExclTax' || name === 'gstPercentage' || name === 'gstAmount' || name === 'tdsPercentage' || name === 'tdsAmount' || name === 'paidAmount'
+      [name]: name === 'amountExclTax' || name === 'gstPercentage' || name === 'gstAmount' || name === 'tdsPercentage' || name === 'tdsAmount'
         ? value === '' ? '' : parseFloat(value) || ''
+        : name === 'paidAmount'
+        ? value === '' ? '0' : parseFloat(value) || '0'
         : value,
     });
+  };
+
+  // Prevent arrow keys and scroll from changing number input values
+  const handleNumberInputKeyDown = (e) => {
+    if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
+      e.preventDefault();
+    }
+  };
+
+  const handleNumberInputWheel = (e) => {
+    if (e.target.type === 'number') {
+      e.target.blur();
+    }
   };
 
   const handleAddBankAccount = () => {
@@ -253,66 +313,45 @@ const ExpenseForm = ({ expense, onSubmit, onCancel }) => {
     }
   };
 
-  const handleNext = () => {
-    // Validate required fields on Expense Details tab
-    if (activeTab === 'expense') {
-      if (!formData.date) {
-        showToast('Date is required', 'error');
-        return;
-      }
-      if (!formData.category) {
-        showToast('Category is required', 'error');
-        return;
-      }
-      if (!formData.paymentMode) {
-        showToast('Payment Mode is required', 'error');
-        return;
-      }
-      if (!formData.department) {
-        showToast('Department is required', 'error');
-        return;
-      }
-      if (!formData.amountExclTax) {
-        showToast('Amount (Excl. Tax) is required', 'error');
-        return;
-      }
-      if (!formData.totalAmount) {
-        showToast('Total Amount is required', 'error');
-        return;
-      }
-      setActiveTab('user');
-    }
-  };
 
-  const handleBack = () => {
-    if (activeTab === 'user') {
-      setActiveTab('expense');
-    }
-  };
-
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     
-    const expenseDate = new Date(formData.date);
-    const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-    const month = monthNames[expenseDate.getMonth()];
-    const year = expenseDate.getFullYear();
+    // Prevent double submission
+    if (isSubmitting) {
+      return;
+    }
     
-    const submitData = {
-      ...formData,
-      date: expenseDate,
-      month: month,
-      year: year,
-      amountExclTax: parseFloat(formData.amountExclTax) || 0,
-      gstPercentage: parseFloat(formData.gstPercentage) || 0,
-      gstAmount: parseFloat(formData.gstAmount) || 0,
-      tdsPercentage: parseFloat(formData.tdsPercentage) || 0,
-      tdsAmount: parseFloat(formData.tdsAmount) || 0,
-      totalAmount: parseFloat(formData.totalAmount) || 0,
-      paidAmount: parseFloat(formData.paidAmount) || 0,
-    };
+    setIsSubmitting(true);
     
-    onSubmit(submitData);
+    try {
+      const expenseDate = new Date(formData.date);
+      const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+      const month = monthNames[expenseDate.getMonth()];
+      const year = expenseDate.getFullYear();
+      
+      const submitData = {
+        ...formData,
+        date: expenseDate,
+        month: month,
+        year: year,
+        amountExclTax: parseFloat(formData.amountExclTax) || 0,
+        gstPercentage: parseFloat(formData.gstPercentage) || 0,
+        gstAmount: parseFloat(formData.gstAmount) || 0,
+        tdsPercentage: parseFloat(formData.tdsPercentage) || 0,
+        tdsAmount: parseFloat(formData.tdsAmount) || 0,
+        totalAmount: parseFloat(formData.totalAmount) || 0,
+        paidAmount: parseFloat(formData.paidAmount) || 0,
+        status: formData.status || 'Unpaid',
+      };
+      
+      await onSubmit(submitData);
+    } finally {
+      // Reset after a short delay to allow for any async operations
+      setTimeout(() => {
+        setIsSubmitting(false);
+      }, 500);
+    }
   };
 
   const [categories, setCategories] = useState([
@@ -369,46 +408,17 @@ const ExpenseForm = ({ expense, onSubmit, onCancel }) => {
           <button
             type="button"
             onClick={onCancel}
-            className="text-gray-400 hover:text-red-600 transition-colors text-3xl font-light leading-none w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-100"
+            className="text-gray-400 hover:text-red-600 active:text-red-700 active:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 transition-all duration-150 text-3xl font-light leading-none w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-100 active:scale-95"
             aria-label="Close"
           >
             ×
           </button>
         </div>
 
-        {/* Tabs */}
-        <div className="border-b border-gray-200 bg-white">
-          <div className="flex px-8">
-            <button
-              type="button"
-              onClick={() => setActiveTab('expense')}
-              className={`px-6 py-4 text-sm font-semibold border-b-2 transition-colors ${
-                activeTab === 'expense'
-                  ? 'border-blue-600 text-blue-600'
-                  : 'border-transparent text-gray-500 hover:text-gray-700'
-              }`}
-            >
-              Expense Details
-            </button>
-            <button
-              type="button"
-              onClick={() => setActiveTab('user')}
-              className={`px-6 py-4 text-sm font-semibold border-b-2 transition-colors ${
-                activeTab === 'user'
-                  ? 'border-blue-600 text-blue-600'
-                  : 'border-transparent text-gray-500 hover:text-gray-700'
-              }`}
-            >
-              User Information
-            </button>
-          </div>
-        </div>
 
         {/* Form Content */}
         <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto bg-gray-50/30">
           <div className="p-8 space-y-8">
-            {activeTab === 'expense' && (
-              <>
             {/* Basic Information Section */}
             <div className="space-y-5">
               <h3 className="text-base font-bold text-gray-800 uppercase tracking-wider mb-4">Basic Information</h3>
@@ -441,6 +451,9 @@ const ExpenseForm = ({ expense, onSubmit, onCancel }) => {
                       onClick={() => {
                         setShowCategoryDropdown(!showCategoryDropdown);
                         setShowAddCategory(false);
+                        if (!showCategoryDropdown) {
+                          setCategorySearchTerm('');
+                        }
                       }}
                       className="select-field w-full text-sm py-2.5 cursor-pointer flex items-center justify-between"
                     >
@@ -457,22 +470,71 @@ const ExpenseForm = ({ expense, onSubmit, onCancel }) => {
                       </svg>
                     </div>
                     {showCategoryDropdown && (
-                      <div className="absolute z-50 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg max-h-60 overflow-auto">
-                        <div className="py-1">
-                          {categories.map((cat) => (
-                            <div
-                              key={cat}
-                              onClick={() => {
-                                setFormData({ ...formData, category: cat });
-                                setShowCategoryDropdown(false);
-                              }}
-                              className={`px-4 py-2 cursor-pointer hover:bg-blue-50 ${
-                                formData.category === cat ? 'bg-blue-100 text-blue-700' : 'text-gray-900'
-                              }`}
+                      <div className="absolute z-50 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg max-h-60 overflow-hidden flex flex-col">
+                        {/* Search Input */}
+                        <div className="p-2 border-b border-gray-200">
+                          <div className="relative">
+                            <input
+                              type="text"
+                              value={categorySearchTerm}
+                              onChange={(e) => setCategorySearchTerm(e.target.value)}
+                              placeholder="Search categories..."
+                              className="w-full px-3 py-2 pl-9 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+                              onClick={(e) => e.stopPropagation()}
+                              autoFocus
+                            />
+                            <svg
+                              className="absolute left-2.5 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400"
+                              fill="none"
+                              stroke="currentColor"
+                              viewBox="0 0 24 24"
                             >
-                              {cat}
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                            </svg>
+                            {categorySearchTerm && (
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setCategorySearchTerm('');
+                                }}
+                                className="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 active:text-gray-800 active:scale-90 focus:outline-none focus:ring-2 focus:ring-gray-400 rounded transition-all duration-150"
+                              >
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                </svg>
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                        {/* Categories List */}
+                        <div className="overflow-y-auto max-h-48 py-1">
+                          {categories
+                            .filter((cat) =>
+                              cat.toLowerCase().includes(categorySearchTerm.toLowerCase())
+                            )
+                            .map((cat) => (
+                              <div
+                                key={cat}
+                                onClick={() => {
+                                  setFormData({ ...formData, category: cat });
+                                  setShowCategoryDropdown(false);
+                                  setCategorySearchTerm('');
+                                }}
+                                className={`px-4 py-2 cursor-pointer hover:bg-blue-50 active:bg-blue-100 active:scale-[0.98] transition-all duration-150 ${
+                                  formData.category === cat ? 'bg-blue-100 text-blue-700' : 'text-gray-900'
+                                }`}
+                              >
+                                {cat}
+                              </div>
+                            ))}
+                          {categories.filter((cat) =>
+                            cat.toLowerCase().includes(categorySearchTerm.toLowerCase())
+                          ).length === 0 && (
+                            <div className="px-4 py-3 text-sm text-gray-500 text-center">
+                              No categories found
                             </div>
-                          ))}
+                          )}
                           <div className="border-t border-gray-200 mt-1">
                             {!showAddCategory ? (
                               <div
@@ -480,7 +542,7 @@ const ExpenseForm = ({ expense, onSubmit, onCancel }) => {
                                   e.stopPropagation();
                                   setShowAddCategory(true);
                                 }}
-                                className="px-4 py-2 cursor-pointer hover:bg-blue-50 text-blue-600 font-semibold flex items-center gap-2"
+                                className="px-4 py-2 cursor-pointer hover:bg-blue-50 active:bg-blue-100 active:scale-[0.98] transition-all duration-150 text-blue-600 font-semibold flex items-center gap-2"
                               >
                                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
@@ -513,7 +575,7 @@ const ExpenseForm = ({ expense, onSubmit, onCancel }) => {
                                       handleAddCategory();
                                       setShowCategoryDropdown(false);
                                     }}
-                                    className="px-3 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-sm font-semibold"
+                                    className="px-3 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 active:bg-green-800 active:scale-95 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 transition-all duration-150 text-sm font-semibold shadow-sm hover:shadow-md active:shadow-sm"
                                   >
                                     ✓
                                   </button>
@@ -524,7 +586,7 @@ const ExpenseForm = ({ expense, onSubmit, onCancel }) => {
                                       setShowAddCategory(false);
                                       setNewCategory('');
                                     }}
-                                    className="px-3 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-colors text-sm font-semibold"
+                                    className="px-3 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600 active:bg-gray-700 active:scale-95 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 transition-all duration-150 text-sm font-semibold shadow-sm hover:shadow-md active:shadow-sm"
                                   >
                                     ✕
                                   </button>
@@ -571,10 +633,13 @@ const ExpenseForm = ({ expense, onSubmit, onCancel }) => {
                     name="amountExclTax"
                     value={formData.amountExclTax}
                     onChange={handleChange}
+                    onKeyDown={handleNumberInputKeyDown}
+                    onWheel={handleNumberInputWheel}
                     step="0.01"
                     placeholder="0.00"
                     required
-                    className="input-field w-full text-sm py-2.5"
+                    disabled={isLocked}
+                    className={`input-field w-full text-sm py-2.5 ${isLocked ? 'bg-gray-100 cursor-not-allowed opacity-60' : ''}`}
                   />
                 </div>
                 <div className="space-y-2">
@@ -584,9 +649,12 @@ const ExpenseForm = ({ expense, onSubmit, onCancel }) => {
                     name="gstPercentage"
                     value={formData.gstPercentage}
                     onChange={handleChange}
+                    onKeyDown={handleNumberInputKeyDown}
+                    onWheel={handleNumberInputWheel}
                     step="0.01"
                     placeholder="0"
-                    className="input-field w-full text-sm py-2.5"
+                    disabled={isLocked}
+                    className={`input-field w-full text-sm py-2.5 ${isLocked ? 'bg-gray-100 cursor-not-allowed opacity-60' : ''}`}
                   />
                 </div>
                 <div className="space-y-2">
@@ -596,9 +664,12 @@ const ExpenseForm = ({ expense, onSubmit, onCancel }) => {
                     name="gstAmount"
                     value={formData.gstAmount || ''}
                     onChange={handleChange}
+                    onKeyDown={handleNumberInputKeyDown}
+                    onWheel={handleNumberInputWheel}
                     step="0.01"
                     placeholder="0.00"
-                    className="input-field w-full text-sm py-2.5"
+                    disabled={isLocked}
+                    className={`input-field w-full text-sm py-2.5 ${isLocked ? 'bg-gray-100 cursor-not-allowed opacity-60' : ''}`}
                   />
                 </div>
               </div>
@@ -611,9 +682,12 @@ const ExpenseForm = ({ expense, onSubmit, onCancel }) => {
                     name="tdsPercentage"
                     value={formData.tdsPercentage}
                     onChange={handleChange}
+                    onKeyDown={handleNumberInputKeyDown}
+                    onWheel={handleNumberInputWheel}
                     step="0.01"
                     placeholder="0"
-                    className="input-field w-full text-sm py-2.5"
+                    disabled={isLocked}
+                    className={`input-field w-full text-sm py-2.5 ${isLocked ? 'bg-gray-100 cursor-not-allowed opacity-60' : ''}`}
                   />
                 </div>
                 <div className="space-y-2">
@@ -623,9 +697,12 @@ const ExpenseForm = ({ expense, onSubmit, onCancel }) => {
                     name="tdsAmount"
                     value={formData.tdsAmount || ''}
                     onChange={handleChange}
+                    onKeyDown={handleNumberInputKeyDown}
+                    onWheel={handleNumberInputWheel}
                     step="0.01"
                     placeholder="0.00"
-                    className="input-field w-full text-sm py-2.5"
+                    disabled={isLocked}
+                    className={`input-field w-full text-sm py-2.5 ${isLocked ? 'bg-gray-100 cursor-not-allowed opacity-60' : ''}`}
                   />
                 </div>
                 <div className="space-y-2">
@@ -637,6 +714,7 @@ const ExpenseForm = ({ expense, onSubmit, onCancel }) => {
                     name="totalAmount"
                     value={formData.totalAmount || ''}
                     readOnly
+                    disabled={isLocked}
                     className="input-field w-full text-sm py-2.5 bg-gray-50 cursor-not-allowed font-semibold text-blue-600"
                   />
                 </div>
@@ -708,7 +786,7 @@ const ExpenseForm = ({ expense, onSubmit, onCancel }) => {
                               setFormData({ ...formData, bankAccount: account });
                               setShowBankAccountDropdown(false);
                             }}
-                            className={`px-4 py-2.5 cursor-pointer hover:bg-blue-50 transition-colors ${
+                            className={`px-4 py-2.5 cursor-pointer hover:bg-blue-50 active:bg-blue-100 active:scale-[0.98] transition-all duration-150 ${
                               formData.bankAccount === account ? 'bg-blue-50 text-blue-600 font-medium' : 'text-gray-700'
                             }`}
                           >
@@ -720,7 +798,7 @@ const ExpenseForm = ({ expense, onSubmit, onCancel }) => {
                             onClick={() => {
                               setShowAddBankAccount(true);
                             }}
-                            className="px-4 py-2.5 cursor-pointer hover:bg-gray-100 transition-colors text-blue-600 font-medium border-t border-gray-200 flex items-center gap-2"
+                            className="px-4 py-2.5 cursor-pointer hover:bg-gray-100 active:bg-gray-200 active:scale-[0.98] transition-all duration-150 text-blue-600 font-medium border-t border-gray-200 flex items-center gap-2"
                           >
                             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
@@ -746,7 +824,7 @@ const ExpenseForm = ({ expense, onSubmit, onCancel }) => {
                             <button
                               type="button"
                               onClick={handleAddBankAccount}
-                              className="px-3 py-1.5 bg-blue-600 text-white rounded hover:bg-blue-700 text-sm font-medium"
+                              className="px-3 py-1.5 bg-blue-600 text-white rounded hover:bg-blue-700 active:bg-blue-800 active:scale-95 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-all duration-150 text-sm font-medium shadow-sm hover:shadow-md active:shadow-sm"
                             >
                               Add
                             </button>
@@ -763,7 +841,25 @@ const ExpenseForm = ({ expense, onSubmit, onCancel }) => {
             <div className="space-y-5">
               <h3 className="text-base font-bold text-gray-800 uppercase tracking-wider mb-4">Payment Information</h3>
               
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+                <div className="space-y-2">
+                  <label className="block text-sm font-semibold text-gray-700">
+                    Status<span className="text-red-500 ml-1">*</span>
+                  </label>
+                  <select
+                    name="status"
+                    value={formData.status}
+                    onChange={handleChange}
+                    required
+                    disabled
+                    className="select-field w-full text-sm py-2.5 bg-gray-50 cursor-not-allowed opacity-70"
+                    title="Status is automatically calculated based on Paid Amount"
+                  >
+                    <option value="Unpaid">Unpaid</option>
+                    <option value="Partial">Partial</option>
+                    <option value="Paid">Paid</option>
+                  </select>
+                </div>
                 <div className="space-y-2">
                   <label className="block text-sm font-semibold text-gray-700">Paid Amount</label>
                   <input
@@ -771,11 +867,24 @@ const ExpenseForm = ({ expense, onSubmit, onCancel }) => {
                     name="paidAmount"
                     value={formData.paidAmount}
                     onChange={handleChange}
+                    onKeyDown={handleNumberInputKeyDown}
+                    onWheel={handleNumberInputWheel}
                     step="0.01"
                     placeholder="0.00"
                     className="input-field w-full text-sm py-2.5"
                   />
                 </div>
+                <div className="space-y-2">
+                  <label className="block text-sm font-semibold text-gray-700">Balance (Due Amount)</label>
+                  <input
+                    type="text"
+                    value={balance.toFixed(2)}
+                    readOnly
+                    className="input-field w-full text-sm py-2.5 bg-gray-50 cursor-not-allowed font-semibold text-red-600"
+                  />
+                </div>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                 <div className="space-y-2">
                   <label className="block text-sm font-semibold text-gray-700">Transaction Ref</label>
                   <input
@@ -819,98 +928,34 @@ const ExpenseForm = ({ expense, onSubmit, onCancel }) => {
                 </div>
               </div>
             </div>
-              </>
-            )}
-
-            {activeTab === 'user' && (
-              <div className="space-y-5">
-                <h3 className="text-base font-bold text-gray-800 uppercase tracking-wider mb-4">User Information</h3>
-                <p className="text-sm text-gray-600 mb-4">Enter the details of the user who created/edited this expense entry.</p>
-                
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-                  <div className="space-y-2">
-                    <label className="block text-sm font-semibold text-gray-700">
-                      User Name<span className="text-red-500 ml-1">*</span>
-                    </label>
-                    <input
-                      type="text"
-                      name="userName"
-                      value={formData.userName}
-                      onChange={handleChange}
-                      placeholder="Enter user name"
-                      required
-                      className="input-field w-full text-sm py-2.5"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <label className="block text-sm font-semibold text-gray-700">
-                      Email ID
-                    </label>
-                    <input
-                      type="email"
-                      name="userEmail"
-                      value={formData.userEmail}
-                      onChange={handleChange}
-                      placeholder="Enter email address"
-                      className="input-field w-full text-sm py-2.5"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <label className="block text-sm font-semibold text-gray-700">
-                      Phone Number
-                    </label>
-                    <input
-                      type="tel"
-                      name="userPhone"
-                      value={formData.userPhone}
-                      onChange={handleChange}
-                      placeholder="Enter phone number"
-                      className="input-field w-full text-sm py-2.5"
-                    />
-                  </div>
-                </div>
-              </div>
-            )}
           </div>
 
           {/* Footer Actions */}
-          <div className="border-t border-gray-200 px-8 py-5 bg-white flex justify-between gap-3">
-            <div>
-              {activeTab === 'user' && (
-                <button
-                  type="button"
-                  onClick={handleBack}
-                  className="px-6 py-2.5 bg-gray-100 text-gray-700 font-semibold rounded-lg hover:bg-gray-200 transition-colors text-sm"
-                >
-                  Back
-                </button>
-              )}
-            </div>
-            <div className="flex gap-3">
-              <button
-                type="button"
-                onClick={onCancel}
-                className="px-6 py-2.5 bg-gray-100 text-gray-700 font-semibold rounded-lg hover:bg-gray-200 transition-colors text-sm"
-              >
-                Cancel
-              </button>
-              {activeTab === 'expense' ? (
-                <button
-                  type="button"
-                  onClick={handleNext}
-                  className="px-6 py-2.5 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 transition-colors text-sm shadow-md"
-                >
-                  Next
-                </button>
+          <div className="border-t border-gray-200 px-8 py-5 bg-white flex justify-end gap-3">
+            <button
+              type="button"
+              onClick={onCancel}
+              className="px-6 py-2.5 bg-gray-100 text-gray-700 font-semibold rounded-lg hover:bg-gray-200 active:bg-gray-300 active:scale-95 focus:outline-none focus:ring-2 focus:ring-gray-400 focus:ring-offset-2 transition-all duration-150 text-sm shadow-sm hover:shadow-md active:shadow-sm"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={isSubmitting}
+              className="px-6 py-2.5 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 active:bg-blue-800 active:scale-95 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-all duration-150 text-sm shadow-md hover:shadow-lg active:shadow-md disabled:opacity-50 disabled:cursor-not-allowed disabled:active:scale-100"
+            >
+              {isSubmitting ? (
+                <span className="flex items-center gap-2">
+                  <svg className="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647A7.962 7.962 0 0112 20c0-4.418-3.582-8-8-8z"></path>
+                  </svg>
+                  {expense ? 'Updating...' : 'Creating...'}
+                </span>
               ) : (
-                <button
-                  type="submit"
-                  className="px-6 py-2.5 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 transition-colors text-sm shadow-md"
-                >
-                  {expense ? 'Update Expense' : 'Create Expense'}
-                </button>
+                expense ? 'Update Expense' : 'Create Expense'
               )}
-            </div>
+            </button>
           </div>
         </form>
       </div>

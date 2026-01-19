@@ -115,7 +115,7 @@ export const sendInvoiceEmail = async ({
 
     // Debug: Verify API key is loaded before API call
     console.log("Brevo key loaded:", process.env.BREVO_API_KEY ? "YES" : "NO");
-    
+
     // Send email via Brevo REST API using exact configuration
     const response = await axios.post(
       "https://api.brevo.com/v3/smtp/email",
@@ -127,10 +127,10 @@ export const sendInvoiceEmail = async ({
         to: [
           { email: to }
         ],
-        subject: subject,
+      subject: subject,
         htmlContent: htmlContent,
         attachment: [
-          {
+        {
             name: `Invoice-${invoiceNumber}.pdf`,
             content: pdfBase64
           }
@@ -330,7 +330,7 @@ export const sendPaymentSlipEmail = async ({
         to: [
           { email: to }
         ],
-        subject: subject,
+      subject: subject,
         htmlContent: htmlContent,
         attachment: [
           {

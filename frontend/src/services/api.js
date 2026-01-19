@@ -8,6 +8,8 @@ const api = axios.create({
   headers: {
     'Content-Type': 'application/json',
   },
+  timeout: 30000, // 30 second timeout
+  maxRedirects: 5,
 });
 
 // Add token to requests
@@ -34,7 +36,13 @@ api.interceptors.response.use(
     }
     
     // Handle network errors
-    if (error.code === 'ERR_NETWORK' || error.message === 'Network Error') {
+    if (error.code === 'ERR_NETWORK' || error.message === 'Network Error' || error.code === 'ERR_INSUFFICIENT_RESOURCES') {
+      // For insufficient resources, don't log as error - it's usually temporary due to too many concurrent requests
+      if (error.code === 'ERR_INSUFFICIENT_RESOURCES') {
+        console.warn('Too many concurrent requests. Some requests may be queued.');
+        // Silently fail - the request will retry on next refresh
+        return Promise.reject(error);
+      }
       console.error('Network Error: Backend server is not running or not accessible');
       console.error('Please ensure the backend server is running on http://localhost:5000');
       error.message = 'Cannot connect to server. Please ensure the backend server is running on port 5000.';
@@ -58,6 +66,15 @@ export const expenseAPI = {
   create: (data) => api.post('/expenses', data),
   update: (id, data) => api.put(`/expenses/${id}`, data),
   delete: (id) => api.delete(`/expenses/${id}`),
+  import: (file) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    return api.post('/expenses/import', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    });
+  },
 };
 
 // Revenue APIs
@@ -82,6 +99,7 @@ export const invoiceAPI = {
 // Dashboard APIs
 export const dashboardAPI = {
   getExpenseDashboard: (params) => api.get('/dashboard/expenses', { params }),
+  getExpenseAging: () => api.get('/dashboard/expenses/aging'),
   getRevenueDashboard: (params) => api.get('/dashboard/revenue', { params }),
   getSummary: (params) => api.get('/dashboard/summary', { params }),
 };
@@ -160,6 +178,33 @@ export const paymentAPI = {
 export const ledgerAPI = {
   getCustomers: () => api.get('/ledger/customers'),
   getLedger: (customerId) => api.get('/ledger', { params: { customerId } }),
+};
+
+// Payment Mode Master APIs
+export const paymentModeAPI = {
+  getAll: (params) => api.get('/payment-modes', { params }),
+  getById: (id) => api.get(`/payment-modes/${id}`),
+  create: (data) => api.post('/payment-modes', data),
+  update: (id, data) => api.put(`/payment-modes/${id}`, data),
+  delete: (id) => api.delete(`/payment-modes/${id}`),
+};
+
+// Vendor Master APIs
+export const vendorAPI = {
+  getAll: (params) => api.get('/vendors', { params }),
+  getById: (id) => api.get(`/vendors/${id}`),
+  create: (data) => api.post('/vendors', data),
+  update: (id, data) => api.put(`/vendors/${id}`, data),
+  delete: (id) => api.delete(`/vendors/${id}`),
+};
+
+// Bank Account Master APIs
+export const bankAccountAPI = {
+  getAll: (params) => api.get('/bank-accounts', { params }),
+  getById: (id) => api.get(`/bank-accounts/${id}`),
+  create: (data) => api.post('/bank-accounts', data),
+  update: (id, data) => api.put(`/bank-accounts/${id}`, data),
+  delete: (id) => api.delete(`/bank-accounts/${id}`),
 };
 
 export default api;

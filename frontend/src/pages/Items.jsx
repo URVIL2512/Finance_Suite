@@ -4,6 +4,7 @@ import { format } from 'date-fns';
 import { itemAPI } from '../services/api';
 import ItemForm from '../components/ItemForm';
 import ActionDropdown from '../components/ActionDropdown';
+import ConfirmationModal from '../components/ConfirmationModal';
 import { useToast } from '../contexts/ToastContext';
 
 const Items = () => {
@@ -19,6 +20,7 @@ const Items = () => {
   const [editingItem, setEditingItem] = useState(null);
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [deleteConfirm, setDeleteConfirm] = useState({ show: false, id: null });
 
   useEffect(() => {
     fetchItems();
@@ -121,15 +123,20 @@ const Items = () => {
   };
 
   const handleDelete = async (id) => {
-    if (window.confirm('Are you sure you want to delete this item?')) {
-      try {
-        await itemAPI.delete(id);
-        showToast('Item deleted successfully!', 'success');
-        fetchItems();
-      } catch (error) {
-        console.error('Error deleting item:', error);
-        showToast('Failed to delete item', 'error');
-      }
+    setDeleteConfirm({ show: true, id });
+  };
+
+  const handleDeleteConfirm = async () => {
+    if (!deleteConfirm.id) return;
+    try {
+      await itemAPI.delete(deleteConfirm.id);
+      showToast('Item deleted successfully!', 'success');
+      setDeleteConfirm({ show: false, id: null });
+      fetchItems();
+    } catch (error) {
+      console.error('Error deleting item:', error);
+      showToast('Failed to delete item', 'error');
+      setDeleteConfirm({ show: false, id: null });
     }
   };
 
@@ -244,6 +251,18 @@ const Items = () => {
           )}
         </>
       )}
+
+      {/* Delete Confirmation Modal */}
+      <ConfirmationModal
+        isOpen={deleteConfirm.show}
+        onClose={() => setDeleteConfirm({ show: false, id: null })}
+        onConfirm={handleDeleteConfirm}
+        title="Confirm Delete"
+        message="Are you sure you want to delete this item? This action cannot be undone."
+        confirmText="Delete"
+        cancelText="Cancel"
+        confirmButtonColor="red"
+      />
     </div>
   );
 };

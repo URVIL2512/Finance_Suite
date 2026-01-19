@@ -1,7 +1,7 @@
 import { format } from 'date-fns';
 import ActionDropdown from './ActionDropdown';
 
-const ExpenseTable = ({ expenses, onEdit, onView, onDelete, onDeleteSingle, selectedExpenses = [], onSelectExpense, onSelectAll }) => {
+const ExpenseTable = ({ expenses, onEdit, onView, onViewHistory, onMarkPaid, onDelete, onDeleteSingle, selectedExpenses = [], onSelectExpense, onSelectAll, onViewVendorHistory, onViewCategoryHistory, onViewDepartmentHistory }) => {
   if (expenses.length === 0) {
     return (
       <div className="card-gradient p-12 text-center border border-gray-200/60">
@@ -21,7 +21,7 @@ const ExpenseTable = ({ expenses, onEdit, onView, onDelete, onDeleteSingle, sele
         <h2 className="text-xl font-bold text-gray-900">Expenses List</h2>
       </div>
       <div className="overflow-x-auto">
-        <table className="min-w-full divide-y divide-gray-200" style={{ minWidth: '2000px' }}>
+        <table className="w-full divide-y divide-gray-200 table-auto min-w-full">
             <thead className="table-header">
               <tr>
                 {onSelectExpense && (
@@ -40,67 +40,37 @@ const ExpenseTable = ({ expenses, onEdit, onView, onDelete, onDeleteSingle, sele
                     />
                   </th>
                 )}
-                <th className="px-6 py-4 text-center text-xs font-medium uppercase tracking-wider border-r border-white/20">
-                  Sr. No
-                </th>
-                <th className="px-6 py-4 text-left text-xs font-medium uppercase tracking-wider border-r border-white/20">
+                <th className="px-3 py-4 text-left text-xs font-medium uppercase tracking-wider border-r border-white/20">
                 Date
               </th>
-              <th className="px-6 py-4 text-left text-xs font-medium uppercase tracking-wider border-r border-white/20">
+              <th className="px-3 py-4 text-left text-xs font-medium uppercase tracking-wider border-r border-white/20">
                 Category
               </th>
-              <th className="px-6 py-4 text-left text-xs font-medium uppercase tracking-wider border-r border-white/20">
+              <th className="px-3 py-4 text-left text-xs font-medium uppercase tracking-wider border-r border-white/20">
                 Department
               </th>
-              <th className="px-6 py-4 text-left text-xs font-medium uppercase tracking-wider border-r border-white/20">
-                Vendor
+              <th className="px-3 py-4 text-left text-xs font-medium uppercase tracking-wider border-r border-white/20 max-w-[120px]">
+                <div className="truncate">Vendor</div>
               </th>
-              <th className="px-6 py-4 text-left text-xs font-medium uppercase tracking-wider border-r border-white/20">
-                Description
+              <th className="px-3 py-4 text-left text-xs font-medium uppercase tracking-wider border-r border-white/20 max-w-[100px]">
+                <div className="truncate">Payment Mode</div>
               </th>
-              <th className="px-6 py-4 text-left text-xs font-medium uppercase tracking-wider border-r border-white/20">
-                Payment Mode
-              </th>
-              <th className="px-6 py-4 text-left text-xs font-medium uppercase tracking-wider border-r border-white/20">
-                Bank Account
-              </th>
-              <th className="px-6 py-4 text-right text-xs font-medium uppercase tracking-wider border-r border-white/20">
+              <th className="px-3 py-4 text-right text-xs font-medium uppercase tracking-wider border-r border-white/20">
                 Amount Excl Tax
               </th>
-              <th className="px-6 py-4 text-right text-xs font-medium uppercase tracking-wider border-r border-white/20">
-                GST %
-              </th>
-              <th className="px-6 py-4 text-right text-xs font-medium uppercase tracking-wider border-r border-white/20">
-                GST Amount
-              </th>
-              <th className="px-6 py-4 text-right text-xs font-medium uppercase tracking-wider border-r border-white/20">
-                TDS %
-              </th>
-              <th className="px-6 py-4 text-right text-xs font-medium uppercase tracking-wider border-r border-white/20">
-                TDS Amount
-              </th>
-              <th className="px-6 py-4 text-right text-xs font-medium uppercase tracking-wider border-r border-white/20">
+              <th className="px-3 py-4 text-right text-xs font-medium uppercase tracking-wider border-r border-white/20">
                 Total Amount
               </th>
-              <th className="px-6 py-4 text-right text-xs font-medium uppercase tracking-wider border-r border-white/20">
+              <th className="px-3 py-4 text-right text-xs font-medium uppercase tracking-wider border-r border-white/20">
                 Paid Amount
               </th>
-              <th className="px-6 py-4 text-right text-xs font-medium uppercase tracking-wider border-r border-white/20">
+              <th className="px-3 py-4 text-center text-xs font-medium uppercase tracking-wider border-r border-white/20 sticky right-[140px] bg-slate-800 z-10">
+                Status
+              </th>
+              <th className="px-3 py-4 text-right text-xs font-medium uppercase tracking-wider border-r border-white/20 sticky right-[70px] bg-slate-800 z-10">
                 Due Amount
               </th>
-              <th className="px-6 py-4 text-left text-xs font-medium uppercase tracking-wider border-r border-white/20">
-                Transaction Ref
-              </th>
-              <th className="px-6 py-4 text-left text-xs font-medium uppercase tracking-wider border-r border-white/20">
-                Executive
-              </th>
-              <th className="px-6 py-4 text-left text-xs font-medium uppercase tracking-wider border-r border-white/20">
-                Created By
-              </th>
-              <th className="px-6 py-4 text-left text-xs font-medium uppercase tracking-wider border-r border-white/20">
-                Edited By
-              </th>
-              <th className="px-6 py-4 text-center text-xs font-medium uppercase tracking-wider">
+              <th className="px-3 py-4 text-center text-xs font-medium uppercase tracking-wider sticky right-0 bg-slate-800 z-10">
                 Actions
               </th>
             </tr>
@@ -124,79 +94,84 @@ const ExpenseTable = ({ expenses, onEdit, onView, onDelete, onDeleteSingle, sele
                     />
                   </td>
                 )}
-                <td 
-                  className={`px-6 py-4 whitespace-nowrap text-center ${onView ? 'cursor-pointer hover:bg-blue-50 transition-colors' : ''}`}
-                  onClick={onView ? () => onView(expense) : undefined}
-                  title={onView ? "Click to view expense details" : undefined}
-                >
-                  <span className={`text-sm font-semibold ${onView ? 'text-blue-600 hover:text-blue-800' : 'text-gray-700'}`}>
-                    {index + 1}
-                  </span>
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                <td className="px-3 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
                   {format(new Date(expense.date), 'dd/MM/yyyy')}
                 </td>
-                <td className="px-6 py-4 whitespace-nowrap">
-                  <span className="px-3 py-1.5 text-xs font-semibold rounded-full bg-blue-100 text-blue-800 border border-blue-200 shadow-sm">
-                    {expense.category}
+                <td 
+                  className="px-3 py-4 whitespace-nowrap cursor-pointer"
+                  onClick={(e) => {
+                    if (expense.category && onViewCategoryHistory) {
+                      e.stopPropagation();
+                      onViewCategoryHistory(expense.category);
+                    }
+                  }}
+                  title={expense.category ? `Click to view all ${expense.category} expenses` : ''}
+                >
+                  <span className="px-2.5 py-1 text-xs font-semibold rounded-full bg-blue-100 text-blue-800 border border-blue-200 shadow-sm hover:bg-blue-200 hover:border-blue-300 transition-colors inline-block">
+                    {expense.category || '-'}
                   </span>
                 </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">
-                  <span className="px-2.5 py-1.5 text-xs font-medium rounded-md bg-purple-100 text-purple-800 border border-purple-200 shadow-sm">
+                <td 
+                  className="px-3 py-4 whitespace-nowrap text-sm text-gray-700 cursor-pointer"
+                  onClick={(e) => {
+                    if (expense.department && expense.department !== '-' && onViewDepartmentHistory) {
+                      e.stopPropagation();
+                      onViewDepartmentHistory(expense.department);
+                    }
+                  }}
+                  title={expense.department && expense.department !== '-' ? `Click to view all ${expense.department} expenses` : ''}
+                >
+                  <span className="px-2 py-1 text-xs font-medium rounded-md bg-purple-100 text-purple-800 border border-purple-200 shadow-sm hover:bg-purple-200 hover:border-purple-300 transition-colors inline-block">
                     {expense.department || '-'}
                   </span>
                 </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">
-                  {expense.vendor || '-'}
+                <td 
+                  className="px-3 py-4 text-sm text-gray-700 max-w-[120px] cursor-pointer"
+                  onClick={(e) => {
+                    if (expense.vendor && expense.vendor !== '-' && onViewVendorHistory) {
+                      e.stopPropagation();
+                      onViewVendorHistory(expense.vendor);
+                    }
+                  }}
+                  title={expense.vendor && expense.vendor !== '-' ? `Click to view all expenses for ${expense.vendor}` : ''}
+                >
+                  <div className="truncate text-blue-600 hover:text-blue-800 hover:underline font-medium">
+                    {expense.vendor || '-'}
+                  </div>
                 </td>
-                <td className="px-6 py-4 text-sm text-gray-700 max-w-xs truncate" title={expense.description || ''}>
-                  {expense.description || '-'}
+                <td className="px-3 py-4 text-sm text-gray-700 max-w-[100px]">
+                  <div className="truncate" title={expense.paymentMode || '-'}>
+                    {expense.paymentMode || '-'}
+                  </div>
                 </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">
-                  {expense.paymentMode || '-'}
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">
-                  {expense.bankAccount || '-'}
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-gray-900 text-right">
+                <td className="px-3 py-4 whitespace-nowrap text-sm font-semibold text-gray-900 text-right">
                   ₹{expense.amountExclTax?.toLocaleString('en-IN', { minimumFractionDigits: 2 }) || '0.00'}
                 </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700 text-right">
-                  {expense.gstPercentage || 0}%
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700 text-right">
-                  ₹{expense.gstAmount?.toLocaleString('en-IN', { minimumFractionDigits: 2 }) || '0.00'}
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700 text-right">
-                  {expense.tdsPercentage || 0}%
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700 text-right">
-                  ₹{expense.tdsAmount?.toLocaleString('en-IN', { minimumFractionDigits: 2 }) || '0.00'}
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm font-bold text-gray-900 text-right">
+                <td className="px-3 py-4 whitespace-nowrap text-sm font-bold text-gray-900 text-right">
                   ₹{expense.totalAmount?.toLocaleString('en-IN', { minimumFractionDigits: 2 }) || '0.00'}
                 </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-green-700 text-right">
+                <td className="px-3 py-4 whitespace-nowrap text-sm font-semibold text-green-700 text-right">
                   ₹{expense.paidAmount?.toLocaleString('en-IN', { minimumFractionDigits: 2 }) || '0.00'}
                 </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-red-700 text-right">
+                <td className="px-3 py-4 whitespace-nowrap text-sm font-medium text-center sticky right-[140px] bg-white hover:bg-slate-50 z-10">
+                  <span className={`px-2.5 py-1 text-xs font-semibold rounded-full border shadow-sm ${
+                    expense.status === 'Paid' 
+                      ? 'bg-green-100 text-green-800 border-green-200' 
+                      : expense.status === 'Partial'
+                      ? 'bg-yellow-100 text-yellow-800 border-yellow-200'
+                      : 'bg-red-100 text-red-800 border-red-200'
+                  }`}>
+                    {expense.status || 'Unpaid'}
+                  </span>
+                </td>
+                <td className="px-3 py-4 whitespace-nowrap text-sm font-semibold text-red-700 text-right sticky right-[70px] bg-white hover:bg-slate-50 z-10">
                   ₹{((expense.totalAmount || 0) - (expense.paidAmount || 0)).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
                 </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
-                  {expense.paidTransactionRef || '-'}
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">
-                  {expense.executive || '-'}
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">
-                  {expense.createdBy || '-'}
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">
-                  {expense.editedBy || '-'}
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-center">
+                <td className="px-3 py-4 whitespace-nowrap text-sm font-medium text-center sticky right-0 bg-white hover:bg-slate-50 z-10">
                   <div className="flex items-center justify-center">
                     <ActionDropdown
+                      onViewHistory={onViewHistory ? () => onViewHistory(expense) : null}
+                      onMarkPaid={onMarkPaid && (expense.status !== 'Paid' && !(expense.paidAmount >= (expense.totalAmount || 0) && (expense.totalAmount || 0) > 0)) ? () => onMarkPaid(expense) : null}
                       onView={onView ? () => onView(expense) : null}
                       onEdit={() => onEdit(expense)}
                       onDelete={(onDeleteSingle || onDelete) ? () => {

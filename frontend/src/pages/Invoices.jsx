@@ -7,6 +7,7 @@ import InvoiceTable from '../components/InvoiceTable';
 import InvoiceViewEdit from '../components/InvoiceViewEdit';
 import RecurringInvoiceModal from '../components/RecurringInvoiceModal';
 import PaymentModal from '../components/PaymentModal';
+import ConfirmationModal from '../components/ConfirmationModal';
 import { getAuthToken } from '../utils/auth';
 import { useToast } from '../contexts/ToastContext';
 
@@ -37,6 +38,7 @@ const Invoices = () => {
   const [pdfBlobUrl, setPdfBlobUrl] = useState(null);
   const [pdfLoading, setPdfLoading] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
+  const [deleteConfirm, setDeleteConfirm] = useState({ show: false, id: null });
 
   // Check if returning from items/customers page and should show invoice form
   useEffect(() => {
@@ -140,14 +142,20 @@ const Invoices = () => {
   };
 
   const handleDelete = async (id) => {
-    if (window.confirm('Are you sure you want to delete this invoice?')) {
-      try {
-        await invoiceAPI.delete(id);
-        fetchInvoices();
-      } catch (error) {
-        console.error('Error deleting invoice:', error);
-        showToast('Failed to delete invoice', 'error');
-      }
+    setDeleteConfirm({ show: true, id });
+  };
+
+  const handleDeleteConfirm = async () => {
+    if (!deleteConfirm.id) return;
+    try {
+      await invoiceAPI.delete(deleteConfirm.id);
+      showToast('Invoice deleted successfully', 'success');
+      setDeleteConfirm({ show: false, id: null });
+      fetchInvoices();
+    } catch (error) {
+      console.error('Error deleting invoice:', error);
+      showToast('Failed to delete invoice', 'error');
+      setDeleteConfirm({ show: false, id: null });
     }
   };
 
@@ -675,6 +683,18 @@ const Invoices = () => {
           onUpdate={handleInvoiceUpdate}
         />
       )}
+
+      {/* Delete Confirmation Modal */}
+      <ConfirmationModal
+        isOpen={deleteConfirm.show}
+        onClose={() => setDeleteConfirm({ show: false, id: null })}
+        onConfirm={handleDeleteConfirm}
+        title="Confirm Delete"
+        message="Are you sure you want to delete this invoice? This action cannot be undone."
+        confirmText="Delete"
+        cancelText="Cancel"
+        confirmButtonColor="red"
+      />
 
     </div>
   );

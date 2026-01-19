@@ -12,9 +12,13 @@ import RecurringExpenses from './pages/RecurringExpenses';
 import Payment from './pages/Payment';
 import Items from './pages/Items';
 import ExpenseDashboard from './pages/ExpenseDashboard';
+import ExpenseAging from './pages/ExpenseAging';
 import RevenueDashboard from './pages/RevenueDashboard';
 import Settings from './pages/Settings';
 import ClientLedger from './pages/ClientLedger';
+import PaymentModeMaster from './pages/PaymentModeMaster';
+import VendorMaster from './pages/VendorMaster';
+import BankAccountMaster from './pages/BankAccountMaster';
 import Layout from './components/Layout';
 import { getAuthToken, removeAuthToken } from './utils/auth';
 import { ToastProvider } from './contexts/ToastContext';
@@ -92,8 +96,12 @@ function App() {
           <Route path="payment" element={<Payment />} />
           <Route path="items" element={<Items />} />
           <Route path="expense-dashboard" element={<ExpenseDashboard />} />
+          <Route path="expense-aging" element={<ExpenseAging />} />
           <Route path="revenue-dashboard" element={<RevenueDashboard />} />
           <Route path="client-ledger" element={<ClientLedger />} />
+          <Route path="masters/payment-mode" element={<PaymentModeMaster />} />
+          <Route path="masters/vendor" element={<VendorMaster />} />
+          <Route path="masters/bank-account" element={<BankAccountMaster />} />
           <Route path="settings" element={<Settings />} />
         </Route>
       </Routes>

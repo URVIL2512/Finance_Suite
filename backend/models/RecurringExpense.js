@@ -9,7 +9,7 @@ const recurringExpenseSchema = new mongoose.Schema(
     },
     repeatEvery: {
       type: String,
-      enum: ['Week', 'Month', 'Quarter', 'Half Yearly', 'Six Month', 'Year'],
+      enum: ['10 Seconds', 'Week', 'Month', 'Quarter', 'Half Yearly', 'Six Month', 'Year'],
       required: true,
     },
     startOn: {
@@ -35,6 +35,10 @@ const recurringExpenseSchema = new mongoose.Schema(
     isActive: {
       type: Boolean,
       default: true,
+    },
+    preventDuplicates: {
+      type: Boolean,
+      default: false,
     },
     user: {
       type: mongoose.Schema.Types.ObjectId,
