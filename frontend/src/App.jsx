@@ -19,6 +19,7 @@ import ClientLedger from './pages/ClientLedger';
 import PaymentModeMaster from './pages/PaymentModeMaster';
 import VendorMaster from './pages/VendorMaster';
 import BankAccountMaster from './pages/BankAccountMaster';
+import ExpenseMasters from './pages/ExpenseMasters';
 import Layout from './components/Layout';
 import { getAuthToken, removeAuthToken } from './utils/auth';
 import { ToastProvider } from './contexts/ToastContext';
@@ -97,6 +98,7 @@ function App() {
           <Route path="items" element={<Items />} />
           <Route path="expense-dashboard" element={<ExpenseDashboard />} />
           <Route path="expense-aging" element={<ExpenseAging />} />
+          <Route path="expenses/masters" element={<ExpenseMasters />} />
           <Route path="revenue-dashboard" element={<RevenueDashboard />} />
           <Route path="client-ledger" element={<ClientLedger />} />
           <Route path="masters/payment-mode" element={<PaymentModeMaster />} />

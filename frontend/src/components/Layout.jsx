@@ -6,7 +6,6 @@ const Layout = ({ onLogout }) => {
   const [salesExpanded, setSalesExpanded] = useState(false);
   const [revenueExpanded, setRevenueExpanded] = useState(false);
   const [expensesExpanded, setExpensesExpanded] = useState(false);
-  const [mastersExpanded, setMastersExpanded] = useState(false);
 
   const navigation = [
     { name: 'Dashboard', href: '/dashboard', icon: '📊' },
@@ -32,19 +31,13 @@ const Layout = ({ onLogout }) => {
     { name: 'Expenses', href: '/expenses', icon: '💰' },
     { name: 'Recurring Expenses', href: '/recurring-expenses', icon: '🔄' },
     { name: 'Ages', href: '/expense-aging', icon: '📈' },
-  ];
-
-  const mastersSubMenu = [
-    { name: 'Payment Mode', href: '/masters/payment-mode', icon: '💳' },
-    { name: 'Vendor', href: '/masters/vendor', icon: '🏢' },
-    { name: 'Bank Account', href: '/masters/bank-account', icon: '🏦' },
+    { name: 'Masters', href: '/expenses/masters', icon: '📋' },
   ];
 
   const isActive = (path) => location.pathname === path;
   const isSalesActive = salesSubMenu.some(item => isActive(item.href));
   const isRevenueActive = revenueSubMenu.some(item => isActive(item.href));
-  const isExpensesActive = expensesSubMenu.some(item => isActive(item.href));
-  const isMastersActive = mastersSubMenu.some(item => isActive(item.href));
+  const isExpensesActive = expensesSubMenu.some(item => isActive(item.href)) || location.pathname.startsWith('/expenses/masters');
 
   // Auto-expand Sales menu if any sub-item is active
   useEffect(() => {
@@ -64,13 +57,6 @@ const Layout = ({ onLogout }) => {
   useEffect(() => {
     if (isExpensesActive) {
       setExpensesExpanded(true);
-    }
-  }, [location.pathname]);
-
-  // Auto-expand Masters menu if any sub-item is active
-  useEffect(() => {
-    if (isMastersActive) {
-      setMastersExpanded(true);
     }
   }, [location.pathname]);
 
@@ -243,53 +229,6 @@ const Layout = ({ onLogout }) => {
               {revenueExpanded && (
                 <div className="ml-4 space-y-1 pl-4 border-l-2 border-slate-200">
                   {revenueSubMenu.map((item) => (
-                    <Link
-                      key={item.name}
-                      to={item.href}
-                      className={`${
-                        isActive(item.href)
-                          ? 'bg-blue-50 text-blue-700 font-semibold border-l-2 border-blue-600'
-                          : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
-                      } block px-4 py-2 text-sm rounded-lg transition-all duration-200`}
-                    >
-                      {item.name}
-                    </Link>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            {/* Masters Menu with Dropdown */}
-            <div className="space-y-1">
-              <button
-                onClick={() => setMastersExpanded(!mastersExpanded)}
-                className={`${
-                  isMastersActive
-                    ? 'bg-gradient-to-r from-blue-600 to-blue-700 text-white shadow-lg shadow-blue-500/30'
-                    : 'text-slate-700 hover:bg-gradient-to-r hover:from-slate-50 hover:to-blue-50/30 hover:text-slate-900'
-                } w-full px-4 py-3 text-sm font-semibold flex items-center justify-between rounded-xl 
-                transition-all duration-200 group`}
-              >
-                <div className="flex items-center space-x-3">
-                  <span className={`text-lg transition-transform ${isMastersActive ? 'scale-110' : 'group-hover:scale-110'}`}>
-                    📋
-                  </span>
-                  <span className="tracking-tight">Masters</span>
-                </div>
-                <svg
-                  className={`w-4 h-4 transition-transform duration-200 ${mastersExpanded ? 'rotate-180' : ''}`}
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                </svg>
-              </button>
-
-              {/* Masters Sub-menu Items */}
-              {mastersExpanded && (
-                <div className="ml-4 space-y-1 pl-4 border-l-2 border-slate-200">
-                  {mastersSubMenu.map((item) => (
                     <Link
                       key={item.name}
                       to={item.href}

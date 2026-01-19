@@ -219,6 +219,7 @@ export const getExpenseAging = async (req, res) => {
 // @access  Private
 export const exportExpenseAgingToPDF = async (req, res) => {
   try {
+    const { bucket } = req.query; // Get selected bucket from query parameter
     const expenses = await Expense.find({ user: req.user._id }).lean();
     const today = new Date();
     today.setHours(0, 0, 0, 0);
@@ -246,21 +247,21 @@ export const exportExpenseAgingToPDF = async (req, res) => {
         const daysDifference = Math.floor((today - expenseDate) / (1000 * 60 * 60 * 24));
 
         // Determine age bucket
-        let bucket;
+        let bucketKey;
         if (daysDifference <= 5) {
-          bucket = '0-5';
+          bucketKey = '0-5';
         } else if (daysDifference <= 15) {
-          bucket = '6-15';
+          bucketKey = '6-15';
         } else if (daysDifference <= 30) {
-          bucket = '16-30';
+          bucketKey = '16-30';
         } else {
-          bucket = '30+';
+          bucketKey = '30+';
         }
 
         // Add to bucket
-        ageBuckets[bucket].amount += outstandingAmount;
-        ageBuckets[bucket].count += 1;
-        ageBuckets[bucket].expenses.push({
+        ageBuckets[bucketKey].amount += outstandingAmount;
+        ageBuckets[bucketKey].count += 1;
+        ageBuckets[bucketKey].expenses.push({
           _id: expense._id,
           date: expense.date,
           vendor: expense.vendor || '',
@@ -276,13 +277,23 @@ export const exportExpenseAgingToPDF = async (req, res) => {
     });
 
     // Convert to array and round amounts
-    const agingData = Object.values(ageBuckets).map((bucket) => ({
+    let agingData = Object.values(ageBuckets).map((bucket) => ({
       ...bucket,
       amount: Math.round(bucket.amount * 100) / 100,
     }));
 
+    // Filter by selected bucket if provided
+    let filteredTotalOutstanding = totalOutstanding;
+    if (bucket) {
+      const selectedBucketData = agingData.find(b => b.label === bucket);
+      if (selectedBucketData) {
+        agingData = [selectedBucketData];
+        filteredTotalOutstanding = selectedBucketData.amount;
+      }
+    }
+
     const asOfDate = today.toISOString().split('T')[0];
-    const totalOutstandingRounded = Math.round(totalOutstanding * 100) / 100;
+    const totalOutstandingRounded = Math.round(filteredTotalOutstanding * 100) / 100;
 
     const outputPath = path.join(__dirname, '../temp', `expense-aging-${Date.now()}.pdf`);
     
@@ -292,8 +303,8 @@ export const exportExpenseAgingToPDF = async (req, res) => {
       fs.mkdirSync(tempDir, { recursive: true });
     }
 
-    // Generate PDF
-    await generateExpenseAgingPDF(agingData, totalOutstandingRounded, asOfDate, outputPath);
+    // Generate PDF with selected bucket info
+    await generateExpenseAgingPDF(agingData, totalOutstandingRounded, asOfDate, outputPath, bucket);
 
     // Check if file was created
     if (!fs.existsSync(outputPath)) {

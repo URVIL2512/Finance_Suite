@@ -45,7 +45,10 @@ const ExpenseAging = () => {
       const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
       const token = getAuthToken();
       
-      const response = await fetch(`${API_URL}/dashboard/expenses/aging/pdf`, {
+      // Add bucket filter if a specific bucket is selected
+      const bucketParam = selectedBucket ? `?bucket=${encodeURIComponent(selectedBucket)}` : '';
+      
+      const response = await fetch(`${API_URL}/dashboard/expenses/aging/pdf${bucketParam}`, {
         method: 'GET',
         headers: {
           Authorization: `Bearer ${token}`,
@@ -58,7 +61,8 @@ const ExpenseAging = () => {
         const link = document.createElement('a');
         link.href = blobUrl;
         const dateStr = asOfDate || format(new Date(), 'yyyy-MM-dd');
-        link.download = `expense-aging-${dateStr}.pdf`;
+        const bucketStr = selectedBucket ? `-${selectedBucket.replace(/\s+/g, '-')}` : '';
+        link.download = `expense-aging${bucketStr}-${dateStr}.pdf`;
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
