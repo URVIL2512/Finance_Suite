@@ -6,7 +6,7 @@ import { fileURLToPath } from 'url';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-export const generateExpenseAgingPDF = async (agingData, totalOutstanding, asOfDate, outputPath, selectedBucket = null) => {
+export const generateExpenseAgingPDF = async (agingData, totalOutstanding, asOfDate, outputPath, selectedBucket = null, detailedExpenses = null) => {
   return new Promise((resolve, reject) => {
     try {
       // Create output directory

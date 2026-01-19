@@ -28,10 +28,10 @@ const Layout = ({ onLogout }) => {
 
   const expensesSubMenu = [
     { name: 'Dashboard', href: '/expense-dashboard', icon: '📊' },
+    { name: 'Masters', href: '/expenses/masters', icon: '📋' },
     { name: 'Expenses', href: '/expenses', icon: '💰' },
     { name: 'Recurring Expenses', href: '/recurring-expenses', icon: '🔄' },
     { name: 'Ages', href: '/expense-aging', icon: '📈' },
-    { name: 'Masters', href: '/expenses/masters', icon: '📋' },
   ];
 
   const isActive = (path) => location.pathname === path;

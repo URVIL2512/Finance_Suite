@@ -284,11 +284,13 @@ export const exportExpenseAgingToPDF = async (req, res) => {
 
     // Filter by selected bucket if provided
     let filteredTotalOutstanding = totalOutstanding;
+    let detailedExpenses = null;
     if (bucket) {
       const selectedBucketData = agingData.find(b => b.label === bucket);
       if (selectedBucketData) {
         agingData = [selectedBucketData];
         filteredTotalOutstanding = selectedBucketData.amount;
+        detailedExpenses = selectedBucketData.expenses || [];
       }
     }
 
@@ -303,8 +305,8 @@ export const exportExpenseAgingToPDF = async (req, res) => {
       fs.mkdirSync(tempDir, { recursive: true });
     }
 
-    // Generate PDF with selected bucket info
-    await generateExpenseAgingPDF(agingData, totalOutstandingRounded, asOfDate, outputPath, bucket);
+    // Generate PDF with selected bucket info and detailed expenses
+    await generateExpenseAgingPDF(agingData, totalOutstandingRounded, asOfDate, outputPath, bucket, detailedExpenses);
 
     // Check if file was created
     if (!fs.existsSync(outputPath)) {
