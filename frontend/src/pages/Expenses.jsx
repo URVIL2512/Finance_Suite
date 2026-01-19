@@ -965,6 +965,7 @@ const Expenses = () => {
                             value={bulkPaidAmount}
                             onChange={(e) => setBulkPaidAmount(e.target.value)}
                             onWheel={(e) => e.target.blur()}
+                            onFocus={(e) => e.target.addEventListener('wheel', (e) => e.preventDefault(), { passive: false })}
                             placeholder="Enter amount"
                             step="0.01"
                             min="0"
@@ -1217,6 +1218,7 @@ const Expenses = () => {
                     value={markPaidAmount}
                     onChange={(e) => setMarkPaidAmount(e.target.value)}
                     onWheel={(e) => e.target.blur()}
+                    onFocus={(e) => e.target.addEventListener('wheel', (e) => e.preventDefault(), { passive: false })}
                     placeholder="Enter amount"
                     step="0.01"
                     min="0"
