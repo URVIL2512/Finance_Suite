@@ -1,38 +1,63 @@
 import { format } from 'date-fns';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { useToast } from '../contexts/ToastContext';
+import BankAccountPicker from './BankAccountPicker';
 
-const ViewExpenseModal = ({ isOpen, onClose, expense, onMarkPaid }) => {
+const ViewExpenseModal = ({ isOpen, onClose, expense, onMarkPaid, addNewReturnState }) => {
+  const { showToast } = useToast();
   const [showPaidAmountInput, setShowPaidAmountInput] = useState(false);
   const [paidAmount, setPaidAmount] = useState('');
   const [updating, setUpdating] = useState(false);
+  const [selectedBankAccount, setSelectedBankAccount] = useState('');
 
-  if (!isOpen || !expense) return null;
+  useEffect(() => {
+    if (!isOpen) return;
+    setSelectedBankAccount(expense?.bankAccount || '');
+  }, [isOpen, expense?.bankAccount]);
 
-  const dueAmount = (expense.totalAmount || 0) - (expense.paidAmount || 0);
-  const isAlreadyPaid = expense.status === 'Paid' || (expense.paidAmount >= (expense.totalAmount || 0) && (expense.totalAmount || 0) > 0);
+  const hasExpense = !!expense;
+
+  // Derived values (safe even when expense is null)
+  const total = Math.max(0, Number(expense?.totalAmount) || 0);
+  const paid = Math.min(Math.max(0, Number(expense?.paidAmount) || 0), total);
+  const dueAmount = Math.max(0, total - paid);
+  const isAlreadyPaid = expense?.status === 'Paid' || (paid >= total && total > 0);
+
+  if (!isOpen || !hasExpense) return null;
 
   const handleMarkPaidClick = async () => {
     if (showPaidAmountInput) {
       // Submit with entered amount
       if (!paidAmount || parseFloat(paidAmount) < 0) {
+        showToast('Please enter a valid paid amount', 'error');
         return;
       }
+
+      if (expense?.paymentMode === 'Bank Transfer' && !selectedBankAccount) {
+        showToast('Please select a bank account for Bank Transfer', 'error');
+        return;
+      }
+
       setUpdating(true);
       // Add to existing paid amount
-      const currentPaidAmount = expense.paidAmount || 0;
-      const newPaidAmount = currentPaidAmount + parseFloat(paidAmount);
+      const currentPaidAmount = paid;
+      const newPaidAmount = currentPaidAmount + (parseFloat(paidAmount) || 0);
+      const finalPaidAmount = Math.min(newPaidAmount, total);
       const updatedExpense = {
         ...expense,
-        paidAmount: newPaidAmount,
+        paidAmount: finalPaidAmount,
+        bankAccount: selectedBankAccount || expense?.bankAccount || '',
       };
       await onMarkPaid(updatedExpense);
       setShowPaidAmountInput(false);
       setPaidAmount('');
+      setSelectedBankAccount('');
       setUpdating(false);
     } else {
       // Show input field
       setShowPaidAmountInput(true);
       setPaidAmount(''); // Start with blank input
+      setSelectedBankAccount(expense?.bankAccount || '');
     }
   };
 
@@ -267,6 +292,19 @@ const ViewExpenseModal = ({ isOpen, onClose, expense, onMarkPaid }) => {
                 />
                 <span className="text-sm text-gray-600">/ ₹{dueAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
               </div>
+
+              <div className="mt-4 space-y-2">
+                <BankAccountPicker
+                  value={selectedBankAccount}
+                  onChange={setSelectedBankAccount}
+                  paymentMode={expense?.paymentMode}
+                  addNewReturnState={
+                    addNewReturnState || {
+                      resumeViewExpense: { expenseId: expense?._id },
+                    }
+                  }
+                />
+              </div>
             </div>
           )}
           <div className="flex justify-end gap-3">
@@ -278,6 +316,7 @@ const ViewExpenseModal = ({ isOpen, onClose, expense, onMarkPaid }) => {
                     onClick={() => {
                       setShowPaidAmountInput(false);
                       setPaidAmount('');
+                      setSelectedBankAccount('');
                     }}
                     disabled={updating}
                     className="px-6 py-2.5 bg-gray-600 text-white font-semibold rounded-lg hover:bg-gray-700 transition-colors text-sm shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
@@ -288,7 +327,11 @@ const ViewExpenseModal = ({ isOpen, onClose, expense, onMarkPaid }) => {
                 <button
                   type="button"
                   onClick={handleMarkPaidClick}
-                  disabled={updating || (showPaidAmountInput && (!paidAmount || parseFloat(paidAmount) < 0))}
+                  disabled={
+                    updating ||
+                    (showPaidAmountInput && (!paidAmount || parseFloat(paidAmount) < 0)) ||
+                    (showPaidAmountInput && expense?.paymentMode === 'Bank Transfer' && !selectedBankAccount)
+                  }
                   className="px-6 py-2.5 bg-green-600 text-white font-semibold rounded-lg hover:bg-green-700 transition-colors text-sm shadow-md flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {updating ? (

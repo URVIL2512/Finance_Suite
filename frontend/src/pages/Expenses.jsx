@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { useLocation } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { expenseAPI, recurringExpenseAPI } from '../services/api';
 import { useToast } from '../contexts/ToastContext';
 import ExpenseForm from '../components/ExpenseForm';
@@ -12,10 +12,12 @@ import ConfirmationModal from '../components/ConfirmationModal';
 import { exportExpensesToExcel, exportExpensesToPDF } from '../utils/expenseExports';
 import { getAuthToken } from '../utils/auth';
 import MobileSelect from '../components/MobileSelect';
+import BankAccountPicker from '../components/BankAccountPicker';
 
 const Expenses = () => {
   const { showToast } = useToast();
   const location = useLocation();
+  const navigate = useNavigate();
   const [expenses, setExpenses] = useState([]);
   const [allExpenses, setAllExpenses] = useState([]); // Store all expenses for vendor dropdown
   const [loading, setLoading] = useState(true);
@@ -54,12 +56,65 @@ const Expenses = () => {
   const [markingPaid, setMarkingPaid] = useState(false);
   const [markPaidExpense, setMarkPaidExpense] = useState(null);
   const [markPaidAmount, setMarkPaidAmount] = useState('');
+  const [markPaidBankAccount, setMarkPaidBankAccount] = useState('');
   const [markingPaidSingle, setMarkingPaidSingle] = useState(false);
+  const [resumeMarkPaid, setResumeMarkPaid] = useState(null);
+  const [resumeViewExpenseId, setResumeViewExpenseId] = useState(null);
   const [historyModal, setHistoryModal] = useState({ isOpen: false, filterType: null, filterValue: null });
   const [deleteConfirm, setDeleteConfirm] = useState({ show: false, id: null });
   const [bulkDeleteConfirm, setBulkDeleteConfirm] = useState({ show: false, ids: [] });
   const fileInputRef = useRef(null);
   const vendorDropdownRef = useRef(null);
+
+  // If we came back from Bank Account Master, restore the Mark-as-Paid context.
+  useEffect(() => {
+    const createdName = location.state?.bankAccountCreatedName;
+    const resume = location.state?.resumeMarkPaid;
+    const resumeView = location.state?.resumeViewExpense;
+    if (!createdName && !resume) return;
+
+    // Restore modal context (expenseId) after data loads in effect below.
+    if (resume) {
+      setResumeMarkPaid({
+        ...resume,
+        bankAccountCreatedName: createdName || resume.bankAccountCreatedName,
+      });
+    } else if (createdName) {
+      setMarkPaidBankAccount(createdName);
+    }
+
+    if (resumeView?.expenseId) setResumeViewExpenseId(resumeView.expenseId);
+
+    // Replace history state so refresh doesn't re-apply.
+    navigate(location.pathname, { replace: true, state: {} });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [location.state]);
+
+  // Apply resume for Mark-as-Paid after expenses are loaded
+  useEffect(() => {
+    if (!resumeMarkPaid) return;
+    if (!resumeMarkPaid.expenseId) {
+      setResumeMarkPaid(null);
+      return;
+    }
+
+    const exp = (expenses || []).find((e) => e._id === resumeMarkPaid.expenseId);
+    if (!exp) return;
+
+    setMarkPaidExpense(exp);
+    setMarkPaidAmount(resumeMarkPaid.paidAmount || '');
+    setMarkPaidBankAccount(resumeMarkPaid.bankAccountCreatedName || resumeMarkPaid.bankAccount || '');
+    setResumeMarkPaid(null);
+  }, [expenses, resumeMarkPaid]);
+
+  // Apply resume for View Expense modal after expenses are loaded
+  useEffect(() => {
+    if (!resumeViewExpenseId) return;
+    const exp = (expenses || []).find((e) => e._id === resumeViewExpenseId);
+    if (!exp) return;
+    setViewingExpense(exp);
+    setResumeViewExpenseId(null);
+  }, [expenses, resumeViewExpenseId]);
 
 
   const fetchExpenses = async () => {
@@ -278,6 +333,7 @@ const Expenses = () => {
     // Show modal to enter paid amount
     setMarkPaidExpense(expense);
     setMarkPaidAmount('');
+    setMarkPaidBankAccount(expense?.bankAccount || '');
   };
 
   const handleMarkPaidSubmit = async () => {
@@ -296,14 +352,21 @@ const Expenses = () => {
     const finalPaidAmount = Math.min(newPaidAmount, totalAmount);
 
     try {
+      if (markPaidExpense?.paymentMode === 'Bank Transfer' && !markPaidBankAccount) {
+        showToast('Please select a bank account for Bank Transfer', 'error');
+        return;
+      }
+
       setMarkingPaidSingle(true);
       const updatedExpense = {
         ...markPaidExpense,
         paidAmount: finalPaidAmount,
+        bankAccount: markPaidBankAccount || markPaidExpense?.bankAccount || '',
       };
       await handleMarkPaid(updatedExpense);
       setMarkPaidExpense(null);
       setMarkPaidAmount('');
+      setMarkPaidBankAccount('');
       setMarkingPaidSingle(false);
     } catch (error) {
       setMarkingPaidSingle(false);
@@ -1296,6 +1359,7 @@ const Expenses = () => {
         onClose={() => setViewingExpense(null)}
         expense={viewingExpense}
         onMarkPaid={handleMarkPaid}
+        addNewReturnState={{ resumeViewExpense: { expenseId: viewingExpense?._id } }}
       />
 
       {/* Payment History Modal */}
@@ -1317,14 +1381,14 @@ const Expenses = () => {
 
       {/* Mark as Paid Modal */}
       {markPaidExpense && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={() => { setMarkPaidExpense(null); setMarkPaidAmount(''); }}>
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={() => { setMarkPaidExpense(null); setMarkPaidAmount(''); setMarkPaidBankAccount(''); }}>
           <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full" onClick={(e) => e.stopPropagation()}>
             {/* Header */}
             <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 bg-gradient-to-r from-slate-50 to-white">
               <h2 className="text-xl font-bold text-slate-900">Mark as Paid</h2>
               <button
                 type="button"
-                onClick={() => { setMarkPaidExpense(null); setMarkPaidAmount(''); }}
+                onClick={() => { setMarkPaidExpense(null); setMarkPaidAmount(''); setMarkPaidBankAccount(''); }}
                 className="text-slate-400 hover:text-red-600 transition-colors text-3xl font-light leading-none w-8 h-8 flex items-center justify-center rounded-full hover:bg-slate-100"
                 aria-label="Close"
               >
@@ -1358,7 +1422,7 @@ const Expenses = () => {
                 );
               })()}
 
-              <div className="space-y-3">
+              <div className="space-y-4">
                 <label className="block text-sm font-semibold text-gray-700">Enter Paid Amount</label>
                 <div className="flex items-center gap-3">
                   <input
@@ -1379,13 +1443,28 @@ const Expenses = () => {
                   </span>
                 </div>
               </div>
+
+              <div className="space-y-2 mt-4">
+                <BankAccountPicker
+                  value={markPaidBankAccount}
+                  onChange={setMarkPaidBankAccount}
+                  paymentMode={markPaidExpense?.paymentMode}
+                  addNewReturnState={{
+                    resumeMarkPaid: {
+                      expenseId: markPaidExpense?._id,
+                      paidAmount: markPaidAmount,
+                      bankAccount: markPaidBankAccount,
+                    },
+                  }}
+                />
+              </div>
             </div>
 
             {/* Footer */}
             <div className="border-t border-slate-200 px-6 py-4 bg-white flex justify-end gap-3">
               <button
                 type="button"
-                onClick={() => { setMarkPaidExpense(null); setMarkPaidAmount(''); }}
+                onClick={() => { setMarkPaidExpense(null); setMarkPaidAmount(''); setMarkPaidBankAccount(''); }}
                 disabled={markingPaidSingle}
                 className="px-6 py-2.5 bg-gray-600 text-white font-semibold rounded-lg hover:bg-gray-700 transition-colors text-sm shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
               >
@@ -1394,7 +1473,12 @@ const Expenses = () => {
               <button
                 type="button"
                 onClick={handleMarkPaidSubmit}
-                disabled={markingPaidSingle || !markPaidAmount || parseFloat(markPaidAmount) < 0}
+                disabled={
+                  markingPaidSingle ||
+                  !markPaidAmount ||
+                  parseFloat(markPaidAmount) < 0 ||
+                  (markPaidExpense?.paymentMode === 'Bank Transfer' && !markPaidBankAccount)
+                }
                 className="px-6 py-2.5 bg-green-600 text-white font-semibold rounded-lg hover:bg-green-700 transition-colors text-sm shadow-md flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {markingPaidSingle ? (

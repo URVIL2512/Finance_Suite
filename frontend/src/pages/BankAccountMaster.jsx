@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { format } from 'date-fns';
 import { bankAccountAPI } from '../services/api';
 import ActionDropdown from '../components/ActionDropdown';
@@ -9,6 +9,11 @@ import ConfirmationModal from '../components/ConfirmationModal';
 const BankAccountMaster = ({ returnPath, returnState }) => {
   const { showToast } = useToast();
   const navigate = useNavigate();
+  const location = useLocation();
+
+  const effectiveReturnPath = returnPath ?? location.state?.returnPath;
+  const effectiveReturnState = returnState ?? location.state?.returnState;
+  const openCreate = !!location.state?.openCreate;
   const [bankAccounts, setBankAccounts] = useState([]);
   const [loading, setLoading] = useState(false);
   const [showForm, setShowForm] = useState(false);
@@ -29,12 +34,12 @@ const BankAccountMaster = ({ returnPath, returnState }) => {
 
   // Auto-open form if redirected from expense form
   useEffect(() => {
-    if (returnPath) {
+    if (effectiveReturnPath || openCreate) {
       setShowForm(true);
       setEditingAccount(null);
       setFormData({ accountName: '', bankName: '', ifsc: '', accountNumber: '', openingBalance: 0 });
     }
-  }, [returnPath]);
+  }, [effectiveReturnPath, openCreate]);
 
   const fetchBankAccounts = async () => {
     try {
@@ -104,17 +109,33 @@ const BankAccountMaster = ({ returnPath, returnState }) => {
         await bankAccountAPI.update(editingAccount._id, formData);
         showToast('Bank account updated successfully!', 'success');
       } else {
-        await bankAccountAPI.create(formData);
+        const createdRes = await bankAccountAPI.create(formData);
         showToast('Bank account created successfully!', 'success');
+
+        // If redirected from another screen, return and auto-select the new bank account
+        const createdName = createdRes?.data?.accountName || formData.accountName?.trim() || '';
+        if (effectiveReturnPath && createdName) {
+          navigate(effectiveReturnPath, {
+            state: {
+              ...(effectiveReturnState || {}),
+              bankAccountCreatedName: createdName,
+            },
+            replace: false,
+          });
+          setShowForm(false);
+          setEditingAccount(null);
+          await fetchBankAccounts();
+          return;
+        }
       }
       setShowForm(false);
       setEditingAccount(null);
       await fetchBankAccounts();
       
       // If redirected from expense form, navigate back
-      if (returnPath) {
-        navigate(returnPath, {
-          state: returnState || { showExpenseForm: true },
+      if (effectiveReturnPath) {
+        navigate(effectiveReturnPath, {
+          state: effectiveReturnState || { showExpenseForm: true },
           replace: false
         });
       }
@@ -129,9 +150,9 @@ const BankAccountMaster = ({ returnPath, returnState }) => {
     setEditingAccount(null);
     
     // If redirected from expense form, navigate back
-    if (returnPath) {
-      navigate(returnPath, {
-        state: returnState || { showExpenseForm: true },
+    if (effectiveReturnPath) {
+      navigate(effectiveReturnPath, {
+        state: effectiveReturnState || { showExpenseForm: true },
         replace: false
       });
     }
