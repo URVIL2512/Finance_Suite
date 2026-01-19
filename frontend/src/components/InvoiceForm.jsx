@@ -762,27 +762,36 @@ const InvoiceForm = ({ invoice, customers = [], onSubmit, onCancel, onCustomerAd
   // Delete all items
   const handleDeleteAllItems = () => {
     if (items.length === 0) return;
+    setDeleteAllItemsConfirm(true);
+  };
+
+  const handleDeleteAllItemsConfirm = () => {
+    // Clear all auto-create timeouts
+    Object.keys(autoCreateTimeoutRef.current).forEach(itemId => {
+      clearTimeout(autoCreateTimeoutRef.current[itemId]);
+    });
+    autoCreateTimeoutRef.current = {};
     
-    if (window.confirm('Are you sure you want to delete all items? This action cannot be undone.')) {
-      // Clear all auto-create timeouts
-      Object.keys(autoCreateTimeoutRef.current).forEach(itemId => {
-        clearTimeout(autoCreateTimeoutRef.current[itemId]);
-      });
-      autoCreateTimeoutRef.current = {};
-      
-      // Reset to a single empty item
-      setItems([{
-        id: Date.now(),
-        description: '',
-        hsnSac: '',
-        quantity: 1,
-        rate: 0,
-        discount: 0,
-        amount: 0,
-      }]);
-      
-      // Reset base amount
-      setFormData({ ...formData, baseAmount: '' });
+    // Reset to a single empty item
+    setItems([{
+      id: Date.now(),
+      description: '',
+      hsnSac: '',
+      quantity: 1,
+      rate: 0,
+      discount: 0,
+      amount: 0,
+    }]);
+    
+    // Reset base amount
+    setFormData({ ...formData, baseAmount: '' });
+    setDeleteAllItemsConfirm(false);
+  };
+
+  const handleDeleteItemConfirm = () => {
+    if (deleteItemConfirm.itemId) {
+      handleRemoveItem(deleteItemConfirm.itemId);
+      setDeleteItemConfirm({ show: false, itemId: null });
     }
   };
 
