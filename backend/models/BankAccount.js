@@ -23,10 +23,6 @@ const bankAccountSchema = new mongoose.Schema(
       default: '',
       trim: true,
     },
-    openingBalance: {
-      type: Number,
-      default: 0,
-    },
     isActive: {
       type: Boolean,
       default: true,

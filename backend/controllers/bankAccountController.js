@@ -69,7 +69,7 @@ export const getBankAccount = async (req, res) => {
 // @access  Private
 export const createBankAccount = async (req, res) => {
   try {
-    const { accountName, bankName, ifsc, accountNumber, openingBalance, isActive } = req.body;
+    const { accountName, bankName, ifsc, accountNumber, isActive } = req.body;
 
     if (!accountName || !accountName.trim()) {
       return res.status(400).json({ message: 'Account name is required' });
@@ -94,7 +94,6 @@ export const createBankAccount = async (req, res) => {
       bankName: bankName.trim(),
       ifsc: ifsc ? ifsc.trim().toUpperCase() : '',
       accountNumber: accountNumber ? accountNumber.trim() : '',
-      openingBalance: openingBalance || 0,
       isActive: isActive !== undefined ? isActive : true,
       user: req.user._id,
     });
@@ -119,7 +118,7 @@ export const createBankAccount = async (req, res) => {
 // @access  Private
 export const updateBankAccount = async (req, res) => {
   try {
-    const { accountName, bankName, ifsc, accountNumber, openingBalance, isActive } = req.body;
+    const { accountName, bankName, ifsc, accountNumber, isActive } = req.body;
 
     const bankAccount = await BankAccount.findOne({
       _id: req.params.id,
@@ -152,9 +151,6 @@ export const updateBankAccount = async (req, res) => {
     }
     if (accountNumber !== undefined) {
       bankAccount.accountNumber = accountNumber ? accountNumber.trim() : '';
-    }
-    if (openingBalance !== undefined) {
-      bankAccount.openingBalance = openingBalance || 0;
     }
     if (isActive !== undefined) {
       bankAccount.isActive = isActive;

@@ -23,7 +23,6 @@ const BankAccountMaster = ({ returnPath, returnState }) => {
     bankName: '',
     ifsc: '',
     accountNumber: '',
-    openingBalance: 0,
   });
   const [deleteConfirm, setDeleteConfirm] = useState({ show: false, id: null });
   const [deleting, setDeleting] = useState(false);
@@ -37,7 +36,7 @@ const BankAccountMaster = ({ returnPath, returnState }) => {
     if (effectiveReturnPath || openCreate) {
       setShowForm(true);
       setEditingAccount(null);
-      setFormData({ accountName: '', bankName: '', ifsc: '', accountNumber: '', openingBalance: 0 });
+      setFormData({ accountName: '', bankName: '', ifsc: '', accountNumber: '' });
     }
   }, [effectiveReturnPath, openCreate]);
 
@@ -56,7 +55,7 @@ const BankAccountMaster = ({ returnPath, returnState }) => {
 
   const handleCreate = () => {
     setEditingAccount(null);
-    setFormData({ accountName: '', bankName: '', ifsc: '', accountNumber: '', openingBalance: 0, isActive: true });
+    setFormData({ accountName: '', bankName: '', ifsc: '', accountNumber: '', isActive: true });
     setShowForm(true);
   };
 
@@ -67,7 +66,6 @@ const BankAccountMaster = ({ returnPath, returnState }) => {
       bankName: account.bankName || '',
       ifsc: account.ifsc || '',
       accountNumber: account.accountNumber || '',
-      openingBalance: account.openingBalance || 0,
     });
     setShowForm(true);
   };
@@ -256,16 +254,8 @@ const BankAccountMaster = ({ returnPath, returnState }) => {
                   </div>
                   <div>
                     <label className="block text-sm font-semibold text-gray-700 mb-2.5">
-                      Opening Balance
+                      {/* Opening Balance removed */}
                     </label>
-                    <input
-                      type="number"
-                      value={formData.openingBalance}
-                      onChange={(e) => setFormData({ ...formData, openingBalance: parseFloat(e.target.value) || 0 })}
-                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 bg-white text-gray-900 placeholder:text-gray-400 text-sm"
-                      step="0.01"
-                      placeholder="0.00"
-                    />
                   </div>
                 </div>
               </div>
@@ -315,7 +305,6 @@ const BankAccountMaster = ({ returnPath, returnState }) => {
                   <th className="px-6 py-4 text-left text-xs font-bold text-white uppercase tracking-wider">Bank Name</th>
                   <th className="px-6 py-4 text-left text-xs font-bold text-white uppercase tracking-wider">IFSC</th>
                   <th className="px-6 py-4 text-left text-xs font-bold text-white uppercase tracking-wider">Account Number</th>
-                  <th className="px-6 py-4 text-right text-xs font-bold text-white uppercase tracking-wider">Opening Balance</th>
                   <th className="px-6 py-4 text-center text-xs font-bold text-white uppercase tracking-wider">Actions</th>
                 </tr>
               </thead>
@@ -326,9 +315,6 @@ const BankAccountMaster = ({ returnPath, returnState }) => {
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">{account.bankName}</td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">{account.ifsc || '-'}</td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">{account.accountNumber || '-'}</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-gray-900 text-right">
-                      ₹{account.openingBalance?.toLocaleString('en-IN', { minimumFractionDigits: 2 }) || '0.00'}
-                    </td>
                     <td className="px-6 py-4 whitespace-nowrap text-center">
                       <ActionDropdown onEdit={() => handleEdit(account)} onDelete={() => handleDelete(account._id)} />
                     </td>

@@ -238,20 +238,20 @@ const PaymentModeMaster = ({ returnPath, returnState }) => {
             <table className="w-full">
               <thead className="bg-gray-50 border-b border-gray-200">
                 <tr>
+                  <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Created At</th>
                   <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Name</th>
                   <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Description</th>
-                  <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Created At</th>
                   <th className="px-6 py-4 text-center text-xs font-semibold text-gray-700 uppercase tracking-wider">Actions</th>
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-100">
                 {paymentModes.map((mode) => (
                   <tr key={mode._id} className="hover:bg-gray-50 transition-colors duration-150">
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{mode.name}</td>
-                    <td className="px-6 py-4 text-sm text-gray-600">{mode.description || '-'}</td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                       {mode.createdAt ? format(new Date(mode.createdAt), 'dd/MM/yyyy') : '-'}
                     </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{mode.name}</td>
+                    <td className="px-6 py-4 text-sm text-gray-600">{mode.description || '-'}</td>
                     <td className="px-6 py-4 whitespace-nowrap text-center">
                       <ActionDropdown onEdit={() => handleEdit(mode)} onDelete={() => handleDelete(mode._id)} />
                     </td>
