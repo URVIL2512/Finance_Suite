@@ -3,13 +3,14 @@
 @tailwind utilities;
 
 @layer base {
+  html {
+    @apply h-full;
+  }
+
   body {
-    @apply bg-gradient-to-br from-slate-50 via-blue-50/30 to-slate-50;
-    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
-      'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
-      sans-serif;
-    -webkit-font-smoothing: antialiased;
-    -moz-osx-font-smoothing: grayscale;
+    @apply min-h-full bg-slate-50 text-slate-900 antialiased;
+    font-family: 'Inter', ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI',
+      Roboto, Oxygen, Ubuntu, Cantarell, 'Helvetica Neue', Arial, 'Noto Sans', sans-serif;
   }
 
   /* Better spacing for large screens (MacBook, desktop) */
@@ -34,56 +35,52 @@
 }
 
 @layer components {
-  /* Refined Cards with Depth */
+  /* Cards */
   .card {
-    @apply bg-white rounded-xl shadow-[0_1px_3px_0_rgba(0,0,0,0.1),0_1px_2px_-1px_rgba(0,0,0,0.1)] 
-           border border-slate-200/60 hover:shadow-[0_4px_12px_0_rgba(0,0,0,0.15)] 
-           transition-all duration-300 ease-out backdrop-blur-sm;
+    @apply rounded-xl border border-slate-200 bg-white shadow-sm transition
+           hover:shadow-md;
   }
   
   .card-gradient {
-    @apply bg-white/80 backdrop-blur-sm rounded-xl 
-           shadow-[0_2px_8px_0_rgba(0,0,0,0.08)] border border-slate-200/50
-           hover:shadow-[0_8px_24px_0_rgba(0,0,0,0.12)] hover:border-slate-300/60
-           transition-all duration-300 ease-out;
+    /* Backwards-compatible name used across the app */
+    @apply card;
   }
   
-  /* Polished Buttons with Better Interactions */
+  /* Buttons */
   .btn-primary {
-    @apply px-6 py-2.5 bg-gradient-to-r from-blue-600 to-blue-700 text-white font-semibold 
-           rounded-lg shadow-[0_2px_8px_rgba(37,99,235,0.3)] 
-           hover:from-blue-700 hover:to-blue-800 hover:shadow-[0_4px_12px_rgba(37,99,235,0.4)]
-           active:scale-[0.98] transition-all duration-200 text-sm tracking-wide
-           border border-blue-800/20;
+    @apply inline-flex items-center justify-center rounded-lg bg-finance-blue px-5 py-2.5 text-sm font-semibold text-white
+           shadow-sm transition
+           hover:bg-finance-blueLight hover:shadow-md
+           focus:outline-none focus:ring-2 focus:ring-finance-blue/25 focus:ring-offset-2 focus:ring-offset-slate-50
+           active:translate-y-px;
   }
   
   .btn-secondary {
-    @apply px-6 py-2.5 bg-white/90 backdrop-blur-sm text-slate-700 font-semibold 
-           rounded-lg border border-slate-300/80 shadow-[0_1px_3px_rgba(0,0,0,0.1)]
-           hover:border-slate-400 hover:bg-white hover:shadow-[0_4px_12px_rgba(0,0,0,0.1)]
-           active:scale-[0.98] transition-all duration-200 text-sm;
+    @apply inline-flex items-center justify-center rounded-lg border border-slate-300 bg-white px-5 py-2.5 text-sm font-semibold text-slate-700
+           shadow-sm transition
+           hover:bg-slate-50 hover:shadow-md
+           focus:outline-none focus:ring-2 focus:ring-finance-blue/20 focus:ring-offset-2 focus:ring-offset-slate-50
+           active:translate-y-px;
   }
   
-  /* Refined Table Headers */
+  /* Table */
   .table-header {
-    @apply bg-gradient-to-r from-slate-800 to-slate-900 text-white font-semibold 
-           text-xs uppercase tracking-wider shadow-sm;
+    @apply bg-slate-900 text-white font-semibold text-xs uppercase tracking-wider;
   }
   
-  /* Enhanced Input Fields */
+  /* Inputs */
   .input-field {
-    @apply w-full px-4 py-2.5 text-sm border border-slate-300/80 rounded-lg 
-           focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500/60
-           transition-all duration-200 bg-white/90 backdrop-blur-sm 
-           text-slate-900 placeholder:text-slate-400
-           hover:border-slate-400/80 hover:bg-white shadow-sm;
+    @apply w-full rounded-lg border border-slate-300 bg-white px-3.5 py-2.5 text-sm text-slate-900 shadow-sm
+           placeholder:text-slate-400 transition
+           hover:border-slate-400
+           focus:outline-none focus:ring-2 focus:ring-finance-blue/20 focus:border-finance-blue;
   }
   
   .select-field {
-    @apply w-full px-4 py-2.5 text-sm border border-slate-300/80 rounded-lg 
-           focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500/60
-           transition-all duration-200 bg-white/90 backdrop-blur-sm text-slate-900 
-           cursor-pointer hover:border-slate-400/80 hover:bg-white shadow-sm;
+    @apply w-full cursor-pointer rounded-lg border border-slate-300 bg-white px-3.5 py-2.5 text-sm font-medium text-slate-900 shadow-sm
+           transition
+           hover:border-slate-400
+           focus:outline-none focus:ring-2 focus:ring-finance-blue/20 focus:border-finance-blue;
   }
   
   /* Refined Status Badges */
@@ -111,14 +108,13 @@
            border border-slate-200/60 shadow-sm;
   }
   
-  /* Enhanced Page Headers */
+  /* Page headers */
   .page-header {
-    @apply text-3xl lg:text-4xl xl:text-5xl font-bold bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 
-           bg-clip-text text-transparent tracking-tight mb-2 lg:mb-3;
+    @apply text-3xl lg:text-4xl font-semibold text-slate-900 tracking-tight mb-2;
   }
 
   .page-subtitle {
-    @apply text-sm lg:text-base text-slate-600/90 mt-1.5 lg:mt-2 font-medium;
+    @apply text-sm lg:text-base text-slate-600 mt-1;
   }
   
   /* Section Headers */
@@ -133,27 +129,24 @@
 
   /* Compact Input Fields */
   .input-field-compact {
-    @apply w-full px-3 py-2 text-sm border border-slate-300/80 rounded-lg 
-           focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500/60
-           transition-all duration-200 bg-white/90 backdrop-blur-sm 
-           text-slate-900 placeholder:text-slate-400 shadow-sm
-           hover:border-slate-400/80 hover:bg-white;
+    @apply w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm
+           placeholder:text-slate-400 transition
+           hover:border-slate-400
+           focus:outline-none focus:ring-2 focus:ring-finance-blue/20 focus:border-finance-blue;
   }
 
   .select-field-compact {
-    @apply w-full px-3 py-2 text-sm border border-slate-300/80 rounded-lg 
-           focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500/60
-           transition-all duration-200 bg-white/90 backdrop-blur-sm 
-           text-slate-900 cursor-pointer shadow-sm
-           hover:border-slate-400/80 hover:bg-white;
+    @apply w-full cursor-pointer rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-900 shadow-sm
+           transition
+           hover:border-slate-400
+           focus:outline-none focus:ring-2 focus:ring-finance-blue/20 focus:border-finance-blue;
   }
 
-  /* Refined Accordion */
+  /* Accordion */
   .accordion-header {
-    @apply flex items-center justify-between w-full px-4 py-2.5 text-sm font-semibold 
-           text-slate-700 bg-gradient-to-r from-slate-50 to-slate-100/50 
-           hover:from-slate-100 hover:to-slate-200/50 rounded-lg cursor-pointer 
-           transition-all duration-200 border border-slate-200/60 shadow-sm;
+    @apply flex w-full items-center justify-between rounded-lg border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm font-semibold text-slate-700
+           shadow-sm transition
+           hover:bg-slate-100;
   }
 
   .accordion-content {
