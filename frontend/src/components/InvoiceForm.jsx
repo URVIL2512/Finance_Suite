@@ -2787,6 +2787,30 @@ const InvoiceForm = ({ invoice, customers = [], onSubmit, onCancel, onCustomerAd
           </button>
         </div>
       </form>
+
+      {/* Delete All Items Confirmation Modal */}
+      <ConfirmationModal
+        isOpen={deleteAllItemsConfirm}
+        onClose={() => setDeleteAllItemsConfirm(false)}
+        onConfirm={handleDeleteAllItemsConfirm}
+        title="Confirm Delete All Items"
+        message="Are you sure you want to delete all items? This action cannot be undone."
+        confirmText="Delete All"
+        cancelText="Cancel"
+        confirmButtonColor="red"
+      />
+
+      {/* Delete Item Confirmation Modal */}
+      <ConfirmationModal
+        isOpen={deleteItemConfirm.show}
+        onClose={() => setDeleteItemConfirm({ show: false, itemId: null })}
+        onConfirm={handleDeleteItemConfirm}
+        title="Confirm Delete Item"
+        message="Are you sure you want to delete this item?"
+        confirmText="Delete"
+        cancelText="Cancel"
+        confirmButtonColor="red"
+      />
     </div>
   );
 };
