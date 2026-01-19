@@ -4,6 +4,10 @@ import Invoice from '../models/Invoice.js';
 import { generateExpenseAgingPDF } from '../utils/expenseAgingPdfGenerator.js';
 import path from 'path';
 import fs from 'fs';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 // @desc    Get expense dashboard summary
 // @route   GET /api/dashboard/expenses
