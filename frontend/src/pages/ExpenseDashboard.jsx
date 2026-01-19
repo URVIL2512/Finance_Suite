@@ -9,22 +9,22 @@ const ExpenseDashboard = () => {
   const currentYear = new Date().getFullYear();
 
   useEffect(() => {
+    const fetchData = async () => {
+      try {
+        setLoading(true);
+        const params = { year: currentYear };
+        if (month && month !== '') params.month = month;
+        const response = await dashboardAPI.getExpenseDashboard(params);
+        setData(response.data);
+      } catch (error) {
+        console.error('Error fetching expense dashboard:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    
     fetchData();
-  }, [month]);
-
-  const fetchData = async () => {
-    try {
-      setLoading(true);
-      const params = { year: currentYear };
-      if (month && month !== '') params.month = month;
-      const response = await dashboardAPI.getExpenseDashboard(params);
-      setData(response.data);
-    } catch (error) {
-      console.error('Error fetching expense dashboard:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
+  }, [month, currentYear]);
 
   if (loading) {
     return (
