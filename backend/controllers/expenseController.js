@@ -9,6 +9,18 @@ import XLSX from 'xlsx';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+const clamp = (n, min, max) => Math.min(max, Math.max(min, n));
+const normalizePayment = ({ totalAmount, paidAmount }) => {
+  const total = Math.max(0, parseFloat(totalAmount) || 0);
+  const paidRaw = parseFloat(paidAmount) || 0;
+  const paid = total > 0 ? clamp(paidRaw, 0, total) : 0;
+  const epsilon = 0.01;
+  let status = 'Unpaid';
+  if (total > 0 && paid >= total - epsilon) status = 'Paid';
+  else if (paid > epsilon) status = 'Partial';
+  return { total, paid, status };
+};
+
 // @desc    Get all expenses
 // @route   GET /api/expenses
 // @access  Private
@@ -45,6 +57,15 @@ export const getExpenses = async (req, res) => {
         }
       });
       
+      // Guardrail: never allow paid > total in API responses (prevents negative due in UI)
+      const normalized = normalizePayment({
+        totalAmount: expense.totalAmount,
+        paidAmount: expense.paidAmount,
+      });
+      expense.totalAmount = normalized.total;
+      expense.paidAmount = normalized.paid;
+      expense.status = normalized.status;
+
       return expense;
     });
     
@@ -124,6 +145,15 @@ export const createExpense = async (req, res) => {
       }
     });
 
+    // Production guardrail: paidAmount must never exceed totalAmount
+    const normalized = normalizePayment({
+      totalAmount: expenseData.totalAmount,
+      paidAmount: expenseData.paidAmount,
+    });
+    expenseData.totalAmount = normalized.total;
+    expenseData.paidAmount = normalized.paid;
+    expenseData.status = normalized.status;
+
     const expense = await Expense.create(expenseData);
     res.status(201).json(expense);
   } catch (error) {
@@ -178,63 +208,64 @@ export const updateExpense = async (req, res) => {
       }
     });
 
-    // Track payment history if paidAmount changed
+    // Fetch existing expense to enforce invariant: paidAmount <= totalAmount
     const existingExpense = await Expense.findOne({ _id: req.params.id, user: req.user._id });
-    if (existingExpense && req.body.paidAmount !== undefined) {
-      const oldPaidAmount = existingExpense.paidAmount || 0;
-      const newPaidAmount = parseFloat(req.body.paidAmount) || 0;
-      
-      // Only add to history if paidAmount increased (new payment made)
-      if (newPaidAmount > oldPaidAmount) {
-        const totalAmount = req.body.totalAmount || existingExpense.totalAmount || 0;
-        const amountPaidInThisTransaction = newPaidAmount - oldPaidAmount;
-        
-        // Determine status after this payment (must be accurate)
-        // Use a small epsilon to handle floating point comparisons
-        const epsilon = 0.01;
-        let statusAfterPayment = 'Unpaid';
-        if (totalAmount > 0 && (newPaidAmount >= totalAmount - epsilon)) {
-          statusAfterPayment = 'Paid';
-        } else if (newPaidAmount > epsilon) {
-          statusAfterPayment = 'Partial';
-        }
-        
-        // Initialize paymentHistory if it doesn't exist
-        if (!existingExpense.paymentHistory) {
-          existingExpense.paymentHistory = [];
-        }
-        
-        // Add new payment entry to history
+    if (!existingExpense) {
+      return res.status(404).json({ message: 'Expense not found' });
+    }
+
+    const existingNormalized = normalizePayment({
+      totalAmount: existingExpense.totalAmount,
+      paidAmount: existingExpense.paidAmount,
+    });
+
+    const nextTotalCandidate =
+      req.body.totalAmount !== undefined ? req.body.totalAmount : existingExpense.totalAmount;
+    const nextPaidCandidate =
+      req.body.paidAmount !== undefined ? req.body.paidAmount : existingExpense.paidAmount;
+
+    const nextNormalized = normalizePayment({
+      totalAmount: nextTotalCandidate,
+      paidAmount: nextPaidCandidate,
+    });
+
+    const hasInvalidExisting =
+      (parseFloat(existingExpense.totalAmount) || 0) > 0 &&
+      (parseFloat(existingExpense.paidAmount) || 0) > (parseFloat(existingExpense.totalAmount) || 0) + 0.01;
+
+    const shouldNormalize =
+      req.body.totalAmount !== undefined || req.body.paidAmount !== undefined || hasInvalidExisting;
+
+    if (shouldNormalize) {
+      req.body.totalAmount = nextNormalized.total;
+      req.body.paidAmount = nextNormalized.paid;
+      req.body.status = nextNormalized.status;
+    }
+
+    // Payment history tracking (based on normalized values so we never record over-payments)
+    if (shouldNormalize) {
+      const oldPaid = existingNormalized.paid;
+      const newPaid = nextNormalized.paid;
+      const delta = newPaid - oldPaid;
+
+      if (delta > 0.001) {
         const paymentEntry = {
           paymentDate: new Date(),
-          amountPaid: Math.round(amountPaidInThisTransaction * 100) / 100, // Round to 2 decimals
-          cumulativePaid: Math.round(newPaidAmount * 100) / 100, // Round to 2 decimals
-          status: statusAfterPayment,
+          amountPaid: Math.round(delta * 100) / 100,
+          cumulativePaid: Math.round(newPaid * 100) / 100,
+          status: nextNormalized.status,
           transactionRef: req.body.paidTransactionRef || existingExpense.paidTransactionRef || '',
           notes: req.body.notes || '',
           updatedBy: req.body.editedBy || req.user?.name || '',
         };
-        
-        // Always update paymentHistory array (don't check if it exists in req.body)
+
         req.body.paymentHistory = [...(existingExpense.paymentHistory || []), paymentEntry];
-      } else if (newPaidAmount < oldPaidAmount) {
-        // If paid amount decreased, we might want to handle this differently
-        // For now, we'll just update without adding to history
-        // But we should preserve existing payment history
-        if (!req.body.paymentHistory) {
-          req.body.paymentHistory = existingExpense.paymentHistory || [];
-        }
-      } else {
-        // Paid amount unchanged, preserve existing history
-        if (!req.body.paymentHistory) {
-          req.body.paymentHistory = existingExpense.paymentHistory || [];
-        }
-      }
-    } else {
-      // If paidAmount not in update, preserve existing history
-      if (existingExpense && !req.body.paymentHistory) {
+      } else if (!req.body.paymentHistory) {
         req.body.paymentHistory = existingExpense.paymentHistory || [];
       }
+    } else if (!req.body.paymentHistory) {
+      // If payment wasn't touched, always preserve existing history
+      req.body.paymentHistory = existingExpense.paymentHistory || [];
     }
 
     const expense = await Expense.findOneAndUpdate(

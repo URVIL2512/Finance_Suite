@@ -22,16 +22,20 @@ export const getExpenseDashboard = async (req, res) => {
     const expenses = await Expense.find(filter);
 
     // Total expenses for the year
-    const totalExpenses = expenses.reduce((sum, exp) => sum + (exp.totalAmount || 0), 0);
+    const totalExpenses = expenses.reduce((sum, exp) => sum + Math.max(0, exp.totalAmount || 0), 0);
     const totalGST = expenses.reduce((sum, exp) => sum + (exp.gstAmount || 0), 0);
     const totalTDS = expenses.reduce((sum, exp) => sum + (exp.tdsAmount || 0), 0);
     
     // Calculate paid and unpaid amounts from expenses
-    const paidAmount = expenses.reduce((sum, exp) => sum + (exp.paidAmount || 0), 0);
+    const paidAmount = expenses.reduce((sum, exp) => {
+      const total = Math.max(0, exp.totalAmount || 0);
+      const paid = Math.min(Math.max(0, exp.paidAmount || 0), total);
+      return sum + paid;
+    }, 0);
     const unpaidAmount = expenses.reduce((sum, exp) => {
-      const total = exp.totalAmount || 0;
-      const paid = exp.paidAmount || 0;
-      return sum + (total - paid);
+      const total = Math.max(0, exp.totalAmount || 0);
+      const paid = Math.min(Math.max(0, exp.paidAmount || 0), total);
+      return sum + Math.max(0, total - paid);
     }, 0);
 
     // Category-wise summary
@@ -167,8 +171,8 @@ export const getExpenseAging = async (req, res) => {
 
     expenses.forEach((expense) => {
       const totalAmount = expense.totalAmount || 0;
-      const paidAmount = expense.paidAmount || 0;
-      const outstandingAmount = totalAmount - paidAmount;
+      const paidAmount = Math.min(Math.max(0, expense.paidAmount || 0), Math.max(0, totalAmount || 0));
+      const outstandingAmount = Math.max(0, (totalAmount || 0) - paidAmount);
 
       // Only consider expenses with outstanding amount
       if (outstandingAmount > 0) {
@@ -246,8 +250,8 @@ export const exportExpenseAgingToPDF = async (req, res) => {
 
     expenses.forEach((expense) => {
       const totalAmount = expense.totalAmount || 0;
-      const paidAmount = expense.paidAmount || 0;
-      const outstandingAmount = totalAmount - paidAmount;
+      const paidAmount = Math.min(Math.max(0, expense.paidAmount || 0), Math.max(0, totalAmount || 0));
+      const outstandingAmount = Math.max(0, (totalAmount || 0) - paidAmount);
 
       // Only consider expenses with outstanding amount
       if (outstandingAmount > 0) {

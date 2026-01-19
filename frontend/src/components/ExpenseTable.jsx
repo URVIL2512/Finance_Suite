@@ -78,7 +78,13 @@ const ExpenseTable = ({ expenses, onEdit, onView, onViewHistory, onMarkPaid, onD
             </tr>
           </thead>
           <tbody className="bg-white divide-y divide-gray-200">
-            {expenses.map((expense, index) => (
+            {expenses.map((expense) => {
+              const total = Number(expense.totalAmount) || 0;
+              const paidRaw = Number(expense.paidAmount) || 0;
+              const paid = Math.min(Math.max(paidRaw, 0), Math.max(total, 0));
+              const due = Math.max(0, Math.max(total, 0) - paid);
+
+              return (
               <tr key={expense._id} className="hover:bg-slate-50 transition-all duration-150 border-b border-slate-200">
                 {onSelectExpense && (
                   <td className="px-3 sm:px-4 py-3 sm:py-4 whitespace-nowrap">
@@ -153,7 +159,7 @@ const ExpenseTable = ({ expenses, onEdit, onView, onViewHistory, onMarkPaid, onD
                   ₹{expense.totalAmount?.toLocaleString('en-IN', { minimumFractionDigits: 2 }) || '0.00'}
                 </td>
                 <td className="px-2 sm:px-3 py-3 sm:py-4 whitespace-nowrap text-sm font-semibold text-green-700 text-right">
-                  ₹{expense.paidAmount?.toLocaleString('en-IN', { minimumFractionDigits: 2 }) || '0.00'}
+                  ₹{paid.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
                 </td>
                 <td className="px-2 sm:px-3 py-3 sm:py-4 whitespace-nowrap text-sm font-medium text-center lg:sticky lg:right-[140px] bg-white hover:bg-slate-50 lg:z-10">
                   <span className={`px-2.5 py-1 text-xs font-semibold rounded-full border shadow-sm ${
@@ -167,13 +173,13 @@ const ExpenseTable = ({ expenses, onEdit, onView, onViewHistory, onMarkPaid, onD
                   </span>
                 </td>
                 <td className="px-2 sm:px-3 py-3 sm:py-4 whitespace-nowrap text-sm font-semibold text-red-700 text-right lg:sticky lg:right-[70px] bg-white hover:bg-slate-50 lg:z-10">
-                  ₹{((expense.totalAmount || 0) - (expense.paidAmount || 0)).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                  ₹{due.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
                 </td>
                 <td className="px-2 sm:px-3 py-3 sm:py-4 whitespace-nowrap text-sm font-medium text-center lg:sticky lg:right-0 bg-white hover:bg-slate-50 lg:z-10">
                   <div className="flex items-center justify-center">
                     <ActionDropdown
                       onViewHistory={onViewHistory ? () => onViewHistory(expense) : null}
-                      onMarkPaid={onMarkPaid && (expense.status !== 'Paid' && !(expense.paidAmount >= (expense.totalAmount || 0) && (expense.totalAmount || 0) > 0)) ? () => onMarkPaid(expense) : null}
+                      onMarkPaid={onMarkPaid && (expense.status !== 'Paid' && !(paid >= (expense.totalAmount || 0) && (expense.totalAmount || 0) > 0)) ? () => onMarkPaid(expense) : null}
                       onView={onView ? () => onView(expense) : null}
                       onEdit={() => onEdit(expense)}
                       onDelete={(onDeleteSingle || onDelete) ? () => {
@@ -184,7 +190,8 @@ const ExpenseTable = ({ expenses, onEdit, onView, onViewHistory, onMarkPaid, onD
                   </div>
                 </td>
               </tr>
-            ))}
+              );
+            })}
           </tbody>
         </table>
       </div>
