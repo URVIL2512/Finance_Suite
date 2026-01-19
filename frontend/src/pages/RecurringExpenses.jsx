@@ -397,36 +397,6 @@ const RecurringExpenses = () => {
                 </div>
               </div>
 
-              {/* Vendor Breakdown */}
-              <div className="bg-white rounded-xl shadow-lg p-6 lg:p-8 border border-gray-200 mb-6 lg:mb-8">
-                <h2 className="text-xl lg:text-2xl font-bold text-gray-800 mb-4 lg:mb-6">Vendor Breakdown</h2>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-                  {(() => {
-                    const vendorTotals = recurringExpenses.reduce((acc, re) => {
-                      const baseExpense = re.baseExpense;
-                      const vendor = baseExpense?.vendor || 'Uncategorized';
-                      // Calculate total from all expenses created by this recurring expense
-                      const matchedExpenses = getExpensesForRecurringExpense(re);
-                      const total = matchedExpenses.reduce((sum, exp) => sum + (exp.totalAmount || 0), 0);
-                      acc[vendor] = (acc[vendor] || 0) + total;
-                      return acc;
-                    }, {});
-                    
-                    return Object.entries(vendorTotals)
-                      .sort(([, a], [, b]) => b - a)
-                      .map(([vendor, total]) => (
-                        <div key={vendor} className="bg-gray-50 rounded-lg p-4 border border-gray-200 hover:shadow-md transition-shadow">
-                          <div className="flex items-center justify-between mb-2">
-                            <span className="text-sm font-semibold text-gray-700">{vendor}</span>
-                          </div>
-                          <p className="text-lg font-bold text-gray-900">
-                            ₹{total.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
-                          </p>
-                        </div>
-                      ));
-                  })()}
-                </div>
-              </div>
 
             </div>
           )}

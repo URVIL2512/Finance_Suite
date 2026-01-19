@@ -39,8 +39,59 @@ export const getExpenses = async (req, res) => {
       .sort({ date: -1, createdAt: -1 })
       .lean();
     
+    // Automatically remove duplicates (keep the oldest one based on createdAt)
+    const seenExpenses = new Map();
+    const duplicateIds = [];
+    
+    expenses.forEach(expense => {
+      // Create a unique key based on vendor, category, date, totalAmount, department
+      const expenseDate = expense.date ? new Date(expense.date) : new Date();
+      expenseDate.setHours(0, 0, 0, 0);
+      
+      const key = JSON.stringify({
+        vendor: (expense.vendor || '').trim(),
+        category: (expense.category || '').trim(),
+        department: (expense.department || '').trim(),
+        totalAmount: parseFloat(expense.totalAmount) || 0,
+        date: expenseDate.toISOString().split('T')[0], // YYYY-MM-DD format
+      });
+      
+      if (seenExpenses.has(key)) {
+        // Duplicate found - compare createdAt to keep the oldest
+        const existing = seenExpenses.get(key);
+        const existingDate = new Date(existing.createdAt);
+        const currentDate = new Date(expense.createdAt);
+        
+        if (currentDate < existingDate) {
+          // Current is older, mark existing as duplicate
+          duplicateIds.push(existing._id);
+          seenExpenses.set(key, expense);
+        } else {
+          // Existing is older, mark current as duplicate
+          duplicateIds.push(expense._id);
+        }
+      } else {
+        // First occurrence
+        seenExpenses.set(key, expense);
+      }
+    });
+    
+    // Delete duplicates in bulk
+    if (duplicateIds.length > 0) {
+      try {
+        await Expense.deleteMany({ _id: { $in: duplicateIds }, user: req.user._id });
+        console.log(`Automatically deleted ${duplicateIds.length} duplicate expense(s) for user ${req.user._id}`);
+      } catch (error) {
+        console.error('Error deleting duplicates:', error);
+        // Continue even if deletion fails
+      }
+    }
+    
+    // Filter out duplicates from the response
+    const uniqueExpenses = expenses.filter(expense => !duplicateIds.includes(expense._id));
+    
     // Ensure all expenses have complete data structure
-    const expensesWithCompleteData = expenses.map(expense => {
+    const expensesWithCompleteData = uniqueExpenses.map(expense => {
       // Ensure all numeric fields are numbers
       const numericFields = ['amountExclTax', 'gstPercentage', 'gstAmount', 'tdsPercentage', 'tdsAmount', 'totalAmount', 'paidAmount'];
       numericFields.forEach(field => {
@@ -153,6 +204,34 @@ export const createExpense = async (req, res) => {
     expenseData.totalAmount = normalized.total;
     expenseData.paidAmount = normalized.paid;
     expenseData.status = normalized.status;
+
+    // Check for duplicate expense before creating
+    // Duplicate = same vendor, category, date, totalAmount, department
+    const expenseDate = expenseData.date ? new Date(expenseData.date) : new Date();
+    const startOfDay = new Date(expenseDate);
+    startOfDay.setHours(0, 0, 0, 0);
+    const endOfDay = new Date(expenseDate);
+    endOfDay.setHours(23, 59, 59, 999);
+    
+    const duplicateCheck = await Expense.findOne({
+      user: req.user._id,
+      vendor: expenseData.vendor || '',
+      category: expenseData.category || '',
+      department: expenseData.department || '',
+      totalAmount: expenseData.totalAmount || 0,
+      date: {
+        $gte: startOfDay,
+        $lte: endOfDay
+      }
+    });
+
+    if (duplicateCheck) {
+      // Duplicate found - return existing expense instead of creating new one
+      return res.status(200).json({
+        ...duplicateCheck.toObject(),
+        message: 'Duplicate expense detected. Returning existing expense.'
+      });
+    }
 
     const expense = await Expense.create(expenseData);
     res.status(201).json(expense);

@@ -35,7 +35,7 @@ const Expenses = () => {
     startDate: '',
     endDate: '',
     vendor: '',
-    status: '',
+    status: 'UnpaidAndPartial', // Default: Show Unpaid and Partial only
   });
   const [appliedFilters, setAppliedFilters] = useState({
     month: '',
@@ -44,7 +44,7 @@ const Expenses = () => {
     startDate: '',
     endDate: '',
     vendor: '',
-    status: '',
+    status: 'UnpaidAndPartial', // Default: Show Unpaid and Partial only
   });
   const [showFilters, setShowFilters] = useState(false);
   const [importing, setImporting] = useState(false);
@@ -157,9 +157,18 @@ const Expenses = () => {
 
       // Client-side filtering for status
       if (appliedFilters.status) {
-        filteredExpenses = filteredExpenses.filter(expense => 
-          expense.status && expense.status.toLowerCase() === appliedFilters.status.toLowerCase()
-        );
+        if (appliedFilters.status === 'UnpaidAndPartial') {
+          // Default: Show only Unpaid and Partial
+          filteredExpenses = filteredExpenses.filter(expense => {
+            const status = expense.status ? expense.status.toLowerCase() : '';
+            return status === 'unpaid' || status === 'partial';
+          });
+        } else if (appliedFilters.status === 'Paid') {
+          // Show only Paid expenses
+          filteredExpenses = filteredExpenses.filter(expense => 
+            expense.status && expense.status.toLowerCase() === 'paid'
+          );
+        }
       }
 
       // Client-side search filtering - search across multiple fields
@@ -194,7 +203,40 @@ const Expenses = () => {
         });
       }
 
-      setExpenses(filteredExpenses);
+      // Remove duplicates - first by _id, then by key fields
+      const seenIds = new Set();
+      const seenExpenses = new Map();
+      
+      const uniqueExpenses = filteredExpenses.filter(expense => {
+        // Skip expenses without _id
+        if (!expense._id) return false;
+        
+        // First check: Remove duplicates by _id (keep first occurrence)
+        if (seenIds.has(expense._id)) {
+          return false; // Duplicate _id, skip it
+        }
+        seenIds.add(expense._id);
+        
+        // Second check: Remove duplicates based on key fields (same expense data)
+        // Create a unique key based on vendor, category, date, totalAmount, and department
+        const expenseKey = JSON.stringify({
+          vendor: (expense.vendor || '').trim(),
+          category: (expense.category || '').trim(),
+          date: expense.date ? new Date(expense.date).toISOString().split('T')[0] : '',
+          totalAmount: parseFloat(expense.totalAmount) || 0,
+          department: (expense.department || '').trim(),
+        });
+        
+        // If we've seen this exact expense data before, skip it (keep the first one)
+        if (seenExpenses.has(expenseKey)) {
+          return false; // Duplicate expense data, skip it
+        }
+        seenExpenses.set(expenseKey, expense._id);
+        
+        return true;
+      });
+
+      setExpenses(uniqueExpenses);
     } catch (error) {
       console.error('Error fetching expenses:', error);
     } finally {
@@ -493,7 +535,7 @@ const Expenses = () => {
       startDate: '',
       endDate: '',
       vendor: '',
-      status: '',
+      status: 'UnpaidAndPartial', // Reset to default: Unpaid and Partial
     };
     setFilters(clearedFilters);
     setAppliedFilters(clearedFilters);
@@ -722,20 +764,18 @@ const Expenses = () => {
 
   const expenseSummary = (expenses || []).reduce(
     (acc, expense) => {
-      const total = getComputedTotalAmount(expense);
-      const paid = getPaidAmount(expense, total);
+      // Total Expenses = sum of totalAmount
+      const total = parseFloat(expense?.totalAmount) || 0;
+      const paid = parseFloat(expense?.paidAmount) || 0;
       const due = Math.max(0, total - paid);
 
       acc.total += total;
       acc.paid += paid;
       acc.pending += due;
 
-      // Unpaid: no payment made yet (due > 0, paid ~ 0)
-      if (due > 0 && paid <= 0.01) acc.unpaid += due;
-
       return acc;
     },
-    { total: 0, paid: 0, pending: 0, unpaid: 0 }
+    { total: 0, paid: 0, pending: 0 }
   );
 
   return (
@@ -828,7 +868,7 @@ const Expenses = () => {
 
       {/* Summary Cards */}
       {!showForm && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6 lg:mb-8">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-6 lg:mb-8">
           <div className="card p-5">
             <div className="flex items-start justify-between gap-4">
               <div>
@@ -877,22 +917,27 @@ const Expenses = () => {
             </div>
           </div>
 
-          <div className="card p-5">
-            <div className="flex items-start justify-between gap-4">
-              <div>
-                <p className="text-sm font-medium text-slate-600">Unpaid (Due)</p>
-                <p className="mt-2 text-2xl font-semibold text-slate-900">
-                  ₹{expenseSummary.unpaid.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
-                </p>
-              </div>
-              <div className="rounded-lg border border-slate-200 bg-slate-50 p-2.5">
-                <svg className="h-5 w-5 text-slate-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-              </div>
-            </div>
-          </div>
+        </div>
+      )}
 
+      {/* Status Filter - Outside Filters Section */}
+      {!showForm && (
+        <div className="mb-4 lg:mb-6">
+          <div className="flex items-center gap-3">
+            <label className="text-sm font-semibold text-gray-700 whitespace-nowrap">Status:</label>
+            <MobileSelect
+              value={filters.status}
+              onChange={(e) => {
+                const newFilters = { ...filters, status: e.target.value };
+                setFilters(newFilters);
+                setAppliedFilters(newFilters);
+              }}
+              className="select-field w-full sm:w-48"
+            >
+              <option value="UnpaidAndPartial">Unpaid & Partial</option>
+              <option value="Paid">Paid</option>
+            </MobileSelect>
+          </div>
         </div>
       )}
 
@@ -971,23 +1016,6 @@ const Expenses = () => {
                     {t}
                   </option>
                 ))}
-              </MobileSelect>
-            </div>
-            <div className="space-y-2">
-              <label className="block text-sm font-semibold text-gray-700">Status</label>
-              <MobileSelect
-                value={filters.status}
-                onChange={(e) => {
-                  const newFilters = { ...filters, status: e.target.value };
-                  setFilters(newFilters);
-                  setAppliedFilters(newFilters);
-                }}
-                className="select-field w-full"
-              >
-                <option value="">All Status</option>
-                <option value="Paid">Paid</option>
-                <option value="Unpaid">Unpaid</option>
-                <option value="Partial">Partial</option>
               </MobileSelect>
             </div>
             <div className="space-y-2">

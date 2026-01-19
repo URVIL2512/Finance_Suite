@@ -55,8 +55,36 @@ export const createRecurringExpense = async (req, res) => {
 
     const validExpenseIds = expenses.map(exp => exp._id);
 
-    // Prepare recurring expense documents for bulk insert (much faster than individual creates)
-    const recurringExpenseDocs = validExpenseIds.map(expenseId => ({
+    // Check for duplicates before creating
+    // Duplicate = same baseExpense, repeatEvery, startOn (same day)
+    const startOfDay = new Date(startDate);
+    startOfDay.setHours(0, 0, 0, 0);
+    const endOfDay = new Date(startDate);
+    endOfDay.setHours(23, 59, 59, 999);
+
+    // Filter out expenses that already have recurring schedules
+    const existingRecurring = await RecurringExpense.find({
+      user: req.user._id,
+      baseExpense: { $in: validExpenseIds },
+      repeatEvery,
+      startOn: {
+        $gte: startOfDay,
+        $lte: endOfDay
+      }
+    }).select('baseExpense');
+
+    const existingBaseExpenseIds = new Set(existingRecurring.map(re => re.baseExpense.toString()));
+    const newExpenseIds = validExpenseIds.filter(expId => !existingBaseExpenseIds.has(expId.toString()));
+
+    if (newExpenseIds.length === 0) {
+      return res.status(200).json({
+        message: 'All selected expenses already have recurring schedules. No duplicates created.',
+        recurringExpenses: existingRecurring,
+      });
+    }
+
+    // Prepare recurring expense documents for bulk insert (only for new ones)
+    const recurringExpenseDocs = newExpenseIds.map(expenseId => ({
       baseExpense: expenseId,
       repeatEvery,
       startOn: startDate,
@@ -67,11 +95,12 @@ export const createRecurringExpense = async (req, res) => {
     }));
 
     // Bulk insert all recurring expenses at once (much faster)
-    const recurringExpenses = await RecurringExpense.insertMany(recurringExpenseDocs);
+    const newRecurringExpenses = await RecurringExpense.insertMany(recurringExpenseDocs);
+    const allRecurringExpenses = [...existingRecurring, ...newRecurringExpenses];
 
     res.status(201).json({
-      message: `Recurring expense created for ${recurringExpenses.length} expense(s)`,
-      recurringExpenses,
+      message: `Recurring expense created for ${newRecurringExpenses.length} expense(s). ${existingRecurring.length} duplicate(s) skipped.`,
+      recurringExpenses: allRecurringExpenses,
     });
   } catch (error) {
     console.error('Error creating recurring expense:', error);
@@ -104,9 +133,61 @@ export const getRecurringExpenses = async (req, res) => {
     }
 
     // Keep only valid recurring expenses where base expense exists
-    const validRecurringExpenses = recurringExpenses.filter((rec) => {
+    let validRecurringExpenses = recurringExpenses.filter((rec) => {
       return rec.baseExpense && typeof rec.baseExpense === 'object' && rec.baseExpense._id;
     });
+
+    // Automatically remove duplicates (keep the oldest one based on createdAt)
+    const seenRecurring = new Map();
+    const duplicateIds = [];
+    
+    validRecurringExpenses.forEach(rec => {
+      const baseExpense = rec.baseExpense;
+      if (!baseExpense) return;
+      
+      // Create a unique key based on baseExpense ID, repeatEvery, and startOn (same day)
+      const startDate = new Date(rec.startOn);
+      startDate.setHours(0, 0, 0, 0);
+      
+      const key = JSON.stringify({
+        baseExpenseId: baseExpense._id.toString(),
+        repeatEvery: rec.repeatEvery || '',
+        startOn: startDate.toISOString().split('T')[0], // YYYY-MM-DD format
+      });
+      
+      if (seenRecurring.has(key)) {
+        // Duplicate found - compare createdAt to keep the oldest
+        const existing = seenRecurring.get(key);
+        const existingDate = new Date(existing.createdAt);
+        const currentDate = new Date(rec.createdAt);
+        
+        if (currentDate < existingDate) {
+          // Current is older, mark existing as duplicate
+          duplicateIds.push(existing._id);
+          seenRecurring.set(key, rec);
+        } else {
+          // Existing is older, mark current as duplicate
+          duplicateIds.push(rec._id);
+        }
+      } else {
+        // First occurrence
+        seenRecurring.set(key, rec);
+      }
+    });
+    
+    // Delete duplicates in bulk
+    if (duplicateIds.length > 0) {
+      try {
+        await RecurringExpense.deleteMany({ _id: { $in: duplicateIds }, user: req.user._id });
+        console.log(`Automatically deleted ${duplicateIds.length} duplicate recurring expense(s) for user ${req.user._id}`);
+      } catch (error) {
+        console.error('Error deleting duplicate recurring expenses:', error);
+        // Continue even if deletion fails
+      }
+    }
+    
+    // Filter out duplicates from the response
+    validRecurringExpenses = validRecurringExpenses.filter(rec => !duplicateIds.includes(rec._id));
 
     // IMPORTANT:
     // Recurring expenses are templates. Payment status belongs to actual generated expenses,
@@ -294,8 +375,34 @@ export const processRecurringExpenses = async (req, res) => {
 
         newExpenseData.user = recurringExpense.user._id;
 
-        // Create new expense
-        const newExpense = await Expense.create(newExpenseData);
+        // Check for duplicate before creating (same vendor, category, date, totalAmount, department)
+        const expenseDateForCheck = new Date(newExpenseData.date);
+        const startOfDay = new Date(expenseDateForCheck);
+        startOfDay.setHours(0, 0, 0, 0);
+        const endOfDay = new Date(expenseDateForCheck);
+        endOfDay.setHours(23, 59, 59, 999);
+        
+        const duplicateCheck = await Expense.findOne({
+          user: recurringExpense.user._id,
+          vendor: newExpenseData.vendor || '',
+          category: newExpenseData.category || '',
+          department: newExpenseData.department || '',
+          totalAmount: newExpenseData.totalAmount || 0,
+          date: {
+            $gte: startOfDay,
+            $lte: endOfDay
+          }
+        });
+
+        // Only create if no duplicate exists
+        let newExpense;
+        if (!duplicateCheck) {
+          newExpense = await Expense.create(newExpenseData);
+        } else {
+          // Duplicate found - skip creation and use existing
+          newExpense = duplicateCheck;
+          console.log(`Duplicate expense detected for recurring expense ${recurringExpense._id}, skipping creation`);
+        }
 
         // Calculate next process date
         const nextProcessDate = new Date(recurringExpense.nextProcessDate);
@@ -434,8 +541,34 @@ export const processRecurringExpensesDirect = async () => {
 
         newExpenseData.user = recurringExpense.user._id;
 
-        // Create new expense
-        const newExpense = await Expense.create(newExpenseData);
+        // Check for duplicate before creating (same vendor, category, date, totalAmount, department)
+        const expenseDateForCheck = new Date(newExpenseData.date);
+        const startOfDay = new Date(expenseDateForCheck);
+        startOfDay.setHours(0, 0, 0, 0);
+        const endOfDay = new Date(expenseDateForCheck);
+        endOfDay.setHours(23, 59, 59, 999);
+        
+        const duplicateCheck = await Expense.findOne({
+          user: recurringExpense.user._id,
+          vendor: newExpenseData.vendor || '',
+          category: newExpenseData.category || '',
+          department: newExpenseData.department || '',
+          totalAmount: newExpenseData.totalAmount || 0,
+          date: {
+            $gte: startOfDay,
+            $lte: endOfDay
+          }
+        });
+
+        // Only create if no duplicate exists
+        let newExpense;
+        if (!duplicateCheck) {
+          newExpense = await Expense.create(newExpenseData);
+        } else {
+          // Duplicate found - skip creation and use existing
+          newExpense = duplicateCheck;
+          console.log(`Duplicate expense detected for recurring expense ${recurringExpense._id}, skipping creation`);
+        }
 
         // Calculate next process date
         const nextProcessDate = new Date(recurringExpense.nextProcessDate);
