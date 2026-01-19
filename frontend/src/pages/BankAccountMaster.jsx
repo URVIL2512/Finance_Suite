@@ -160,8 +160,14 @@ const BankAccountMaster = ({ returnPath, returnState }) => {
       </div>
 
       {showForm && (
-        <div className="fixed inset-0 bg-black/70 backdrop-blur-md flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-3xl shadow-2xl max-w-3xl w-full max-h-[90vh] overflow-hidden flex flex-col border border-gray-100">
+        <div 
+          className="fixed inset-0 bg-black/70 backdrop-blur-md flex items-center justify-center z-50 p-4"
+          onClick={handleCancel}
+        >
+          <div 
+            className="bg-white rounded-3xl shadow-2xl max-w-3xl w-full max-h-[90vh] overflow-hidden flex flex-col border border-gray-100"
+            onClick={(e) => e.stopPropagation()}
+          >
             <div className="flex items-center justify-between px-8 py-6 bg-gradient-to-r from-slate-800 via-slate-700 to-slate-800 border-b border-slate-600">
               <h2 className="text-2xl font-bold text-white tracking-tight">
                 {editingAccount ? 'Edit Bank Account' : 'Create Bank Account'}
