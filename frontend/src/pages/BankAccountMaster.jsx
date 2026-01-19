@@ -1,11 +1,14 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { format } from 'date-fns';
 import { bankAccountAPI } from '../services/api';
 import ActionDropdown from '../components/ActionDropdown';
 import { useToast } from '../contexts/ToastContext';
+import ConfirmationModal from '../components/ConfirmationModal';
 
-const BankAccountMaster = () => {
+const BankAccountMaster = ({ returnPath, returnState }) => {
   const { showToast } = useToast();
+  const navigate = useNavigate();
   const [bankAccounts, setBankAccounts] = useState([]);
   const [loading, setLoading] = useState(false);
   const [showForm, setShowForm] = useState(false);
@@ -16,12 +19,22 @@ const BankAccountMaster = () => {
     ifsc: '',
     accountNumber: '',
     openingBalance: 0,
-    isActive: true,
   });
+  const [deleteConfirm, setDeleteConfirm] = useState({ show: false, id: null });
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
     fetchBankAccounts();
   }, []);
+
+  // Auto-open form if redirected from expense form
+  useEffect(() => {
+    if (returnPath) {
+      setShowForm(true);
+      setEditingAccount(null);
+      setFormData({ accountName: '', bankName: '', ifsc: '', accountNumber: '', openingBalance: 0 });
+    }
+  }, [returnPath]);
 
   const fetchBankAccounts = async () => {
     try {
@@ -50,21 +63,28 @@ const BankAccountMaster = () => {
       ifsc: account.ifsc || '',
       accountNumber: account.accountNumber || '',
       openingBalance: account.openingBalance || 0,
-      isActive: account.isActive !== false,
     });
     setShowForm(true);
   };
 
-  const handleDelete = async (id) => {
-    if (window.confirm('Are you sure you want to delete this bank account?')) {
-      try {
-        await bankAccountAPI.delete(id);
-        showToast('Bank account deleted successfully!', 'success');
-        fetchBankAccounts();
-      } catch (error) {
-        console.error('Error deleting bank account:', error);
-        showToast(error.response?.data?.message || 'Failed to delete bank account', 'error');
-      }
+  const handleDelete = (id) => {
+    setDeleteConfirm({ show: true, id });
+  };
+
+  const handleDeleteConfirm = async () => {
+    if (!deleteConfirm.id) return;
+    
+    try {
+      setDeleting(true);
+      await bankAccountAPI.delete(deleteConfirm.id);
+      showToast('Bank account deleted successfully!', 'success');
+      setDeleteConfirm({ show: false, id: null });
+      fetchBankAccounts();
+    } catch (error) {
+      console.error('Error deleting bank account:', error);
+      showToast(error.response?.data?.message || 'Failed to delete bank account', 'error');
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -89,10 +109,31 @@ const BankAccountMaster = () => {
       }
       setShowForm(false);
       setEditingAccount(null);
-      fetchBankAccounts();
+      await fetchBankAccounts();
+      
+      // If redirected from expense form, navigate back
+      if (returnPath) {
+        navigate(returnPath, {
+          state: returnState || { showExpenseForm: true },
+          replace: false
+        });
+      }
     } catch (error) {
       console.error('Error saving bank account:', error);
       showToast(error.response?.data?.message || 'Failed to save bank account', 'error');
+    }
+  };
+
+  const handleCancel = () => {
+    setShowForm(false);
+    setEditingAccount(null);
+    
+    // If redirected from expense form, navigate back
+    if (returnPath) {
+      navigate(returnPath, {
+        state: returnState || { showExpenseForm: true },
+        replace: false
+      });
     }
   };
 
@@ -119,82 +160,102 @@ const BankAccountMaster = () => {
       </div>
 
       {showForm && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-hidden flex flex-col">
-            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 bg-gradient-to-r from-blue-600 to-blue-700 text-white">
-              <h2 className="text-xl font-bold">{editingAccount ? 'Edit Bank Account' : 'New Bank Account'}</h2>
-              <button onClick={() => { setShowForm(false); setEditingAccount(null); }} className="text-white hover:text-red-200 text-2xl font-bold">×</button>
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-md flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-3xl shadow-2xl max-w-3xl w-full max-h-[90vh] overflow-hidden flex flex-col border border-gray-100">
+            <div className="flex items-center justify-between px-8 py-6 bg-gradient-to-r from-slate-800 via-slate-700 to-slate-800 border-b border-slate-600">
+              <h2 className="text-2xl font-bold text-white tracking-tight">
+                {editingAccount ? 'Edit Bank Account' : 'Create Bank Account'}
+              </h2>
+              <button 
+                onClick={handleCancel} 
+                className="text-slate-300 hover:text-white hover:bg-white/10 w-9 h-9 rounded-lg flex items-center justify-center transition-all duration-200 font-light text-xl"
+              >
+                ×
+              </button>
             </div>
-            <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-6 space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">Account Name *</label>
-                  <input
-                    type="text"
-                    value={formData.accountName}
-                    onChange={(e) => setFormData({ ...formData, accountName: e.target.value })}
-                    className="w-full px-4 py-2.5 border-2 border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                    placeholder="e.g., Kology ICICI"
-                    required
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">Bank Name *</label>
-                  <input
-                    type="text"
-                    value={formData.bankName}
-                    onChange={(e) => setFormData({ ...formData, bankName: e.target.value })}
-                    className="w-full px-4 py-2.5 border-2 border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                    placeholder="e.g., ICICI Bank"
-                    required
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">IFSC Code</label>
-                  <input
-                    type="text"
-                    value={formData.ifsc}
-                    onChange={(e) => setFormData({ ...formData, ifsc: e.target.value.toUpperCase() })}
-                    className="w-full px-4 py-2.5 border-2 border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                    placeholder="e.g., ICIC0001234"
-                    maxLength="11"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">Account Number</label>
-                  <input
-                    type="text"
-                    value={formData.accountNumber}
-                    onChange={(e) => setFormData({ ...formData, accountNumber: e.target.value })}
-                    className="w-full px-4 py-2.5 border-2 border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                    placeholder="Account number"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">Opening Balance</label>
-                  <input
-                    type="number"
-                    value={formData.openingBalance}
-                    onChange={(e) => setFormData({ ...formData, openingBalance: parseFloat(e.target.value) || 0 })}
-                    className="w-full px-4 py-2.5 border-2 border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                    step="0.01"
-                    placeholder="0.00"
-                  />
+            <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-8 bg-white">
+              <div className="space-y-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2.5">
+                      Account Name <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      value={formData.accountName}
+                      onChange={(e) => setFormData({ ...formData, accountName: e.target.value })}
+                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 bg-white text-gray-900 placeholder:text-gray-400 text-sm"
+                      placeholder="e.g., Kology ICICI"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2.5">
+                      Bank Name <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      value={formData.bankName}
+                      onChange={(e) => setFormData({ ...formData, bankName: e.target.value })}
+                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 bg-white text-gray-900 placeholder:text-gray-400 text-sm"
+                      placeholder="e.g., ICICI Bank"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2.5">
+                      IFSC Code
+                    </label>
+                    <input
+                      type="text"
+                      value={formData.ifsc}
+                      onChange={(e) => setFormData({ ...formData, ifsc: e.target.value.toUpperCase() })}
+                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 bg-white text-gray-900 placeholder:text-gray-400 text-sm uppercase"
+                      placeholder="e.g., ICIC0001234"
+                      maxLength="11"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2.5">
+                      Account Number
+                    </label>
+                    <input
+                      type="text"
+                      value={formData.accountNumber}
+                      onChange={(e) => setFormData({ ...formData, accountNumber: e.target.value })}
+                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 bg-white text-gray-900 placeholder:text-gray-400 text-sm"
+                      placeholder="Account number"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2.5">
+                      Opening Balance
+                    </label>
+                    <input
+                      type="number"
+                      value={formData.openingBalance}
+                      onChange={(e) => setFormData({ ...formData, openingBalance: parseFloat(e.target.value) || 0 })}
+                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 bg-white text-gray-900 placeholder:text-gray-400 text-sm"
+                      step="0.01"
+                      placeholder="0.00"
+                    />
+                  </div>
                 </div>
               </div>
-              <div className="flex items-center">
-                <input
-                  type="checkbox"
-                  checked={formData.isActive}
-                  onChange={(e) => setFormData({ ...formData, isActive: e.target.checked })}
-                  className="w-4 h-4 text-blue-600 border-slate-300 rounded focus:ring-blue-500"
-                  id="isActive"
-                />
-                <label htmlFor="isActive" className="ml-2 text-sm font-semibold text-gray-700">Active</label>
-              </div>
-              <div className="flex gap-3 pt-4">
-                <button type="submit" className="flex-1 btn-primary">Save</button>
-                <button type="button" onClick={() => { setShowForm(false); setEditingAccount(null); }} className="px-6 py-2.5 bg-slate-200 text-slate-700 font-semibold rounded-lg hover:bg-slate-300">Cancel</button>
+              <div className="flex gap-3 pt-6 mt-6 border-t border-gray-200">
+                <button 
+                  type="submit" 
+                  className="flex-1 bg-blue-600 text-white font-semibold py-3 px-6 rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-all duration-200 text-sm"
+                >
+                  Save Changes
+                </button>
+                <button 
+                  type="button" 
+                  onClick={handleCancel} 
+                  className="px-6 py-3 bg-white border border-gray-300 text-gray-700 font-semibold rounded-lg hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 transition-all duration-200 text-sm"
+                >
+                  Cancel
+                </button>
               </div>
             </form>
           </div>
@@ -202,12 +263,20 @@ const BankAccountMaster = () => {
       )}
 
       {bankAccounts.length === 0 ? (
-        <div className="card-gradient p-12 text-center border border-gray-200/60">
-          <svg className="w-16 h-16 mx-auto text-gray-400 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
-          </svg>
-          <p className="text-lg font-semibold text-gray-700 mb-2">No bank accounts found</p>
-          <p className="text-sm text-gray-500">Add your first bank account to get started</p>
+        <div className="bg-white rounded-lg border border-gray-200 p-16 text-center">
+          <div className="w-20 h-20 mx-auto mb-4 bg-gray-100 rounded-full flex items-center justify-center">
+            <svg className="w-10 h-10 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
+            </svg>
+          </div>
+          <p className="text-lg font-semibold text-gray-900 mb-2">No bank accounts found</p>
+          <p className="text-sm text-gray-500 mb-6">Get started by creating your first bank account</p>
+          <button 
+            onClick={handleCreate} 
+            className="bg-blue-600 hover:bg-blue-700 text-white font-semibold px-6 py-2.5 rounded-lg shadow-sm hover:shadow-md transition-all duration-200 text-sm"
+          >
+            Create Bank Account
+          </button>
         </div>
       ) : (
         <div className="card overflow-hidden border border-gray-200/60 shadow-lg">
@@ -215,29 +284,23 @@ const BankAccountMaster = () => {
             <table className="w-full divide-y divide-gray-200">
               <thead className="table-header">
                 <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">Account Name</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">Bank Name</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">IFSC</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">Account Number</th>
-                  <th className="px-6 py-3 text-right text-xs font-medium text-white uppercase tracking-wider">Opening Balance</th>
-                  <th className="px-6 py-3 text-center text-xs font-medium text-white uppercase tracking-wider">Status</th>
-                  <th className="px-6 py-3 text-center text-xs font-medium text-white uppercase tracking-wider">Actions</th>
+                  <th className="px-6 py-4 text-left text-xs font-bold text-white uppercase tracking-wider">Account Name</th>
+                  <th className="px-6 py-4 text-left text-xs font-bold text-white uppercase tracking-wider">Bank Name</th>
+                  <th className="px-6 py-4 text-left text-xs font-bold text-white uppercase tracking-wider">IFSC</th>
+                  <th className="px-6 py-4 text-left text-xs font-bold text-white uppercase tracking-wider">Account Number</th>
+                  <th className="px-6 py-4 text-right text-xs font-bold text-white uppercase tracking-wider">Opening Balance</th>
+                  <th className="px-6 py-4 text-center text-xs font-bold text-white uppercase tracking-wider">Actions</th>
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
                 {bankAccounts.map((account) => (
-                  <tr key={account._id} className="hover:bg-slate-50">
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{account.accountName}</td>
+                  <tr key={account._id} className="hover:bg-gradient-to-r hover:from-blue-50 hover:to-indigo-50 transition-all duration-200 border-b border-gray-100">
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-gray-900">{account.accountName}</td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">{account.bankName}</td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">{account.ifsc || '-'}</td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">{account.accountNumber || '-'}</td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-gray-900 text-right">
                       ₹{account.openingBalance?.toLocaleString('en-IN', { minimumFractionDigits: 2 }) || '0.00'}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-center">
-                      <span className={`px-3 py-1 text-xs font-semibold rounded-full ${account.isActive ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
-                        {account.isActive ? 'Active' : 'Inactive'}
-                      </span>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-center">
                       <ActionDropdown onEdit={() => handleEdit(account)} onDelete={() => handleDelete(account._id)} />
@@ -249,6 +312,19 @@ const BankAccountMaster = () => {
           </div>
         </div>
       )}
+
+      {/* Delete Confirmation Modal */}
+      <ConfirmationModal
+        isOpen={deleteConfirm.show}
+        onClose={() => setDeleteConfirm({ show: false, id: null })}
+        onConfirm={handleDeleteConfirm}
+        title="Confirm Delete"
+        message="Are you sure you want to delete this bank account? This action cannot be undone."
+        confirmText="Delete"
+        cancelText="Cancel"
+        confirmButtonColor="red"
+        loading={deleting}
+      />
     </div>
   );
 };

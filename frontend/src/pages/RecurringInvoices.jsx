@@ -3,12 +3,17 @@ import { format } from 'date-fns';
 import { recurringInvoiceAPI } from '../services/api';
 import RecurringInvoiceModal from '../components/RecurringInvoiceModal';
 import ActionDropdown from '../components/ActionDropdown';
+import ConfirmationModal from '../components/ConfirmationModal';
+import { useToast } from '../contexts/ToastContext';
 
 const RecurringInvoices = () => {
+  const { showToast } = useToast();
   const [recurringInvoices, setRecurringInvoices] = useState([]);
   const [loading, setLoading] = useState(true);
   const [editingRecurringInvoice, setEditingRecurringInvoice] = useState(null);
   const [showEditModal, setShowEditModal] = useState(false);
+  const [deleteConfirm, setDeleteConfirm] = useState({ show: false, id: null });
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
     fetchRecurringInvoices();
@@ -21,22 +26,30 @@ const RecurringInvoices = () => {
       setRecurringInvoices(response.data || []);
     } catch (error) {
       console.error('Error fetching recurring invoices:', error);
-      alert('Failed to load recurring invoices');
+      showToast('Failed to load recurring invoices', 'error');
     } finally {
       setLoading(false);
     }
   };
 
-  const handleDelete = async (id) => {
-    if (window.confirm('Are you sure you want to delete this recurring invoice?')) {
-      try {
-        await recurringInvoiceAPI.delete(id);
-        alert('Recurring invoice deleted successfully!');
-        fetchRecurringInvoices();
-      } catch (error) {
-        console.error('Error deleting recurring invoice:', error);
-        alert('Failed to delete recurring invoice');
-      }
+  const handleDelete = (id) => {
+    setDeleteConfirm({ show: true, id });
+  };
+
+  const handleDeleteConfirm = async () => {
+    if (!deleteConfirm.id) return;
+    
+    try {
+      setDeleting(true);
+      await recurringInvoiceAPI.delete(deleteConfirm.id);
+      showToast('Recurring invoice deleted successfully!', 'success');
+      setDeleteConfirm({ show: false, id: null });
+      fetchRecurringInvoices();
+    } catch (error) {
+      console.error('Error deleting recurring invoice:', error);
+      showToast('Failed to delete recurring invoice', 'error');
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -222,6 +235,19 @@ const RecurringInvoices = () => {
           editingRecurringInvoice={editingRecurringInvoice}
         />
       )}
+
+      {/* Delete Confirmation Modal */}
+      <ConfirmationModal
+        isOpen={deleteConfirm.show}
+        onClose={() => setDeleteConfirm({ show: false, id: null })}
+        onConfirm={handleDeleteConfirm}
+        title="Confirm Delete"
+        message="Are you sure you want to delete this recurring invoice? This action cannot be undone."
+        confirmText="Delete"
+        cancelText="Cancel"
+        confirmButtonColor="red"
+        loading={deleting}
+      />
     </div>
   );
 };

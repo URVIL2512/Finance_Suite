@@ -3,6 +3,7 @@ import { revenueAPI } from '../services/api';
 import { useToast } from '../contexts/ToastContext';
 import RevenueForm from '../components/RevenueForm';
 import RevenueTable from '../components/RevenueTable';
+import ConfirmationModal from '../components/ConfirmationModal';
 
 const Revenue = () => {
   const { showToast } = useToast();
@@ -17,6 +18,9 @@ const Revenue = () => {
     service: '',
   });
   const [showFilters, setShowFilters] = useState(false);
+  const [deleteConfirm, setDeleteConfirm] = useState({ show: false, id: null, skipConfirmation: false });
+  const [bulkDeleteConfirm, setBulkDeleteConfirm] = useState({ show: false, ids: [] });
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
     fetchRevenue();
@@ -50,33 +54,55 @@ const Revenue = () => {
     setShowForm(true);
   };
 
-  const handleDelete = async (id, skipConfirmation = false) => {
-    if (!skipConfirmation && !window.confirm('Are you sure you want to delete this revenue entry?')) {
-      return;
+  const handleDelete = (id, skipConfirmation = false) => {
+    if (skipConfirmation) {
+      // Direct delete without confirmation
+      handleDeleteConfirm(id);
+    } else {
+      setDeleteConfirm({ show: true, id, skipConfirmation: false });
     }
+  };
+
+  const handleDeleteConfirm = async (idToDelete = null) => {
+    const id = idToDelete || deleteConfirm.id;
+    if (!id) return;
+    
     try {
+      setDeleting(true);
       await revenueAPI.delete(id);
+      showToast('Revenue entry deleted successfully', 'success');
+      setDeleteConfirm({ show: false, id: null, skipConfirmation: false });
       fetchRevenue();
     } catch (error) {
       console.error('Error deleting revenue:', error);
       showToast('Failed to delete revenue entry', 'error');
+    } finally {
+      setDeleting(false);
     }
   };
 
-  const handleBulkDelete = async (ids) => {
-    if (window.confirm(`Are you sure you want to delete ${ids.length} revenue entry/entries?`)) {
-      try {
-        // Delete all entries sequentially
-        for (const id of ids) {
-          await revenueAPI.delete(id);
-        }
-        fetchRevenue();
-        showToast(`Successfully deleted ${ids.length} revenue entry/entries`, 'success');
-      } catch (error) {
-        console.error('Error deleting revenue entries:', error);
-        showToast('Failed to delete some revenue entries', 'error');
-        fetchRevenue(); // Refresh to show current state
+  const handleBulkDelete = (ids) => {
+    setBulkDeleteConfirm({ show: true, ids });
+  };
+
+  const handleBulkDeleteConfirm = async () => {
+    if (!bulkDeleteConfirm.ids || bulkDeleteConfirm.ids.length === 0) return;
+    
+    try {
+      setDeleting(true);
+      // Delete all entries sequentially
+      for (const id of bulkDeleteConfirm.ids) {
+        await revenueAPI.delete(id);
       }
+      fetchRevenue();
+      showToast(`Successfully deleted ${bulkDeleteConfirm.ids.length} revenue entry/entries`, 'success');
+      setBulkDeleteConfirm({ show: false, ids: [] });
+    } catch (error) {
+      console.error('Error deleting revenue entries:', error);
+      showToast('Failed to delete some revenue entries', 'error');
+      fetchRevenue(); // Refresh to show current state
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -286,6 +312,32 @@ const Revenue = () => {
       ) : (
         <RevenueTable revenue={revenue} />
       )}
+
+      {/* Delete Confirmation Modal */}
+      <ConfirmationModal
+        isOpen={deleteConfirm.show}
+        onClose={() => setDeleteConfirm({ show: false, id: null, skipConfirmation: false })}
+        onConfirm={() => handleDeleteConfirm()}
+        title="Confirm Delete"
+        message="Are you sure you want to delete this revenue entry? This action cannot be undone."
+        confirmText="Delete"
+        cancelText="Cancel"
+        confirmButtonColor="red"
+        loading={deleting}
+      />
+
+      {/* Bulk Delete Confirmation Modal */}
+      <ConfirmationModal
+        isOpen={bulkDeleteConfirm.show}
+        onClose={() => setBulkDeleteConfirm({ show: false, ids: [] })}
+        onConfirm={handleBulkDeleteConfirm}
+        title="Confirm Bulk Delete"
+        message={`Are you sure you want to delete ${bulkDeleteConfirm.ids.length} revenue entry/entries? This action cannot be undone.`}
+        confirmText="Delete All"
+        cancelText="Cancel"
+        confirmButtonColor="red"
+        loading={deleting}
+      />
     </div>
   );
 };

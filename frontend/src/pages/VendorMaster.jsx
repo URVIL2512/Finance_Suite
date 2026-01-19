@@ -1,11 +1,14 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { format } from 'date-fns';
 import { vendorAPI } from '../services/api';
 import ActionDropdown from '../components/ActionDropdown';
 import { useToast } from '../contexts/ToastContext';
+import ConfirmationModal from '../components/ConfirmationModal';
 
-const VendorMaster = () => {
+const VendorMaster = ({ returnPath, returnState }) => {
   const { showToast } = useToast();
+  const navigate = useNavigate();
   const [vendors, setVendors] = useState([]);
   const [loading, setLoading] = useState(false);
   const [showForm, setShowForm] = useState(false);
@@ -17,12 +20,22 @@ const VendorMaster = () => {
     phone: '',
     address: '',
     defaultPaymentTerms: '',
-    isActive: true,
   });
+  const [deleteConfirm, setDeleteConfirm] = useState({ show: false, id: null });
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
     fetchVendors();
   }, []);
+
+  // Auto-open form if redirected from expense form
+  useEffect(() => {
+    if (returnPath) {
+      setShowForm(true);
+      setEditingVendor(null);
+      setFormData({ name: '', gstin: '', email: '', phone: '', address: '', defaultPaymentTerms: '' });
+    }
+  }, [returnPath]);
 
   const fetchVendors = async () => {
     try {
@@ -52,21 +65,28 @@ const VendorMaster = () => {
       phone: vendor.phone || '',
       address: vendor.address || '',
       defaultPaymentTerms: vendor.defaultPaymentTerms || '',
-      isActive: vendor.isActive !== false,
     });
     setShowForm(true);
   };
 
-  const handleDelete = async (id) => {
-    if (window.confirm('Are you sure you want to delete this vendor?')) {
-      try {
-        await vendorAPI.delete(id);
-        showToast('Vendor deleted successfully!', 'success');
-        fetchVendors();
-      } catch (error) {
-        console.error('Error deleting vendor:', error);
-        showToast(error.response?.data?.message || 'Failed to delete vendor', 'error');
-      }
+  const handleDelete = (id) => {
+    setDeleteConfirm({ show: true, id });
+  };
+
+  const handleDeleteConfirm = async () => {
+    if (!deleteConfirm.id) return;
+    
+    try {
+      setDeleting(true);
+      await vendorAPI.delete(deleteConfirm.id);
+      showToast('Vendor deleted successfully!', 'success');
+      setDeleteConfirm({ show: false, id: null });
+      fetchVendors();
+    } catch (error) {
+      console.error('Error deleting vendor:', error);
+      showToast(error.response?.data?.message || 'Failed to delete vendor', 'error');
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -87,10 +107,31 @@ const VendorMaster = () => {
       }
       setShowForm(false);
       setEditingVendor(null);
-      fetchVendors();
+      await fetchVendors();
+      
+      // If redirected from expense form, navigate back
+      if (returnPath) {
+        navigate(returnPath, {
+          state: returnState || { showExpenseForm: true },
+          replace: false
+        });
+      }
     } catch (error) {
       console.error('Error saving vendor:', error);
       showToast(error.response?.data?.message || 'Failed to save vendor', 'error');
+    }
+  };
+
+  const handleCancel = () => {
+    setShowForm(false);
+    setEditingVendor(null);
+    
+    // If redirected from expense form, navigate back
+    if (returnPath) {
+      navigate(returnPath, {
+        state: returnState || { showExpenseForm: true },
+        replace: false
+      });
     }
   };
 
@@ -105,98 +146,125 @@ const VendorMaster = () => {
 
   return (
     <div className="animate-fade-in">
-      <div className="mb-6 flex justify-between items-center">
+      <div className="mb-8 flex justify-between items-start">
         <div>
-          <h1 className="text-3xl lg:text-4xl xl:text-5xl font-bold text-gray-900 mb-2">Vendor Master</h1>
-          <p className="text-slate-600">Manage vendor information (name, GSTIN, contact details, etc.)</p>
+          <h1 className="text-3xl font-bold text-gray-900 mb-2 tracking-tight">Vendor Master</h1>
+          <p className="text-gray-600 text-sm">Manage vendor information and contact details</p>
         </div>
-        <button onClick={handleCreate} className="btn-primary flex items-center space-x-2">
-          <span>+</span>
-          <span>Add Vendor</span>
+        <button 
+          onClick={handleCreate} 
+          className="bg-blue-600 hover:bg-blue-700 text-white font-semibold px-6 py-3 rounded-lg shadow-md hover:shadow-lg transition-all duration-200 flex items-center gap-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+        >
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+          </svg>
+          Add Vendor
         </button>
       </div>
 
       {showForm && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-hidden flex flex-col">
-            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 bg-gradient-to-r from-blue-600 to-blue-700 text-white">
-              <h2 className="text-xl font-bold">{editingVendor ? 'Edit Vendor' : 'New Vendor'}</h2>
-              <button onClick={() => { setShowForm(false); setEditingVendor(null); }} className="text-white hover:text-red-200 text-2xl font-bold">×</button>
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-md flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-3xl shadow-2xl max-w-3xl w-full max-h-[90vh] overflow-hidden flex flex-col border border-gray-100">
+            <div className="flex items-center justify-between px-8 py-6 bg-gradient-to-r from-slate-800 via-slate-700 to-slate-800 border-b border-slate-600">
+              <h2 className="text-2xl font-bold text-white tracking-tight">
+                {editingVendor ? 'Edit Vendor' : 'Create Vendor'}
+              </h2>
+              <button 
+                onClick={handleCancel} 
+                className="text-slate-300 hover:text-white hover:bg-white/10 w-9 h-9 rounded-lg flex items-center justify-center transition-all duration-200 font-light text-xl"
+              >
+                ×
+              </button>
             </div>
-            <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-6 space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-8 bg-white">
+              <div className="space-y-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2.5">
+                      Vendor Name <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      value={formData.name}
+                      onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 bg-white text-gray-900 placeholder:text-gray-400 text-sm"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2.5">
+                      GSTIN
+                    </label>
+                    <input
+                      type="text"
+                      value={formData.gstin}
+                      onChange={(e) => setFormData({ ...formData, gstin: e.target.value.toUpperCase() })}
+                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 bg-white text-gray-900 placeholder:text-gray-400 text-sm uppercase"
+                      placeholder="15-character GSTIN"
+                      maxLength="15"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2.5">
+                      Email
+                    </label>
+                    <input
+                      type="email"
+                      value={formData.email}
+                      onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 bg-white text-gray-900 placeholder:text-gray-400 text-sm"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2.5">
+                      Phone
+                    </label>
+                    <input
+                      type="text"
+                      value={formData.phone}
+                      onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 bg-white text-gray-900 placeholder:text-gray-400 text-sm"
+                    />
+                  </div>
+                </div>
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">Vendor Name *</label>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2.5">
+                    Address
+                  </label>
+                  <textarea
+                    value={formData.address}
+                    onChange={(e) => setFormData({ ...formData, address: e.target.value })}
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 bg-white text-gray-900 placeholder:text-gray-400 text-sm resize-none"
+                    rows="3"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2.5">
+                    Default Payment Terms
+                  </label>
                   <input
                     type="text"
-                    value={formData.name}
-                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                    className="w-full px-4 py-2.5 border-2 border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                    required
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">GSTIN</label>
-                  <input
-                    type="text"
-                    value={formData.gstin}
-                    onChange={(e) => setFormData({ ...formData, gstin: e.target.value.toUpperCase() })}
-                    className="w-full px-4 py-2.5 border-2 border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                    placeholder="15-character GSTIN"
-                    maxLength="15"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">Email</label>
-                  <input
-                    type="email"
-                    value={formData.email}
-                    onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                    className="w-full px-4 py-2.5 border-2 border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">Phone</label>
-                  <input
-                    type="text"
-                    value={formData.phone}
-                    onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                    className="w-full px-4 py-2.5 border-2 border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    value={formData.defaultPaymentTerms}
+                    onChange={(e) => setFormData({ ...formData, defaultPaymentTerms: e.target.value })}
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 bg-white text-gray-900 placeholder:text-gray-400 text-sm"
+                    placeholder="e.g., Net 30, Due on Receipt"
                   />
                 </div>
               </div>
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">Address</label>
-                <textarea
-                  value={formData.address}
-                  onChange={(e) => setFormData({ ...formData, address: e.target.value })}
-                  className="w-full px-4 py-2.5 border-2 border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  rows="3"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">Default Payment Terms</label>
-                <input
-                  type="text"
-                  value={formData.defaultPaymentTerms}
-                  onChange={(e) => setFormData({ ...formData, defaultPaymentTerms: e.target.value })}
-                  className="w-full px-4 py-2.5 border-2 border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  placeholder="e.g., Net 30, Due on Receipt"
-                />
-              </div>
-              <div className="flex items-center">
-                <input
-                  type="checkbox"
-                  checked={formData.isActive}
-                  onChange={(e) => setFormData({ ...formData, isActive: e.target.checked })}
-                  className="w-4 h-4 text-blue-600 border-slate-300 rounded focus:ring-blue-500"
-                  id="isActive"
-                />
-                <label htmlFor="isActive" className="ml-2 text-sm font-semibold text-gray-700">Active</label>
-              </div>
-              <div className="flex gap-3 pt-4">
-                <button type="submit" className="flex-1 btn-primary">Save</button>
-                <button type="button" onClick={() => { setShowForm(false); setEditingVendor(null); }} className="px-6 py-2.5 bg-slate-200 text-slate-700 font-semibold rounded-lg hover:bg-slate-300">Cancel</button>
+              <div className="flex gap-3 pt-6 mt-6 border-t border-gray-200">
+                <button 
+                  type="submit" 
+                  className="flex-1 bg-blue-600 text-white font-semibold py-3 px-6 rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-all duration-200 text-sm"
+                >
+                  Save Changes
+                </button>
+                <button 
+                  type="button" 
+                  onClick={handleCancel} 
+                  className="px-6 py-3 bg-white border border-gray-300 text-gray-700 font-semibold rounded-lg hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 transition-all duration-200 text-sm"
+                >
+                  Cancel
+                </button>
               </div>
             </form>
           </div>
@@ -212,31 +280,25 @@ const VendorMaster = () => {
           <p className="text-sm text-gray-500">Add your first vendor to get started</p>
         </div>
       ) : (
-        <div className="card overflow-hidden border border-gray-200/60 shadow-lg">
+        <div className="bg-white rounded-lg border border-gray-200 shadow-sm overflow-hidden">
           <div className="overflow-x-auto">
-            <table className="w-full divide-y divide-gray-200">
-              <thead className="table-header">
+            <table className="w-full">
+              <thead className="bg-gray-50 border-b border-gray-200">
                 <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">Vendor Name</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">GSTIN</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">Email</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">Phone</th>
-                  <th className="px-6 py-3 text-center text-xs font-medium text-white uppercase tracking-wider">Status</th>
-                  <th className="px-6 py-3 text-center text-xs font-medium text-white uppercase tracking-wider">Actions</th>
+                  <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Vendor Name</th>
+                  <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">GSTIN</th>
+                  <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Email</th>
+                  <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Phone</th>
+                  <th className="px-6 py-4 text-center text-xs font-semibold text-gray-700 uppercase tracking-wider">Actions</th>
                 </tr>
               </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
+              <tbody className="bg-white divide-y divide-gray-100">
                 {vendors.map((vendor) => (
-                  <tr key={vendor._id} className="hover:bg-slate-50">
+                  <tr key={vendor._id} className="hover:bg-gray-50 transition-colors duration-150">
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{vendor.name}</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">{vendor.gstin || '-'}</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">{vendor.email || '-'}</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">{vendor.phone || '-'}</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-center">
-                      <span className={`px-3 py-1 text-xs font-semibold rounded-full ${vendor.isActive ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
-                        {vendor.isActive ? 'Active' : 'Inactive'}
-                      </span>
-                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">{vendor.gstin || '-'}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">{vendor.email || '-'}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">{vendor.phone || '-'}</td>
                     <td className="px-6 py-4 whitespace-nowrap text-center">
                       <ActionDropdown onEdit={() => handleEdit(vendor)} onDelete={() => handleDelete(vendor._id)} />
                     </td>
@@ -247,6 +309,19 @@ const VendorMaster = () => {
           </div>
         </div>
       )}
+
+      {/* Delete Confirmation Modal */}
+      <ConfirmationModal
+        isOpen={deleteConfirm.show}
+        onClose={() => setDeleteConfirm({ show: false, id: null })}
+        onConfirm={handleDeleteConfirm}
+        title="Confirm Delete"
+        message="Are you sure you want to delete this vendor? This action cannot be undone."
+        confirmText="Delete"
+        cancelText="Cancel"
+        confirmButtonColor="red"
+        loading={deleting}
+      />
     </div>
   );
 };
