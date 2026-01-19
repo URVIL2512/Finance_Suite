@@ -964,6 +964,7 @@ const Expenses = () => {
                             type="number"
                             value={bulkPaidAmount}
                             onChange={(e) => setBulkPaidAmount(e.target.value)}
+                            onWheel={(e) => e.target.blur()}
                             placeholder="Enter amount"
                             step="0.01"
                             min="0"
@@ -1215,6 +1216,7 @@ const Expenses = () => {
                     type="number"
                     value={markPaidAmount}
                     onChange={(e) => setMarkPaidAmount(e.target.value)}
+                    onWheel={(e) => e.target.blur()}
                     placeholder="Enter amount"
                     step="0.01"
                     min="0"
