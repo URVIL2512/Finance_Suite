@@ -59,7 +59,6 @@ const REPORT_GROUPS = [
       { id: 'recurringIncome', title: 'Recurring vs One-time' },
       { id: 'invoiceAging', title: 'Invoice Aging' },
       { id: 'topClients', title: 'Top Clients' },
-      { id: 'collectionEfficiency', title: 'Collection Efficiency' },
     ],
   },
   {
@@ -196,7 +195,6 @@ const Reports = () => {
   const [recurringIncome, setRecurringIncome] = useState(null);
   const [invoiceAging, setInvoiceAging] = useState(null);
   const [topClients, setTopClients] = useState(null);
-  const [collectionEfficiency, setCollectionEfficiency] = useState(null);
   const [fixedVar, setFixedVar] = useState(null);
   const [deptExpense, setDeptExpense] = useState(null);
   const [vendorExpense, setVendorExpense] = useState(null);
@@ -246,7 +244,6 @@ const Reports = () => {
       else if (active === 'recurringIncome') setRecurringIncome((await reportsAPI.recurringIncome(appliedParams)).data);
       else if (active === 'invoiceAging') setInvoiceAging((await reportsAPI.invoiceAging(appliedParams)).data);
       else if (active === 'topClients') setTopClients((await reportsAPI.topClients(appliedParams)).data);
-      else if (active === 'collectionEfficiency') setCollectionEfficiency((await reportsAPI.collectionEfficiency(appliedParams)).data);
       else if (active === 'fixedVar') setFixedVar((await reportsAPI.fixedVsVariableExpense(appliedParams)).data);
       else if (active === 'deptExpense') setDeptExpense((await reportsAPI.expenseDepartment(appliedParams)).data);
       else if (active === 'vendorExpense') setVendorExpense((await reportsAPI.expenseVendor(appliedParams)).data);
@@ -881,26 +878,6 @@ const Reports = () => {
               </div>
             )}
 
-            {/* Collection Efficiency */}
-            {active === 'collectionEfficiency' && collectionEfficiency && (
-              <div className="space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-                  <Kpi label="Paid Invoice Count" value={String(collectionEfficiency.paidInvoiceCount || 0)} />
-                  <Kpi label="Avg Collection Days" value={money(collectionEfficiency.avgCollectionDays)} />
-                  <Kpi label="Paid On Time %" value={`${money(collectionEfficiency.paidOnTimePct)}%`} />
-                  <Kpi label="Late Payment %" value={`${money(collectionEfficiency.latePaymentPct)}%`} />
-                </div>
-                <div>
-                  <button
-                    className="px-4 py-2 text-sm font-semibold bg-slate-900 text-white rounded-lg hover:bg-slate-800 transition"
-                    onClick={() => exportToExcel('collection-efficiency.xlsx', [{ name: 'Collection', rows: [collectionEfficiency] }])}
-                  >
-                    Export Excel
-                  </button>
-                </div>
-              </div>
-            )}
-
             {/* Fixed vs Variable */}
             {active === 'fixedVar' && fixedVar && (
               <div className="space-y-4">
@@ -1316,13 +1293,11 @@ const Reports = () => {
             {!loading &&
               ((active === 'pl' && !pl) ||
                 (active === 'incomeVsExpense' && !incomeVsExpense) ||
-                (active === 'cashFlow' && !cashFlow) ||
                 (active === 'outstanding' && !outstanding) ||
                 (active === 'incomeSummary' && !incomeSummary) ||
                 (active === 'recurringIncome' && !recurringIncome) ||
                 (active === 'invoiceAging' && !invoiceAging) ||
                 (active === 'topClients' && !topClients) ||
-                (active === 'collectionEfficiency' && !collectionEfficiency) ||
                 (active === 'fixedVar' && !fixedVar) ||
                 (active === 'deptExpense' && !deptExpense) ||
                 (active === 'vendorExpense' && !vendorExpense) ||
