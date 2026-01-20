@@ -1315,91 +1315,70 @@ export const getBudgetVsActualReport = async (req, res) => {
 // ============================================
 export const getExpenseForecastReport = async (req, res) => {
   try {
-    const now = new Date();
-    const nextMonthStart = startOfDay(new Date(now.getFullYear(), now.getMonth() + 1, 1));
-    const nextMonthEnd = endOfDay(new Date(now.getFullYear(), now.getMonth() + 2, 0));
-    const nextQuarterStart = nextMonthStart;
-    const nextQuarterEnd = endOfDay(new Date(now.getFullYear(), now.getMonth() + 4, 0)); // 3 months horizon
+    // Forecast engine (industry standard baseline):
+    // Use last up-to-3 months average of actual expenses (ex GST).
+    // If only 1 month of data exists, base = last month expense.
+    const { end } = getDateRangeFromQuery(req.query);
 
-    // Accurate forecast counts occurrences within the range per schedule (handles weekly repeats).
-    const addDays = (d, days) => {
-      const x = new Date(d);
-      x.setDate(x.getDate() + days);
-      return x;
-    };
-    const addMonths = (d, months) => {
-      const x = new Date(d);
-      x.setMonth(x.getMonth() + months);
-      return x;
-    };
-    const advance = (d, repeatEvery) => {
-      const r = String(repeatEvery || 'Month');
-      if (r === 'Week') return addDays(d, 7);
-      if (r === 'Month') return addMonths(d, 1);
-      if (r === 'Quarter') return addMonths(d, 3);
-      if (r === 'Half Yearly' || r === 'Six Month') return addMonths(d, 6);
-      if (r === 'Year') return addMonths(d, 12);
-      return addMonths(d, 1);
-    };
-    const countOccurrences = (schedule, rangeStart, rangeEnd) => {
-      const startOn = schedule?.startOn ? new Date(schedule.startOn) : null;
-      const endsOn = schedule?.endsOn ? new Date(schedule.endsOn) : null;
-      const neverExpires = !!schedule?.neverExpires;
+    const endMonthStart = startOfDay(new Date(end.getFullYear(), end.getMonth(), 1));
+    const endMonthEnd = endOfDay(new Date(end.getFullYear(), end.getMonth() + 1, 0));
 
-      let d = schedule?.nextProcessDate ? new Date(schedule.nextProcessDate) : (startOn ? new Date(startOn) : null);
-      if (!d || Number.isNaN(d.getTime())) return 0;
-      if (startOn && d < startOn) d = new Date(startOn);
+    const rangeStart = startOfDay(new Date(end.getFullYear(), end.getMonth() - 2, 1)); // last 3 months window
+    const rangeEnd = endMonthEnd;
 
-      // Move forward until we reach the range start
-      while (d < rangeStart) {
-        d = advance(d, schedule.repeatEvery);
-        if (endsOn && !neverExpires && d > endsOn) return 0;
-      }
+    const rows = await Expense.aggregate([
+      {
+        $match: {
+          user: req.user._id,
+          status: buildExpenseStatusMatch(req.query.expenseStatus),
+          date: { $gte: rangeStart, $lte: rangeEnd },
+        },
+      },
+      {
+        $group: {
+          _id: { year: { $year: '$date' }, month: { $month: '$date' } },
+          total: { $sum: { $ifNull: ['$amountExclTax', 0] } }, // ex GST
+          count: { $sum: 1 },
+        },
+      },
+      { $sort: { '_id.year': -1, '_id.month': -1 } },
+      { $limit: 3 },
+    ]);
 
-      let count = 0;
-      while (d <= rangeEnd) {
-        if (endsOn && !neverExpires && d > endsOn) break;
-        count += 1;
-        d = advance(d, schedule.repeatEvery);
-      }
-      return count;
-    };
+    // Total for the selected (end) month
+    const lastMonthAgg = await Expense.aggregate([
+      {
+        $match: {
+          user: req.user._id,
+          status: buildExpenseStatusMatch(req.query.expenseStatus),
+          date: { $gte: endMonthStart, $lte: endMonthEnd },
+        },
+      },
+      { $group: { _id: null, total: { $sum: { $ifNull: ['$amountExclTax', 0] } } } },
+    ]);
+    const lastMonthTotal = round2(lastMonthAgg?.[0]?.total || 0);
 
-    const schedules = await RecurringExpense.find({
-      user: req.user._id,
-      isActive: true,
-      startOn: { $lte: nextQuarterEnd },
-      $or: [{ neverExpires: true }, { endsOn: null }, { endsOn: { $gte: nextQuarterStart } }],
-    })
-      .populate({ path: 'baseExpense', select: 'totalAmount amountExclTax', options: { lean: true } })
-      .lean();
+    const monthsWithData = rows.filter((r) => (Number(r?.total) || 0) > 0);
+    const monthsUsed = monthsWithData.length > 0 ? monthsWithData.length : (lastMonthTotal > 0 ? 1 : 0);
+    const avg3 =
+      monthsWithData.length > 0
+        ? round2(monthsWithData.reduce((s, r) => s + (Number(r.total) || 0), 0) / monthsWithData.length)
+        : lastMonthTotal;
 
-    let nextMonthForecast = 0;
-    let nextQuarterForecast = 0;
-    for (const s of schedules) {
-      const perOccurrence = Number(s?.baseExpense?.totalAmount) || 0; // forecast as payable cash out (incl GST - TDS)
-      if (perOccurrence <= 0) continue;
-      const mCount = countOccurrences(s, nextMonthStart, nextMonthEnd);
-      const qCount = countOccurrences(s, nextQuarterStart, nextQuarterEnd);
-      nextMonthForecast += perOccurrence * mCount;
-      nextQuarterForecast += perOccurrence * qCount;
-    }
-
-    const base = round2(nextMonthForecast);
-    nextQuarterForecast = round2(nextQuarterForecast);
+    const base = round2(avg3);
+    const nextQuarterForecast = round2(base * 3);
     const aggressive = round2(base * 1.2);
     const conservative = round2(base * 0.9);
 
     res.json({
-      nextMonthStart: nextMonthStart.toISOString(),
-      nextMonthEnd: nextMonthEnd.toISOString(),
+      windowStart: rangeStart.toISOString(),
+      windowEnd: rangeEnd.toISOString(),
+      lastMonthTotal,
+      monthsUsed,
       nextMonthForecast: base,
       nextQuarterForecast,
-      scenarios: {
-        base,
-        aggressive,
-        conservative,
-      },
+      scenarios: { base, aggressive, conservative },
+      method: 'last_3_month_avg_ex_gst',
     });
   } catch (error) {
     console.error('Error in Expense Forecast report:', error);
@@ -1412,9 +1391,11 @@ export const getExpenseForecastReport = async (req, res) => {
 // ============================================
 export const getRevenueForecastReport = async (req, res) => {
   try {
+    const { end } = getDateRangeFromQuery(req.query);
     const now = new Date();
     const churnRate = clampNumber(req.query.churnRate ?? 0.05, 0, 1, 0.05);
     const newSalesTarget = clampNumber(req.query.newSalesTarget ?? 0, 0, 1e12, 0);
+    const growthRate = clampNumber(req.query.growthRate ?? 0.1, -0.9, 5, 0.1); // one-time growth scenario
 
     const rows = await RecurringInvoice.aggregate([
       {
@@ -1462,13 +1443,37 @@ export const getRevenueForecastReport = async (req, res) => {
 
     const expectedMRR = round2(rows?.[0]?.expectedMRR || 0);
     const churnLoss = round2(expectedMRR * churnRate);
-    const expectedRevenue = round2(expectedMRR - churnLoss + newSalesTarget);
+    const recurringExpected = round2(expectedMRR - churnLoss + newSalesTarget);
+
+    // One-time fallback: if no recurring invoices exist, forecast from last month's actual revenue (ex GST).
+    const endMonthStart = startOfDay(new Date(end.getFullYear(), end.getMonth(), 1));
+    const endMonthEnd = endOfDay(new Date(end.getFullYear(), end.getMonth() + 1, 0));
+
+    const lastMonthIncomeAgg = await Invoice.aggregate([
+      {
+        $match: {
+          user: req.user._id,
+          status: buildInvoiceStatusMatch(req.query.invoiceStatus),
+          invoiceDate: { $gte: endMonthStart, $lte: endMonthEnd },
+        },
+      },
+      { $addFields: { baseInINR: invoiceBaseInINRExpr() } },
+      { $group: { _id: null, totalIncome: { $sum: '$baseInINR' } } },
+    ]);
+    const lastMonthRevenue = round2(lastMonthIncomeAgg?.[0]?.totalIncome || 0);
+    const oneTimeForecast = round2(lastMonthRevenue * (1 + growthRate));
+
+    // Merge recurring + one-time forecast (both can exist)
+    const expectedRevenue = round2(recurringExpected + oneTimeForecast);
 
     res.json({
       expectedMRR,
       churnRate,
       churnLoss,
       newSalesTarget,
+      growthRate,
+      lastMonthRevenue,
+      oneTimeForecast,
       expectedRevenue,
     });
   } catch (error) {

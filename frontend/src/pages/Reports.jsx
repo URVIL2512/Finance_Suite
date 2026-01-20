@@ -47,6 +47,7 @@ const REPORT_GROUPS = [
     items: [
       { id: 'pl', title: 'P&L' },
       { id: 'incomeVsExpense', title: 'Income vs Expense' },
+      { id: 'cashFlow', title: 'Cash Flow' },
       { id: 'outstanding', title: 'Outstanding' },
       { id: 'clientProfit', title: 'Client Profitability' },
     ],
@@ -190,6 +191,7 @@ const Reports = () => {
 
   const [pl, setPl] = useState(null);
   const [incomeVsExpense, setIncomeVsExpense] = useState(null);
+  const [cashFlow, setCashFlow] = useState(null);
   const [outstanding, setOutstanding] = useState(null);
   const [incomeSummary, setIncomeSummary] = useState(null);
   const [recurringIncome, setRecurringIncome] = useState(null);
@@ -240,6 +242,7 @@ const Reports = () => {
       setLoading(true);
       if (active === 'pl') setPl((await reportsAPI.profitLoss(appliedParams)).data);
       else if (active === 'incomeVsExpense') setIncomeVsExpense((await reportsAPI.incomeVsExpense(appliedParams)).data);
+      else if (active === 'cashFlow') setCashFlow((await reportsAPI.cashFlow(appliedParams)).data);
       else if (active === 'outstanding') setOutstanding((await reportsAPI.outstandingSummary(appliedParams)).data);
       else if (active === 'incomeSummary') setIncomeSummary((await reportsAPI.incomeSummary(appliedParams)).data);
       else if (active === 'recurringIncome') setRecurringIncome((await reportsAPI.recurringIncome(appliedParams)).data);
@@ -686,6 +689,17 @@ const Reports = () => {
                       <Bar dataKey="expense" name="Expense" fill="#ef4444" />
                     </BarChart>
                   </ResponsiveContainer>
+                </div>
+              </div>
+            )}
+
+            {/* Cash Flow */}
+            {active === 'cashFlow' && cashFlow && (
+              <div className="space-y-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
+                  <Kpi label="Cash Received" value={money(cashFlow.cashIn)} />
+                  <Kpi label="Cash Paid" value={money(cashFlow.cashOut)} />
+                  <Kpi label="Net Cash Balance" value={money(cashFlow.netCashFlow)} />
                 </div>
               </div>
             )}
@@ -1217,6 +1231,12 @@ const Reports = () => {
                   <Kpi label="Churn Loss" value={money(revenueForecast.churnLoss)} />
                   <Kpi label="Expected Revenue" value={money(revenueForecast.expectedRevenue)} />
                 </div>
+                {Number(revenueForecast.expectedMRR || 0) <= 0 && (
+                  <div className="text-sm text-slate-600">
+                    One-time forecast: last month revenue {money(revenueForecast.lastMonthRevenue)} with growth rate{' '}
+                    {money((revenueForecast.growthRate || 0) * 100)}%.
+                  </div>
+                )}
               </div>
             )}
 
