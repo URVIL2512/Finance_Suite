@@ -47,7 +47,6 @@ const REPORT_GROUPS = [
     items: [
       { id: 'pl', title: 'P&L' },
       { id: 'incomeVsExpense', title: 'Income vs Expense' },
-      { id: 'cashFlow', title: 'Cash Flow' },
       { id: 'outstanding', title: 'Outstanding' },
       { id: 'clientProfit', title: 'Client Profitability' },
     ],
@@ -131,7 +130,6 @@ const Reports = () => {
     endDate: '',
     invoiceStatus: '',
     expenseStatus: '',
-    openingBalance: '',
   }));
 
   const [appliedFilters, setAppliedFilters] = useState(() => ({
@@ -143,7 +141,6 @@ const Reports = () => {
     endDate: '',
     invoiceStatus: '',
     expenseStatus: '',
-    openingBalance: '',
   }));
 
   const hasPendingFilterChanges = useMemo(
@@ -194,7 +191,6 @@ const Reports = () => {
 
   const [pl, setPl] = useState(null);
   const [incomeVsExpense, setIncomeVsExpense] = useState(null);
-  const [cashFlow, setCashFlow] = useState(null);
   const [outstanding, setOutstanding] = useState(null);
   const [incomeSummary, setIncomeSummary] = useState(null);
   const [recurringIncome, setRecurringIncome] = useState(null);
@@ -245,16 +241,6 @@ const Reports = () => {
       setLoading(true);
       if (active === 'pl') setPl((await reportsAPI.profitLoss(appliedParams)).data);
       else if (active === 'incomeVsExpense') setIncomeVsExpense((await reportsAPI.incomeVsExpense(appliedParams)).data);
-      else if (active === 'cashFlow')
-        setCashFlow(
-          (
-            await reportsAPI.cashFlow({
-              ...appliedParams,
-              openingBalance:
-                appliedFilters.openingBalance !== '' ? Number(appliedFilters.openingBalance) : undefined,
-            })
-          ).data
-        );
       else if (active === 'outstanding') setOutstanding((await reportsAPI.outstandingSummary(appliedParams)).data);
       else if (active === 'incomeSummary') setIncomeSummary((await reportsAPI.incomeSummary(appliedParams)).data);
       else if (active === 'recurringIncome') setRecurringIncome((await reportsAPI.recurringIncome(appliedParams)).data);
@@ -283,7 +269,7 @@ const Reports = () => {
 
   useEffect(() => {
     fetchActive();
-  }, [active, appliedParams, appliedFilters.openingBalance]);
+  }, [active, appliedParams]);
 
   const activeMeta = REPORT_META_BY_ID[active] || { title: 'Report', groupId: 'financial', groupTitle: 'Financial' };
   const activeGroup = REPORT_GROUPS.find((g) => g.id === activeMeta.groupId) || REPORT_GROUPS[0];
@@ -348,7 +334,6 @@ const Reports = () => {
       endDate: '',
       invoiceStatus: '',
       expenseStatus: '',
-      openingBalance: '',
     };
     setFilters(d);
     setAppliedFilters(d);
@@ -524,19 +509,6 @@ const Reports = () => {
                   <option value="Cancel">Cancel</option>
                 </select>
               </div>
-              {active === 'cashFlow' && (
-                <div>
-                  <label className="form-label">Cash Flow Opening Balance (optional)</label>
-                  <input
-                    className="input-field"
-                    type="number"
-                    value={filters.openingBalance}
-                    onChange={(e) => setFilters((p) => ({ ...p, openingBalance: e.target.value }))}
-                    placeholder="e.g. 500000"
-                  />
-                  <div className="report-subtle mt-1">Tip: set this if you want exact closing balance.</div>
-                </div>
-              )}
             </div>
 
             <div className="pt-2">
@@ -716,28 +688,6 @@ const Reports = () => {
                       <Bar dataKey="expense" name="Expense" fill="#ef4444" />
                     </BarChart>
                   </ResponsiveContainer>
-                </div>
-              </div>
-            )}
-
-            {/* Cash Flow */}
-            {active === 'cashFlow' && cashFlow && (
-              <div className="space-y-4">
-                <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-3">
-                  <Kpi label="Opening Balance" value={money(cashFlow.openingBalance)} />
-                  <Kpi label="Cash In (collections)" value={money(cashFlow.cashIn)} />
-                  <Kpi label="Cash Out (payments)" value={money(cashFlow.cashOut)} />
-                  <Kpi label="Net Cash Flow" value={money(cashFlow.netCashFlow)} />
-                  <Kpi label="Closing Balance" value={money(cashFlow.closingBalance)} />
-                </div>
-                <div className="report-subtle">{cashFlow.note}</div>
-                <div>
-                  <button
-                    className="btn-secondary"
-                    onClick={() => exportToExcel('cash-flow.xlsx', [{ name: 'Cash Flow', rows: [cashFlow] }])}
-                  >
-                    Export Excel
-                  </button>
                 </div>
               </div>
             )}
@@ -1060,7 +1010,6 @@ const Reports = () => {
             {/* Client profitability */}
             {active === 'clientProfit' && clientProfit && (
               <div className="space-y-4">
-                <div className="text-xs text-slate-500">{clientProfit.note}</div>
                 <div>
                   <button
                     className="px-4 py-2 text-sm font-semibold bg-slate-900 text-white rounded-lg hover:bg-slate-800 transition"
