@@ -4,6 +4,7 @@ import PaymentModeMaster from './PaymentModeMaster';
 import VendorMaster from './VendorMaster';
 import BankAccountMaster from './BankAccountMaster';
 import ExpenseCategoryMaster from './ExpenseCategoryMaster';
+import DepartmentMaster from './DepartmentMaster';
 
 const ExpenseMasters = () => {
   const location = useLocation();
@@ -16,7 +17,7 @@ const ExpenseMasters = () => {
 
   // Set active tab from navigation state
   useEffect(() => {
-    if (initialTab && ['payment-mode', 'vendor', 'bank-account', 'category'].includes(initialTab)) {
+    if (initialTab && ['payment-mode', 'vendor', 'bank-account', 'category', 'department'].includes(initialTab)) {
       setActiveTab(initialTab);
     }
   }, [initialTab]);
@@ -26,6 +27,7 @@ const ExpenseMasters = () => {
     { id: 'category', name: 'Category', icon: '🏷️' },
     { id: 'vendor', name: 'Vendor', icon: '🏢' },
     { id: 'bank-account', name: 'Bank Account', icon: '🏦' },
+    { id: 'department', name: 'Department', icon: '🏛️' },
   ];
 
   const renderTabContent = () => {
@@ -43,6 +45,8 @@ const ExpenseMasters = () => {
         return <VendorMaster {...commonProps} />;
       case 'bank-account':
         return <BankAccountMaster {...commonProps} />;
+      case 'department':
+        return <DepartmentMaster {...commonProps} />;
       default:
         return <PaymentModeMaster {...commonProps} />;
     }

@@ -132,15 +132,6 @@ export const itemAPI = {
   delete: (id) => api.delete(`/items/${id}`),
 };
 
-// HSN/SAC APIs
-export const hsnSacAPI = {
-  getAll: (params) => api.get('/hsn-sac', { params }),
-  getById: (id) => api.get(`/hsn-sac/${id}`),
-  create: (data) => api.post('/hsn-sac', data),
-  update: (id, data) => api.put(`/hsn-sac/${id}`, data),
-  delete: (id) => api.delete(`/hsn-sac/${id}`),
-};
-
 // Settings APIs
 export const settingsAPI = {
   get: () => api.get('/settings'),
@@ -214,6 +205,14 @@ export const expenseCategoryAPI = {
   create: (data) => api.post('/expense-categories', data),
   update: (id, data) => api.put(`/expense-categories/${id}`, data),
   delete: (id) => api.delete(`/expense-categories/${id}`),
+};
+
+// Department Master APIs
+export const departmentAPI = {
+  getAll: (params) => api.get('/departments', { params }),
+  create: (data) => api.post('/departments', data),
+  update: (id, data) => api.put(`/departments/${id}`, data),
+  delete: (id) => api.delete(`/departments/${id}`),
 };
 
 // Reports APIs

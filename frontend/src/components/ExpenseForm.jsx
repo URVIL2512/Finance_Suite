@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { format } from 'date-fns';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useToast } from '../contexts/ToastContext';
-import { authAPI, paymentModeAPI, vendorAPI, bankAccountAPI, expenseCategoryAPI } from '../services/api';
+import { authAPI, paymentModeAPI, vendorAPI, bankAccountAPI, expenseCategoryAPI, departmentAPI } from '../services/api';
 import MobileSelect from './MobileSelect';
 
 const ExpenseForm = ({ expense, onSubmit, onCancel }) => {
@@ -21,15 +21,20 @@ const ExpenseForm = ({ expense, onSubmit, onCancel }) => {
   const [paymentModes, setPaymentModes] = useState([]);
   const [vendors, setVendors] = useState([]);
   const [bankAccounts, setBankAccounts] = useState([]);
+  const DEFAULT_DEPARTMENTS = ['OPERATION', 'SOCIAL MEDIA', 'WEBSITE', 'BUSINESS DEVELOPMENT', 'TELE CALLING'];
+  const [departments, setDepartments] = useState(DEFAULT_DEPARTMENTS);
   const [showPaymentModeDropdown, setShowPaymentModeDropdown] = useState(false);
   const [paymentModeSearchTerm, setPaymentModeSearchTerm] = useState('');
   const [showVendorDropdown, setShowVendorDropdown] = useState(false);
   const [vendorSearchTerm, setVendorSearchTerm] = useState('');
   const [showBankAccountDropdown, setShowBankAccountDropdown] = useState(false);
   const [bankAccountSearchTerm, setBankAccountSearchTerm] = useState('');
+  const [showDepartmentDropdown, setShowDepartmentDropdown] = useState(false);
+  const [departmentSearchTerm, setDepartmentSearchTerm] = useState('');
   const paymentModeDropdownRef = useRef(null);
   const vendorDropdownRef = useRef(null);
   const bankAccountDropdownRef = useRef(null);
+  const departmentDropdownRef = useRef(null);
   const [formData, setFormData] = useState({
     date: format(new Date(), 'yyyy-MM-dd'),
     category: '',
@@ -90,7 +95,7 @@ const ExpenseForm = ({ expense, onSubmit, onCancel }) => {
   };
 
 
-  // Fetch Payment Modes, Vendors, Bank Accounts, and Expense Categories
+  // Fetch Payment Modes, Vendors, Bank Accounts, Expense Categories, and Departments
   useEffect(() => {
     const fetchMasterData = async () => {
       try {
@@ -114,11 +119,20 @@ const ExpenseForm = ({ expense, onSubmit, onCancel }) => {
         const activeExpenseCategories = (expenseCategoriesResponse.data || []).filter((c) => c?.isActive !== false);
         const categoryNames = activeExpenseCategories.map((c) => c.name).filter(Boolean);
         setCategories(categoryNames);
+
+        // Fetch Departments
+        const departmentsResponse = await departmentAPI.getAll({ isActive: true });
+        const activeDepartments = (departmentsResponse.data || []).filter((d) => d?.isActive !== false);
+        const deptNames = activeDepartments.map((d) => d.name).filter(Boolean);
+        const selected = (formData.department || '').trim();
+        const merged = selected ? Array.from(new Set([...deptNames, selected])) : deptNames;
+        setDepartments(merged.length ? merged : DEFAULT_DEPARTMENTS);
       } catch (error) {
         console.error('Error fetching master data:', error);
         // Set default values if API fails
         setPaymentModes(['Office Cash', 'Bank Transfer', 'Mihir Personal', 'Komal Personal HDFC', 'Komal Personal Cash', 'HR Personal', 'Other']);
         setBankAccounts(['Kology', 'Kology ICICI']);
+        setDepartments(DEFAULT_DEPARTMENTS);
       }
     };
 
@@ -399,16 +413,20 @@ const ExpenseForm = ({ expense, onSubmit, onCancel }) => {
         setShowBankAccountDropdown(false);
         setBankAccountSearchTerm('');
       }
+      if (departmentDropdownRef.current && !departmentDropdownRef.current.contains(event.target)) {
+        setShowDepartmentDropdown(false);
+        setDepartmentSearchTerm('');
+      }
     };
 
-    if (showCategoryDropdown || showPaymentModeDropdown || showVendorDropdown || showBankAccountDropdown) {
+    if (showCategoryDropdown || showPaymentModeDropdown || showVendorDropdown || showBankAccountDropdown || showDepartmentDropdown) {
       document.addEventListener('mousedown', handleClickOutside);
     }
 
     return () => {
       document.removeEventListener('mousedown', handleClickOutside);
     };
-  }, [showCategoryDropdown, showPaymentModeDropdown, showVendorDropdown, showBankAccountDropdown]);
+  }, [showCategoryDropdown, showPaymentModeDropdown, showVendorDropdown, showBankAccountDropdown, showDepartmentDropdown]);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -544,14 +562,6 @@ const ExpenseForm = ({ expense, onSubmit, onCancel }) => {
       setIsAddingCategory(false);
     }
   };
-  const departments = [
-    'OPERATION',
-    'SOCIAL MEDIA',
-    'WEBSITE',
-    'BUSINESS DEVELOPMENT',
-    'TELE CALLING',
-  ];
-
   return (
     <div 
       className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4"
@@ -1144,18 +1154,147 @@ const ExpenseForm = ({ expense, onSubmit, onCancel }) => {
                   <label className="block text-sm font-semibold text-gray-700">
                     Department<span className="text-red-500 ml-1">*</span>
                   </label>
-                  <MobileSelect
+                  <div className="relative" ref={departmentDropdownRef}>
+                    <div
+                      onClick={() => {
+                        setShowDepartmentDropdown(!showDepartmentDropdown);
+                        if (!showDepartmentDropdown) {
+                          setDepartmentSearchTerm('');
+                        }
+                      }}
+                      className="select-field w-full text-sm py-2.5 cursor-pointer flex items-center justify-between"
+                    >
+                      <span className={formData.department ? 'text-gray-900' : 'text-gray-400'}>
+                        {formData.department || 'Select'}
+                      </span>
+                      <svg
+                        className={`w-5 h-5 text-gray-400 transition-transform ${showDepartmentDropdown ? 'rotate-180' : ''}`}
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                      </svg>
+                    </div>
+                    {showDepartmentDropdown && (
+                      <div className="absolute z-50 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg max-h-60 overflow-hidden flex flex-col">
+                        {/* Search Input */}
+                        <div className="p-2 border-b border-gray-200">
+                          <div className="relative">
+                            <input
+                              type="text"
+                              value={departmentSearchTerm}
+                              onChange={(e) => setDepartmentSearchTerm(e.target.value)}
+                              placeholder="Search departments..."
+                              className="w-full px-3 py-2 pl-9 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+                              onClick={(e) => e.stopPropagation()}
+                              autoFocus
+                            />
+                            <svg
+                              className="absolute left-2.5 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400"
+                              fill="none"
+                              stroke="currentColor"
+                              viewBox="0 0 24 24"
+                            >
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                            </svg>
+                            {departmentSearchTerm && (
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setDepartmentSearchTerm('');
+                                }}
+                                className="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 active:text-gray-800 active:scale-90 focus:outline-none focus:ring-2 focus:ring-gray-400 rounded transition-all duration-150"
+                              >
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                </svg>
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                        {/* Departments List */}
+                        <div className="overflow-y-auto max-h-48 py-1">
+                          {departments
+                            .filter((dept) =>
+                              dept.toLowerCase().includes(departmentSearchTerm.toLowerCase())
+                            )
+                            .map((dept) => (
+                              <div
+                                key={dept}
+                                onClick={() => {
+                                  setFormData({ ...formData, department: dept });
+                                  setShowDepartmentDropdown(false);
+                                  setDepartmentSearchTerm('');
+                                }}
+                                className={`px-4 py-2 cursor-pointer hover:bg-blue-50 active:bg-blue-100 active:scale-[0.98] transition-all duration-150 ${
+                                  formData.department === dept ? 'bg-blue-100 text-blue-700' : 'text-gray-900'
+                                }`}
+                              >
+                                {dept}
+                              </div>
+                            ))}
+                          {departments.filter((dept) =>
+                            dept.toLowerCase().includes(departmentSearchTerm.toLowerCase())
+                          ).length === 0 && (
+                            <div className="px-4 py-3 text-sm text-gray-500 text-center">
+                              {departmentSearchTerm ? 'No departments found' : 'No departments available'}
+                            </div>
+                          )}
+                          {/* Allow manual entry and Add New */}
+                          <div className="border-t border-gray-200 mt-1 space-y-1">
+                            {departmentSearchTerm && (
+                              <div
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  const manualDept = departmentSearchTerm.trim();
+                                  if (manualDept) {
+                                    setFormData({ ...formData, department: manualDept });
+                                    setShowDepartmentDropdown(false);
+                                    setDepartmentSearchTerm('');
+                                  }
+                                }}
+                                className="px-4 py-2 cursor-pointer hover:bg-blue-50 active:bg-blue-100 active:scale-[0.98] transition-all duration-150 text-blue-600 font-semibold flex items-center gap-2"
+                              >
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                                </svg>
+                                Use "{departmentSearchTerm}"
+                              </div>
+                            )}
+                            <div
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setShowDepartmentDropdown(false);
+                                setDepartmentSearchTerm('');
+                                // Navigate to masters page with department tab
+                                navigate('/expenses/masters', {
+                                  state: {
+                                    activeTab: 'department',
+                                    returnTo: location.pathname,
+                                    returnState: { showExpenseForm: true, editingExpense: expense }
+                                  }
+                                });
+                              }}
+                              className="px-4 py-2 cursor-pointer hover:bg-blue-50 active:bg-blue-100 active:scale-[0.98] transition-all duration-150 text-blue-600 font-semibold flex items-center gap-2 border-t border-gray-200"
+                            >
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                              </svg>
+                              Add New Department
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                  <input
+                    type="hidden"
                     name="department"
                     value={formData.department}
-                    onChange={handleChange}
                     required
-                    className="select-field w-full text-sm py-2.5"
-                  >
-                    <option value="">Select</option>
-                    {departments.map((dept) => (
-                      <option key={dept} value={dept}>{dept}</option>
-                    ))}
-                  </MobileSelect>
+                  />
                 </div>
                 <div className="space-y-2">
                   <label className="block text-sm font-semibold text-gray-700">Bank Account</label>

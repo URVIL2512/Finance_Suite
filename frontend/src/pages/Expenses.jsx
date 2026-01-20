@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { expenseAPI, recurringExpenseAPI } from '../services/api';
+import { expenseAPI, recurringExpenseAPI, departmentAPI } from '../services/api';
 import { useToast } from '../contexts/ToastContext';
 import ExpenseForm from '../components/ExpenseForm';
 import ExpenseTable from '../components/ExpenseTable';
@@ -18,6 +18,7 @@ const Expenses = () => {
   const { showToast } = useToast();
   const location = useLocation();
   const navigate = useNavigate();
+  const DEFAULT_DEPARTMENTS = ['OPERATION', 'SOCIAL MEDIA', 'WEBSITE', 'BUSINESS DEVELOPMENT', 'TELE CALLING'];
   const [expenses, setExpenses] = useState([]);
   const [allExpenses, setAllExpenses] = useState([]); // Store all expenses for vendor dropdown
   const [recurringExpenses, setRecurringExpenses] = useState([]); // Store recurring expenses to identify baseExpense
@@ -66,6 +67,7 @@ const Expenses = () => {
   const [bulkDeleteConfirm, setBulkDeleteConfirm] = useState({ show: false, ids: [] });
   const fileInputRef = useRef(null);
   const vendorDropdownRef = useRef(null);
+  const [departments, setDepartments] = useState(DEFAULT_DEPARTMENTS);
 
   // If we came back from Bank Account Master, restore the Mark-as-Paid context.
   useEffect(() => {
@@ -279,6 +281,22 @@ const Expenses = () => {
       }
     };
     fetchAllData();
+  }, []);
+
+  // Fetch departments from master (for filters)
+  useEffect(() => {
+    const fetchDepartments = async () => {
+      try {
+        const res = await departmentAPI.getAll({ isActive: true });
+        const active = (res.data || []).filter((d) => d?.isActive !== false);
+        const names = active.map((d) => d.name).filter(Boolean);
+        setDepartments(names.length ? names : DEFAULT_DEPARTMENTS);
+      } catch (e) {
+        console.error('Error fetching departments:', e);
+        setDepartments(DEFAULT_DEPARTMENTS);
+      }
+    };
+    fetchDepartments();
   }, []);
 
   useEffect(() => {
@@ -798,14 +816,6 @@ const Expenses = () => {
     'Chai n Snacks',
     'Loan Interest',
     'Purchase',
-  ];
-
-  const departments = [
-    'OPERATION',
-    'SOCIAL MEDIA',
-    'WEBSITE',
-    'BUSINESS DEVELOPMENT',
-    'TELE CALLING',
   ];
 
   // Use computed totals so amounts stay correct even for older records where totalAmount is missing.

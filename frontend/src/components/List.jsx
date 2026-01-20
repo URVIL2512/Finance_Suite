@@ -1,8 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { format } from 'date-fns';
-import { invoiceAPI, customerAPI, itemAPI, hsnSacAPI, settingsAPI } from '../services/api';
-import { getSacCodeForService } from '../utils/serviceSacCodes';
+import { invoiceAPI, customerAPI, itemAPI, settingsAPI } from '../services/api';
 import { useToast } from '../contexts/ToastContext';
 import ConfirmationModal from './ConfirmationModal';
 import MobileSelect from './MobileSelect';
@@ -24,8 +23,8 @@ const InvoiceForm = ({ invoice, customers = [], onSubmit, onCancel, onCustomerAd
   const location = useLocation();
   const [selectedCustomerId, setSelectedCustomerId] = useState('');
   const [existingItems, setExistingItems] = useState([]);
-  const [hsnSacCodes, setHsnSacCodes] = useState([]);
-  const [hsnSacSearchTerm, setHsnSacSearchTerm] = useState({}); // Track search per item
+  const [hsnSacCodes, setHsnSacCodes] = useState([]); // kept for backward compatibility; now unused
+  const [hsnSacSearchTerm, setHsnSacSearchTerm] = useState({});
   const [showAddCustomer, setShowAddCustomer] = useState(false);
   const [showClientDetails, setShowClientDetails] = useState(false);
   const [showAdditionalInfo, setShowAdditionalInfo] = useState(false);
@@ -234,18 +233,7 @@ const InvoiceForm = ({ invoice, customers = [], onSubmit, onCancel, onCustomerAd
     fetchItems();
   }, []);
 
-  useEffect(() => {
-    const fetchHsnSacCodes = async () => {
-      try {
-        const response = await hsnSacAPI.getAll();
-        setHsnSacCodes(response.data || []);
-      } catch (error) {
-        console.error('Error fetching HSN/SAC codes:', error);
-        setHsnSacCodes([]);
-      }
-    };
-    fetchHsnSacCodes();
-  }, []);
+  // HSN/SAC codes are now entered manually; no fetch from backend.
 
   // Fetch GST/TDS/TCS rates from settings
   useEffect(() => {
@@ -1429,12 +1417,6 @@ const InvoiceForm = ({ invoice, customers = [], onSubmit, onCancel, onCustomerAd
                                 // Auto-fill rate immediately when item matches
                                 handleItemChange(item.id, 'rate', matchedItem.sellingPrice);
                               }
-                              
-                              // Auto-fill SAC code if service name matches
-                              const sacCode = getSacCodeForService(value);
-                              if (sacCode) {
-                                handleItemChange(item.id, 'hsnSac', sacCode);
-                              }
                             }}
                             onBlur={(e) => {
                               const value = e.target.value.trim();
@@ -1443,18 +1425,11 @@ const InvoiceForm = ({ invoice, customers = [], onSubmit, onCancel, onCustomerAd
                                 existingItem => existingItem.name.toLowerCase().trim() === value.toLowerCase().trim()
                               );
                               if (matchedItem) {
-                                // Update description, rate, and HSN/SAC if available
+                                // Update description, rate if available
                                 handleItemChange(item.id, 'description', matchedItem.name);
                                 if (matchedItem.sellingPrice && matchedItem.sellingPrice > 0) {
                                   handleItemChange(item.id, 'rate', matchedItem.sellingPrice);
                                 }
-                              }
-                              
-                              // Auto-fill SAC code if service name matches (check both typed value and matched item name)
-                              const serviceName = matchedItem ? matchedItem.name : value;
-                              const sacCode = getSacCodeForService(serviceName);
-                              if (sacCode) {
-                                handleItemChange(item.id, 'hsnSac', sacCode);
                               }
                             }}
                             placeholder="Type or click to select an item"

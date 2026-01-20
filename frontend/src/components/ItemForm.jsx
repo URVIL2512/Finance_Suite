@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react';
 import { itemAPI } from '../services/api';
-import { getSacCodeForService, SERVICE_SAC_CODES } from '../utils/serviceSacCodes';
 import MobileSelect from './MobileSelect';
 
 const ItemForm = ({ item, onSubmit, onCancel }) => {
@@ -20,55 +19,9 @@ const ItemForm = ({ item, onSubmit, onCancel }) => {
     preferredVendor: '',
   });
 
-  const [services, setServices] = useState([]);
-  const [serviceSacMap, setServiceSacMap] = useState({}); // Map of service names to SAC codes from database
-  const [newServiceName, setNewServiceName] = useState('');
-  const [showAddService, setShowAddService] = useState(false);
-  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
-
   const units = ['Nos', 'Pcs', 'Kg', 'Ltr', 'Mtr', 'Hrs', 'Days'];
   const salesAccounts = ['Sales', 'Service Revenue', 'Product Sales', 'Other Income'];
   const purchaseAccounts = ['Cost of Goods Sold', 'Purchase', 'Expenses', 'Other Expenses'];
-
-  // Fetch services from database
-  useEffect(() => {
-    const fetchServices = async () => {
-      try {
-        const response = await itemAPI.getAll();
-        const serviceItems = response.data.filter(item => item.type === 'Service');
-        const dbServiceNames = serviceItems.map(item => item.name);
-        
-        // Create a map of service names to their SAC codes from database
-        const sacMap = {};
-        serviceItems.forEach(item => {
-          if (item.hsnSac) {
-            sacMap[item.name] = item.hsnSac;
-          }
-        });
-        
-        // Get default service names from SERVICE_SAC_CODES
-        const defaultServiceNames = Object.keys(SERVICE_SAC_CODES);
-        
-        // Merge database services with default services (database takes precedence, no duplicates)
-        const allServiceNames = [...new Set([...dbServiceNames, ...defaultServiceNames])];
-        
-        // Merge SAC code maps (database values take precedence over defaults)
-        const defaultSacMap = { ...SERVICE_SAC_CODES };
-        const mergedSacMap = { ...defaultSacMap, ...sacMap };
-        
-        setServices(allServiceNames);
-        setServiceSacMap(mergedSacMap);
-      } catch (error) {
-        console.error('Error fetching services:', error);
-        // Fallback to default services if API fails
-        const defaultServiceNames = Object.keys(SERVICE_SAC_CODES);
-        setServices(defaultServiceNames);
-        setServiceSacMap({ ...SERVICE_SAC_CODES });
-      }
-    };
-
-    fetchServices();
-  }, []);
 
   useEffect(() => {
     if (item) {
@@ -98,50 +51,11 @@ const ItemForm = ({ item, onSubmit, onCancel }) => {
       [name]: type === 'checkbox' ? checked : value,
     };
     
-    if (name === 'type') {
-      if (value === 'Service') {
-        updatedFormData.unit = '';
-        // Auto-populate SAC code if service name is already selected
-        if (updatedFormData.name) {
-          // First check database (serviceSacMap), then fallback to static mapping
-          const sacCode = serviceSacMap[updatedFormData.name] || getSacCodeForService(updatedFormData.name);
-          if (sacCode) {
-            updatedFormData.hsnSac = sacCode;
-          }
-        }
-      } else if (value === 'Goods') {
-        // Keep hsnSac when switching to Goods (HSN Code is used for Goods)
-      }
-    }
-    
-    // Auto-populate SAC code when service name is selected
-    if (name === 'name' && updatedFormData.type === 'Service' && value) {
-      // First check database (serviceSacMap), then fallback to static mapping
-      const sacCode = serviceSacMap[value] || getSacCodeForService(value);
-      if (sacCode) {
-        updatedFormData.hsnSac = sacCode;
-      }
+    if (name === 'type' && value === 'Service') {
+      updatedFormData.unit = '';
     }
     
     setFormData(updatedFormData);
-  };
-
-  const handleAddService = (e) => {
-    e.preventDefault();
-    if (newServiceName.trim() && !services.includes(newServiceName.trim())) {
-      const trimmedName = newServiceName.trim();
-      setServices([...services, trimmedName]);
-      // Auto-populate SAC code if available from static mapping (database items already have SAC codes)
-      const sacCode = getSacCodeForService(trimmedName);
-      setFormData(prev => ({
-        ...prev,
-        name: trimmedName,
-        hsnSac: sacCode || prev.hsnSac,
-      }));
-      setNewServiceName('');
-      setShowAddService(false);
-      setIsDropdownOpen(false);
-    }
   };
 
   const handleSubmit = (e) => {
@@ -217,113 +131,15 @@ const ItemForm = ({ item, onSubmit, onCancel }) => {
                   <label className="form-label text-xs font-medium text-gray-700 mb-1.5 block">
                     Name<span className="text-red-500">*</span>
                   </label>
-                  {formData.type === 'Service' ? (
-                    <div className="relative">
-                      <div
-                        onClick={() => setIsDropdownOpen(!isDropdownOpen)}
-                        className="select-field w-full text-sm py-2 px-3 cursor-pointer flex items-center justify-between bg-white border border-gray-300 rounded-md"
-                      >
-                        <span className={formData.name ? 'text-gray-900' : 'text-gray-400'}>
-                          {formData.name || 'Select a service'}
-                        </span>
-                        <svg
-                          className={`w-4 h-4 text-gray-400 transition-transform ${isDropdownOpen ? 'transform rotate-180' : ''}`}
-                          fill="none"
-                          stroke="currentColor"
-                          viewBox="0 0 24 24"
-                        >
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                        </svg>
-                      </div>
-                      {isDropdownOpen && (
-                        <>
-                          <div
-                            className="fixed inset-0 z-[1]"
-                            onClick={() => setIsDropdownOpen(false)}
-                          ></div>
-                          <div className="absolute z-[2] w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg max-h-60 overflow-auto">
-                            <div
-                              className="px-3 py-2 text-sm text-gray-400 cursor-default border-b border-gray-200"
-                            >
-                              Select a service
-                            </div>
-                            {services.map((service) => (
-                              <div
-                                key={service}
-                                onClick={() => {
-                                  handleChange({ target: { name: 'name', value: service } });
-                                  setIsDropdownOpen(false);
-                                }}
-                                className={`px-3 py-2 text-sm cursor-pointer hover:bg-blue-50 ${
-                                  formData.name === service ? 'bg-blue-50 text-blue-600' : 'text-gray-900'
-                                }`}
-                              >
-                                {service}
-                              </div>
-                            ))}
-                            <div className="border-t border-gray-200">
-                              <button
-                                type="button"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setIsDropdownOpen(false);
-                                  setShowAddService(true);
-                                }}
-                                className="w-full px-3 py-2 text-sm text-blue-600 font-medium hover:bg-blue-50 text-left flex items-center gap-2"
-                              >
-                                <span className="text-lg">+</span>
-                                <span>Add New Service</span>
-                              </button>
-                            </div>
-                          </div>
-                        </>
-                      )}
-                    </div>
-                  ) : (
-                    <input
-                      type="text"
-                      name="name"
-                      value={formData.name}
-                      onChange={handleChange}
-                      required
-                      className="input-field w-full text-sm py-2"
-                      placeholder="Enter item name"
-                    />
-                  )}
-                  {formData.type === 'Service' && showAddService && (
-                    <div className="mt-2 flex gap-2">
-                      <input
-                        type="text"
-                        value={newServiceName}
-                        onChange={(e) => setNewServiceName(e.target.value)}
-                        onKeyPress={(e) => {
-                          if (e.key === 'Enter') {
-                            handleAddService(e);
-                          }
-                        }}
-                        className="input-field flex-1 text-sm py-2"
-                        placeholder="Enter new service name"
-                        autoFocus
-                      />
-                      <button
-                        type="button"
-                        onClick={handleAddService}
-                        className="px-3 py-2 bg-green-600 text-white text-sm font-medium rounded hover:bg-green-700 transition-colors"
-                      >
-                        Add
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setShowAddService(false);
-                          setNewServiceName('');
-                        }}
-                        className="px-3 py-2 bg-gray-300 text-gray-700 text-sm font-medium rounded hover:bg-gray-400 transition-colors"
-                      >
-                        Cancel
-                      </button>
-                    </div>
-                  )}
+                  <input
+                    type="text"
+                    name="name"
+                    value={formData.name}
+                    onChange={handleChange}
+                    required
+                    className="input-field w-full text-sm py-2"
+                    placeholder={formData.type === 'Goods' ? 'Enter item name' : 'Enter service name'}
+                  />
                 </div>
 
                 {/* Unit Field (Only for Goods) */}

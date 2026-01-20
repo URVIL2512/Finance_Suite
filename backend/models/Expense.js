@@ -16,13 +16,6 @@ const expenseSchema = new mongoose.Schema(
     },
     department: {
       type: String,
-      enum: [
-        'OPERATION',
-        'SOCIAL MEDIA',
-        'WEBSITE',
-        'BUSINESS DEVELOPMENT',
-        'TELE CALLING',
-      ],
       required: [true, 'Please select a department'],
     },
     bankAccount: {
