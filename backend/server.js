@@ -21,6 +21,7 @@ import ledgerRoutes from './routes/ledgerRoutes.js';
 import paymentModeRoutes from './routes/paymentModeRoutes.js';
 import vendorRoutes from './routes/vendorRoutes.js';
 import bankAccountRoutes from './routes/bankAccountRoutes.js';
+import expenseCategoryRoutes from './routes/expenseCategoryRoutes.js';
 import reportRoutes from './routes/reportRoutes.js';
 import budgetRoutes from './routes/budgetRoutes.js';
 import { startRecurringInvoiceScheduler } from './utils/recurringInvoiceScheduler.js';
@@ -96,6 +97,7 @@ app.use('/api/ledger', ledgerRoutes);
 app.use('/api/payment-modes', paymentModeRoutes);
 app.use('/api/vendors', vendorRoutes);
 app.use('/api/bank-accounts', bankAccountRoutes);
+app.use('/api/expense-categories', expenseCategoryRoutes);
 app.use('/api/reports', reportRoutes);
 app.use('/api/budgets', budgetRoutes);
 

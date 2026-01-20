@@ -3,6 +3,7 @@ import { useLocation } from 'react-router-dom';
 import PaymentModeMaster from './PaymentModeMaster';
 import VendorMaster from './VendorMaster';
 import BankAccountMaster from './BankAccountMaster';
+import ExpenseCategoryMaster from './ExpenseCategoryMaster';
 
 const ExpenseMasters = () => {
   const location = useLocation();
@@ -15,13 +16,14 @@ const ExpenseMasters = () => {
 
   // Set active tab from navigation state
   useEffect(() => {
-    if (initialTab && ['payment-mode', 'vendor', 'bank-account'].includes(initialTab)) {
+    if (initialTab && ['payment-mode', 'vendor', 'bank-account', 'category'].includes(initialTab)) {
       setActiveTab(initialTab);
     }
   }, [initialTab]);
 
   const tabs = [
     { id: 'payment-mode', name: 'Payment Mode', icon: '💳' },
+    { id: 'category', name: 'Category', icon: '🏷️' },
     { id: 'vendor', name: 'Vendor', icon: '🏢' },
     { id: 'bank-account', name: 'Bank Account', icon: '🏦' },
   ];
@@ -35,6 +37,8 @@ const ExpenseMasters = () => {
     switch (activeTab) {
       case 'payment-mode':
         return <PaymentModeMaster {...commonProps} />;
+      case 'category':
+        return <ExpenseCategoryMaster {...commonProps} />;
       case 'vendor':
         return <VendorMaster {...commonProps} />;
       case 'bank-account':

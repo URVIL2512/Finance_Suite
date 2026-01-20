@@ -233,6 +233,7 @@ const Reports = () => {
     amount: '',
     reason: '',
   });
+  const [showBudgetForm, setShowBudgetForm] = useState(false);
 
   const fetchActive = async () => {
     try {
@@ -1062,7 +1063,17 @@ const Reports = () => {
                 </div>
 
                 <div className="bg-slate-50 border border-slate-200 rounded-xl p-4">
-                  <div className="text-sm font-bold text-slate-900 mb-3">Add Budget</div>
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="text-sm font-bold text-slate-900">Add Budget</div>
+                    <button
+                      type="button"
+                      className="px-3 py-1.5 text-xs font-semibold rounded-md border border-slate-300 text-slate-700 hover:bg-slate-100 transition"
+                      onClick={() => setShowBudgetForm((v) => !v)}
+                    >
+                      {showBudgetForm ? 'Hide Form' : 'Add Budget'}
+                    </button>
+                  </div>
+                  {showBudgetForm && (
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                     <div>
                       <label className="form-label">Period Start</label>
@@ -1116,6 +1127,8 @@ const Reports = () => {
                       />
                     </div>
                   </div>
+                  )}
+                  {showBudgetForm && (
                   <div className="mt-3">
                     <button
                       className="btn-primary"
@@ -1143,6 +1156,7 @@ const Reports = () => {
                       Save Budget
                     </button>
                   </div>
+                  )}
                 </div>
 
                 <div className="max-h-[520px] overflow-auto border border-slate-200 rounded-lg">
@@ -1168,7 +1182,11 @@ const Reports = () => {
                           <td className={`p-2 text-right ${r.variance > 0 ? 'text-red-600' : 'text-green-700'}`}>
                             {money(r.variance)}
                           </td>
-                          <td className="p-2 text-right">{money(r.variancePct)}%</td>
+                          <td className="p-2 text-right">
+                            {r.budgeted > 0 && typeof r.variancePct === 'number'
+                              ? `${money(r.variancePct)}%`
+                              : 'N/A'}
+                          </td>
                           <td className="p-2">{(r.reasons || []).join(', ')}</td>
                         </tr>
                       ))}

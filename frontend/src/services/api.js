@@ -199,6 +199,14 @@ export const bankAccountAPI = {
   delete: (id) => api.delete(`/bank-accounts/${id}`),
 };
 
+// Expense Category Master APIs
+export const expenseCategoryAPI = {
+  getAll: (params) => api.get('/expense-categories', { params }),
+  create: (data) => api.post('/expense-categories', data),
+  update: (id, data) => api.put(`/expense-categories/${id}`, data),
+  delete: (id) => api.delete(`/expense-categories/${id}`),
+};
+
 // Reports APIs
 export const reportsAPI = {
   profitLoss: (params) => api.get('/reports/profit-loss', { params }),

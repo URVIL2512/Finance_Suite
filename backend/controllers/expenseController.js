@@ -1,5 +1,6 @@
 import Expense from '../models/Expense.js';
 import RecurringExpense from '../models/RecurringExpense.js';
+import ExpenseCategory from '../models/ExpenseCategory.js';
 import { generateExpensesPDF } from '../utils/expensePdfGenerator.js';
 import path from 'path';
 import fs from 'fs';
@@ -19,6 +20,15 @@ const normalizePayment = ({ totalAmount, paidAmount }) => {
   if (total > 0 && paid >= total - epsilon) status = 'Paid';
   else if (paid > epsilon) status = 'Partial';
   return { total, paid, status };
+};
+
+const normalizeCategoryName = (name) => String(name || '').trim();
+
+const getTypeFromCategory = async (userId, categoryName) => {
+  const name = normalizeCategoryName(categoryName);
+  if (!name) return null;
+  const cat = await ExpenseCategory.findOne({ user: userId, name }).select('costType').lean();
+  return cat?.costType || null;
 };
 
 // @desc    Get all expenses
@@ -221,6 +231,15 @@ export const createExpense = async (req, res) => {
       expenseData.status = normalized.status;
     }
 
+    // Cost type classification (Fixed vs Variable)
+    // If type not provided or invalid, infer from Category Master.
+    const requestedType = String(expenseData.type || '').trim();
+    const validType = requestedType === 'Fixed' || requestedType === 'Variable';
+    if (!validType) {
+      const inferred = await getTypeFromCategory(req.user._id, expenseData.category);
+      if (inferred) expenseData.type = inferred;
+    }
+
     // Check for duplicate expense before creating
     // Duplicate = same vendor, category, date, totalAmount, department
     const expenseDate = expenseData.date ? new Date(expenseData.date) : new Date();
@@ -342,6 +361,16 @@ export const updateExpense = async (req, res) => {
       } else {
         req.body.status = nextNormalized.status;
       }
+    }
+
+    // Cost type classification (Fixed vs Variable)
+    // If type not provided or invalid, infer from Category Master.
+    const requestedType = String(req.body.type || '').trim();
+    const validType = requestedType === 'Fixed' || requestedType === 'Variable';
+    if (!validType) {
+      const nextCategory = req.body.category !== undefined ? req.body.category : existingExpense.category;
+      const inferred = await getTypeFromCategory(req.user._id, nextCategory);
+      if (inferred) req.body.type = inferred;
     }
 
     // Payment history tracking (based on normalized values so we never record over-payments)

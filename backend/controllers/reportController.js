@@ -836,11 +836,9 @@ export const getInvoiceAgingReport = async (req, res) => {
       {
         $addFields: {
           daysPastDue: { $max: [0, '$daysPastDueRaw'] },
-          isOverdue: { $gt: ['$daysPastDueRaw', 0] },
           bucket: {
             $switch: {
               branches: [
-                { case: { $lte: ['$daysPastDueRaw', 0] }, then: 'Not Due' },
                 { case: { $lte: ['$daysPastDue', 30] }, then: '0-30' },
                 { case: { $lte: ['$daysPastDue', 60] }, then: '31-60' },
                 { case: { $lte: ['$daysPastDue', 90] }, then: '61-90' },
@@ -855,6 +853,11 @@ export const getInvoiceAgingReport = async (req, res) => {
           _id: '$bucket',
           outstanding: { $sum: '$dueInINR' },
           count: { $sum: 1 },
+          overdue: {
+            $sum: {
+              $cond: [{ $gt: ['$daysPastDueRaw', 0] }, '$dueInINR', 0],
+            },
+          },
         },
       },
       { $sort: { _id: 1 } },
@@ -873,11 +876,18 @@ export const getInvoiceAgingReport = async (req, res) => {
     ]);
 
     const outstandingTotal = round2(aging.reduce((s, r) => s + (r.outstanding || 0), 0));
-    const overdueTotal = round2(
-      aging
-        .filter((r) => r._id !== 'Not Due')
-        .reduce((s, r) => s + (r.outstanding || 0), 0)
-    );
+    const overdueTotal = round2(aging.reduce((s, r) => s + (r.overdue || 0), 0));
+
+    const bucketOrder = ['0-30', '31-60', '61-90', '90+'];
+    const bucketMap = new Map(aging.map((r) => [r._id, r]));
+    const buckets = bucketOrder.map((label) => {
+      const row = bucketMap.get(label);
+      return {
+        bucket: label,
+        count: row ? row.count : 0,
+        total: round2(row ? row.outstanding : 0),
+      };
+    });
 
     res.json({
       startDate: start.toISOString(),
@@ -890,7 +900,7 @@ export const getInvoiceAgingReport = async (req, res) => {
       outstanding: {
         total: outstandingTotal,
         overdueTotal,
-        buckets: aging.map((r) => ({ bucket: r._id, total: round2(r.outstanding), count: r.count })),
+        buckets,
       },
     });
   } catch (error) {
@@ -905,7 +915,7 @@ export const getInvoiceAgingReport = async (req, res) => {
 export const getFixedVsVariableExpenseReport = async (req, res) => {
   try {
     const { start, end } = getDateRangeFromQuery(req.query);
-    const contributionMargin = clampNumber(req.query.contributionMargin ?? 0.4, 0.01, 0.99, 0.4); // default 40%
+    const explicitContributionMargin = req.query.contributionMargin;
 
     const match = {
       user: req.user._id,
@@ -936,7 +946,6 @@ export const getFixedVsVariableExpenseReport = async (req, res) => {
     const variableCost = round2(agg?.[0]?.variableCost || 0);
     const fixedPct = totalExpenses > 0 ? round2((fixedCost / totalExpenses) * 100) : 0;
     const variablePct = totalExpenses > 0 ? round2((variableCost / totalExpenses) * 100) : 0;
-    const breakEvenRevenue = round2(fixedCost / contributionMargin);
 
     const incomeAgg = await Invoice.aggregate([
       {
@@ -950,6 +959,17 @@ export const getFixedVsVariableExpenseReport = async (req, res) => {
       { $group: { _id: null, totalIncome: { $sum: '$baseInINR' } } },
     ]);
     const totalIncome = round2(incomeAgg?.[0]?.totalIncome || 0);
+
+    // Contribution margin ratio:
+    // If explicitly provided, use it. Otherwise compute from real revenue and variable cost.
+    // marginRatio = (Revenue - VariableCost) / Revenue
+    const computedMarginRatio =
+      totalIncome > 0 ? clampNumber((totalIncome - variableCost) / totalIncome, 0, 0.99, 0) : 0;
+    const contributionMargin = explicitContributionMargin !== undefined
+      ? clampNumber(explicitContributionMargin, 0.01, 0.99, 0.4)
+      : computedMarginRatio;
+
+    const breakEvenRevenue = contributionMargin > 0 ? round2(fixedCost / contributionMargin) : 0;
 
     let breakEvenStatus = 'break_even';
     if (totalIncome > fixedCost) breakEvenStatus = 'profit_zone';
@@ -967,6 +987,7 @@ export const getFixedVsVariableExpenseReport = async (req, res) => {
       breakEvenStatus,
       breakEvenGap: round2(totalIncome - fixedCost),
       contributionMargin,
+      contributionMarginComputed: round2(computedMarginRatio),
       breakEvenRevenue,
     });
   } catch (error) {
@@ -1112,13 +1133,13 @@ export const getVendorExpenseReport = async (req, res) => {
 };
 
 // ============================================
-// 9) Client Profitability (department-based allocation)
+// 9) Client Profitability (revenue-share allocation)
 // ============================================
 export const getClientProfitabilityReport = async (req, res) => {
   try {
     const { start, end } = getDateRangeFromQuery(req.query);
 
-    // Revenue per client per department (in INR)
+    // Revenue per client (ex GST) in INR
     const revenueRows = await Invoice.aggregate([
       {
         $match: {
@@ -1131,26 +1152,18 @@ export const getClientProfitabilityReport = async (req, res) => {
         $addFields: {
           baseInINR: invoiceBaseInINRExpr(),
           clientKey: { $ifNull: ['$clientDetails.name', 'Unknown'] },
-          deptKey: { $ifNull: ['$department', 'Unassigned'] },
         },
       },
       {
         $group: {
-          _id: { client: '$clientKey', department: '$deptKey' },
+          _id: { client: '$clientKey' },
           revenue: { $sum: '$baseInINR' },
         },
       },
     ]);
 
-    // Total revenue per department (for allocation weight)
-    const deptRevenueMap = new Map();
-    for (const r of revenueRows) {
-      const dept = r._id.department;
-      deptRevenueMap.set(dept, (deptRevenueMap.get(dept) || 0) + (r.revenue || 0));
-    }
-
-    // Total expenses per department
-    const deptExpenseRows = await Expense.aggregate([
+    // Total expenses in the period (ex GST) in INR
+    const expenseAgg = await Expense.aggregate([
       {
         $match: {
           user: req.user._id,
@@ -1159,42 +1172,26 @@ export const getClientProfitabilityReport = async (req, res) => {
         },
       },
       {
-        $group: {
-          _id: { $ifNull: ['$department', 'Unassigned'] },
-          expense: { $sum: { $ifNull: ['$amountExclTax', 0] } },
-        },
+        $group: { _id: null, totalExpense: { $sum: { $ifNull: ['$amountExclTax', 0] } } },
       },
     ]);
-    const deptExpenseMap = new Map(deptExpenseRows.map((d) => [d._id, d.expense || 0]));
+    const totalExpense = Number(expenseAgg?.[0]?.totalExpense) || 0;
 
-    // Allocate dept expenses to clients proportionally by revenue share within that department
-    const clientMap = new Map(); // client -> { revenue, allocatedExpense }
-    for (const row of revenueRows) {
+    // Allocate total expenses to clients proportionally by revenue share
+    const totalRevenue = revenueRows.reduce((s, r) => s + (r.revenue || 0), 0);
+    const clients = revenueRows.map((row) => {
       const client = row._id.client;
-      const dept = row._id.department;
-      const clientDeptRevenue = row.revenue || 0;
-      const deptRevenue = deptRevenueMap.get(dept) || 0;
-      const deptExpense = deptExpenseMap.get(dept) || 0;
-      const weight = deptRevenue > 0 ? clientDeptRevenue / deptRevenue : 0;
-      const allocated = deptExpense * weight;
-
-      const prev = clientMap.get(client) || { client, revenue: 0, allocatedExpense: 0 };
-      prev.revenue += clientDeptRevenue;
-      prev.allocatedExpense += allocated;
-      clientMap.set(client, prev);
-    }
-
-    const clients = Array.from(clientMap.values()).map((c) => {
-      const revenue = round2(c.revenue);
-      const allocatedExpense = round2(c.allocatedExpense);
-      const profit = round2(revenue - allocatedExpense);
-      const marginPct = revenue > 0 ? round2((profit / revenue) * 100) : 0;
+      const revenue = Number(row.revenue) || 0;
+      const share = totalRevenue > 0 ? revenue / totalRevenue : 0;
+      const allocatedExpense = totalExpense * share;
+      const profit = revenue - allocatedExpense;
+      const marginPct = revenue > 0 ? (profit / revenue) * 100 : 0;
       return {
-        client: c.client,
-        revenue,
-        allocatedExpense,
-        profit,
-        marginPct,
+        client,
+        revenue: round2(revenue),
+        allocatedExpense: round2(allocatedExpense),
+        profit: round2(profit),
+        marginPct: round2(marginPct),
         flags: {
           lossMaking: profit < 0,
           lowMargin: marginPct > 0 && marginPct < 10,
@@ -1208,9 +1205,11 @@ export const getClientProfitabilityReport = async (req, res) => {
       startDate: start.toISOString(),
       endDate: end.toISOString(),
       clients,
-      allocationMethod: 'department_revenue_share',
-      note:
-        'Allocation is proportional: department expenses are distributed to clients by their revenue share within the same department. Add invoice.department consistently for best accuracy.',
+      totals: {
+        totalRevenue: round2(totalRevenue),
+        totalExpense: round2(totalExpense),
+      },
+      allocationMethod: 'revenue_share',
     });
   } catch (error) {
     console.error('Error in Client Profitability report:', error);
@@ -1288,7 +1287,9 @@ export const getBudgetVsActualReport = async (req, res) => {
       const budgeted = round2(r.budgeted);
       const actual = round2(r.actual);
       const variance = round2(actual - budgeted);
-      const variancePct = budgeted > 0 ? round2((variance / budgeted) * 100) : 0;
+      // If budget is zero, percentage variance is mathematically undefined.
+      // Return null so the UI can display "N/A" instead of 0%.
+      const variancePct = budgeted > 0 ? round2((variance / budgeted) * 100) : null;
       return { ...r, budgeted, actual, variance, variancePct };
     });
 
