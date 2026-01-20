@@ -7,12 +7,67 @@ import { sendInvoiceEmail } from '../utils/emailService.js';
 import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
+import XLSX from 'xlsx';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 // Company state (can be moved to config/env)
 const COMPANY_STATE = 'Gujarat';
+
+const EXCEL_MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+const normalizeCountry = (value) => {
+  const v = String(value || '').trim().toLowerCase();
+  if (!v) return 'India';
+  if (v === 'india' || v === 'in') return 'India';
+  if (v === 'usa' || v === 'us' || v.includes('united states')) return 'USA';
+  if (v === 'canada' || v === 'ca') return 'Canada';
+  if (v === 'australia' || v === 'au') return 'Australia';
+  return 'India';
+};
+
+const normalizeEngagement = (value) => {
+  const v = String(value || '').trim().toLowerCase();
+  if (v.includes('recurr')) return 'Recurring';
+  return 'One Time';
+};
+
+const parseNumberSafe = (value) => {
+  if (value === null || value === undefined) return 0;
+  if (typeof value === 'number') return Number.isFinite(value) ? value : 0;
+  const s = String(value).replace(/,/g, '').trim();
+  if (!s) return 0;
+  const n = Number(s);
+  return Number.isFinite(n) ? n : 0;
+};
+
+const parseMonthIndex = (monthValue) => {
+  const monthStr = String(monthValue || '').trim();
+  if (!monthStr) return -1;
+  const n = parseInt(monthStr, 10);
+  if (!Number.isNaN(n)) return n - 1;
+  const abbr = monthStr.substring(0, 3).toLowerCase();
+  const idx = EXCEL_MONTH_NAMES.findIndex((m) => m.toLowerCase() === abbr);
+  if (idx !== -1) return idx;
+  const fullMonthNames = [
+    'January','February','March','April','May','June','July','August','September','October','November','December'
+  ];
+  const idx2 = fullMonthNames.findIndex((m) => m.toLowerCase().startsWith(monthStr.toLowerCase()));
+  return idx2;
+};
+
+const normalizeStartOfDay = (d) => {
+  const x = new Date(d);
+  x.setHours(0, 0, 0, 0);
+  return x;
+};
+
+const endOfDay = (d) => {
+  const x = new Date(d);
+  x.setHours(23, 59, 59, 999);
+  return x;
+};
 
 // @desc    Get available revenue entries for invoicing
 // @route   GET /api/invoices/available-revenue
@@ -1883,5 +1938,460 @@ export const generateInvoicePDFController = async (req, res) => {
         error: process.env.NODE_ENV === 'development' ? error.stack : undefined
       });
     }
+  }
+};
+
+// @desc    Import invoices from Excel file
+// @route   POST /api/invoices/import
+// @access  Private
+export const importInvoicesFromExcel = async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ message: 'No file uploaded' });
+    }
+
+    const workbook = XLSX.read(req.file.buffer, { type: 'buffer' });
+    const sheetName = workbook.SheetNames[0];
+    const worksheet = workbook.Sheets[sheetName];
+
+    const data = XLSX.utils.sheet_to_json(worksheet, { raw: false, defval: '' });
+    if (!data || data.length === 0) {
+      return res.status(400).json({ message: 'Excel file is empty or has no data' });
+    }
+
+    // Exact column names supported (case-insensitive, whitespace/underscore tolerant):
+    // Date, Month, Year, Client, Country, Service, Revenue_Amount, Engagement,
+    // Invoice Amount, GST, TDS, Remittance Fee, Recieved, Invoice Url
+    const columnMapping = {
+      date: ['date', 'day'],
+      month: ['month'],
+      year: ['year'],
+      client: ['client', 'client name', 'customer', 'customer name'],
+      country: ['country'],
+      service: ['service', 'service type'],
+      revenueAmount: ['revenue_amount', 'revenue amount', 'revenue'],
+      engagement: ['engagement', 'engagement type'],
+      invoiceAmount: ['invoice amount', 'invoice_amount', 'invoiceamount', 'invoice total'],
+      gst: ['gst', 'gst amount'],
+      tds: ['tds', 'tds amount'],
+      remittance: ['remittance fee', 'remittance', 'remittance charges', 'remittancecharge'],
+      received: ['recieved', 'received', 'received amount', 'receivedamount'],
+      invoiceUrl: ['invoice url', 'invoiceurl', 'url'],
+      invoiceNumber: ['invoice #', 'invoice#', 'invoice number', 'invoicenumber'],
+    };
+
+    const normalizeHeader = (key) =>
+      String(key || '')
+        .toLowerCase()
+        .trim()
+        .replace(/[\s]+/g, ' ')
+        .replace(/[_]+/g, ' ');
+
+    const getColumnValue = (row, searchTerms) => {
+      // Exact-ish match (after normalization)
+      for (const [key, value] of Object.entries(row)) {
+        const k = normalizeHeader(key);
+        for (const term of searchTerms) {
+          const t = normalizeHeader(term);
+          if (k === t) return value;
+        }
+      }
+      // Partial match
+      for (const [key, value] of Object.entries(row)) {
+        const k = normalizeHeader(key);
+        for (const term of searchTerms) {
+          const t = normalizeHeader(term);
+          if (t && k.includes(t)) return value;
+        }
+      }
+      return null;
+    };
+
+    const errors = [];
+    const parsedRows = [];
+
+    const parseDateFromCell = (value) => {
+      if (!value) return null;
+      if (value instanceof Date && !Number.isNaN(value.getTime())) return value;
+
+      const str = String(value).trim();
+      if (!str) return null;
+
+      // Try native parsing first (covers ISO)
+      const d0 = new Date(str);
+      if (!Number.isNaN(d0.getTime())) return d0;
+
+      // Try dd/mm/yyyy or dd-mm-yyyy (common in India exports)
+      const m1 = str.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})$/);
+      if (m1) {
+        const dd = parseInt(m1[1], 10);
+        const mm = parseInt(m1[2], 10) - 1;
+        let yy = parseInt(m1[3], 10);
+        if (yy < 100) yy += 2000;
+        const d1 = new Date(yy, mm, dd);
+        if (!Number.isNaN(d1.getTime())) return d1;
+      }
+
+      // Try dd-mmm-yyyy (e.g., 20-Jan-2026)
+      const m2 = str.match(/^(\d{1,2})[\/\-\s]([A-Za-z]{3,})[\/\-\s](\d{4})$/);
+      if (m2) {
+        const dd = parseInt(m2[1], 10);
+        const mi = parseMonthIndex(m2[2]);
+        const yy = parseInt(m2[3], 10);
+        if (mi >= 0 && mi <= 11) {
+          const d2 = new Date(yy, mi, dd);
+          if (!Number.isNaN(d2.getTime())) return d2;
+        }
+      }
+
+      return null;
+    };
+
+    for (let i = 0; i < data.length; i++) {
+      const row = data[i];
+      const rowNum = i + 2;
+
+      try {
+        const client = String(getColumnValue(row, columnMapping.client) || '').trim();
+        const countryRaw = getColumnValue(row, columnMapping.country);
+        const service = String(getColumnValue(row, columnMapping.service) || '').trim();
+        const engagementRaw = getColumnValue(row, columnMapping.engagement);
+
+        const dateValue = getColumnValue(row, columnMapping.date);
+        const monthValue = getColumnValue(row, columnMapping.month);
+        const yearValue = getColumnValue(row, columnMapping.year);
+
+        const revenueAmountValue = getColumnValue(row, columnMapping.revenueAmount);
+        const invoiceAmountValue = getColumnValue(row, columnMapping.invoiceAmount);
+        const gstValue = getColumnValue(row, columnMapping.gst);
+        const tdsValue = getColumnValue(row, columnMapping.tds);
+        const remittanceValue = getColumnValue(row, columnMapping.remittance);
+        const receivedValue = getColumnValue(row, columnMapping.received);
+        const invoiceUrl = String(getColumnValue(row, columnMapping.invoiceUrl) || '').trim();
+        const providedInvoiceNumber = String(getColumnValue(row, columnMapping.invoiceNumber) || '').trim();
+
+        if (!client) {
+          errors.push(`Row ${rowNum}: Client is required`);
+          continue;
+        }
+        if (!service) {
+          errors.push(`Row ${rowNum}: Service is required`);
+          continue;
+        }
+
+        const country = normalizeCountry(countryRaw);
+        const engagementType = normalizeEngagement(engagementRaw);
+
+        const baseAmount =
+          parseNumberSafe(revenueAmountValue) || parseNumberSafe(invoiceAmountValue) || 0;
+        if (!baseAmount || baseAmount <= 0) {
+          errors.push(`Row ${rowNum}: Revenue_Amount (or Invoice Amount) must be > 0`);
+          continue;
+        }
+
+        // Parse date (supports split Date/Month/Year or a full date string)
+        let invoiceDate = null;
+        let month = null;
+        let year = null;
+
+        if (monthValue && yearValue) {
+          const day = parseInt(String(dateValue || '1').trim(), 10) || 1;
+          const yearNum = parseInt(String(yearValue).trim(), 10);
+          const monthIndex = parseMonthIndex(monthValue);
+
+          if (!yearNum || yearNum < 1900 || yearNum > 2100) {
+            errors.push(`Row ${rowNum}: Invalid Year value: ${yearValue}`);
+            continue;
+          }
+          if (monthIndex < 0 || monthIndex > 11) {
+            errors.push(`Row ${rowNum}: Invalid Month value: ${monthValue}`);
+            continue;
+          }
+          if (day < 1 || day > 31) {
+            errors.push(`Row ${rowNum}: Invalid Date (day) value: ${dateValue}`);
+            continue;
+          }
+
+          invoiceDate = new Date(yearNum, monthIndex, day);
+          if (Number.isNaN(invoiceDate.getTime())) {
+            errors.push(`Row ${rowNum}: Invalid date combination: Date=${dateValue}, Month=${monthValue}, Year=${yearValue}`);
+            continue;
+          }
+          month = EXCEL_MONTH_NAMES[monthIndex];
+          year = yearNum;
+        } else if (dateValue) {
+          const d = parseDateFromCell(dateValue);
+          if (d) {
+            invoiceDate = d;
+            month = EXCEL_MONTH_NAMES[invoiceDate.getMonth()];
+            year = invoiceDate.getFullYear();
+          }
+        }
+
+        if (!invoiceDate) {
+          // Fallback: use current date but still require Month/Year for reporting
+          const now = new Date();
+          invoiceDate = now;
+          month = EXCEL_MONTH_NAMES[now.getMonth()];
+          year = now.getFullYear();
+        }
+
+        // Service period should match Excel month/year if provided
+        const periodMonthIndex = monthValue ? parseMonthIndex(monthValue) : invoiceDate.getMonth();
+        const periodYear = yearValue ? parseInt(String(yearValue).trim(), 10) : invoiceDate.getFullYear();
+        const periodMonth = EXCEL_MONTH_NAMES[Math.max(0, Math.min(11, periodMonthIndex))];
+        if (!periodYear || periodYear < 1900 || periodYear > 2100) {
+          errors.push(`Row ${rowNum}: Invalid Year value: ${yearValue}`);
+          continue;
+        }
+
+        // Foreign client rule: GST/TDS must be 0 (Export of Services)
+        let gstAmount = parseNumberSafe(gstValue);
+        let tdsAmount = parseNumberSafe(tdsValue);
+        const remittanceCharges = parseNumberSafe(remittanceValue);
+        const receivedAmount = Math.max(0, parseNumberSafe(receivedValue));
+
+        if (country !== 'India') {
+          gstAmount = 0;
+          tdsAmount = 0;
+        }
+
+        const gstPercentage = baseAmount > 0 ? Math.round(((gstAmount / baseAmount) * 100) * 100) / 100 : 0;
+        const tdsPercentage = baseAmount > 0 ? Math.round(((tdsAmount / baseAmount) * 100) * 100) / 100 : 0;
+
+        const { subTotal, invoiceTotal, receivableAmount } = calculateInvoiceAmounts(
+          baseAmount,
+          gstAmount,
+          tdsAmount,
+          0,
+          remittanceCharges
+        );
+
+        const paidAmount = receivedAmount;
+        const dueAmount = Math.max(0, Math.round((receivableAmount - paidAmount) * 100) / 100);
+
+        let status = 'Unpaid';
+        if (receivableAmount > 0 && paidAmount >= receivableAmount - 0.01) status = 'Paid';
+        else if (paidAmount > 0.01) status = 'Partial';
+
+        parsedRows.push({
+          rowNum,
+          providedInvoiceNumber,
+          client,
+          country,
+          service,
+          engagementType,
+          invoiceDate,
+          dueDate: new Date(invoiceDate.getTime() + 30 * 24 * 60 * 60 * 1000),
+          periodMonth,
+          periodYear,
+          baseAmount,
+          gstAmount,
+          gstPercentage,
+          tdsAmount,
+          tdsPercentage,
+          remittanceCharges,
+          invoiceTotal,
+          receivableAmount,
+          receivedAmount,
+          paidAmount,
+          dueAmount,
+          status,
+          invoiceUrl,
+        });
+      } catch (e) {
+        errors.push(`Row ${rowNum}: Failed to parse row (${e?.message || 'Unknown error'})`);
+      }
+    }
+
+    if (parsedRows.length === 0) {
+      return res.status(400).json({
+        message: 'No valid rows found to import',
+        imported: 0,
+        skipped: 0,
+        errors: errors.slice(0, 100),
+      });
+    }
+
+    // Preload customers by name to set clientId/email where possible (cache per import)
+    const customerCache = new Map();
+    const getCustomerForName = async (name) => {
+      const key = String(name || '').trim().toLowerCase();
+      if (!key) return null;
+      if (customerCache.has(key)) return customerCache.get(key);
+      const customer = await Customer.findOne({
+        user: req.user._id,
+        $or: [{ displayName: name }, { clientName: name }, { companyName: name }],
+        isActive: { $ne: false },
+      })
+        .select('_id email mobile phoneNumber')
+        .lean();
+      customerCache.set(key, customer || null);
+      return customer || null;
+    };
+
+    // Allocate invoice numbers per year (only for rows that don't provide one)
+    const years = Array.from(new Set(parsedRows.map((r) => r.invoiceDate.getFullYear())));
+    const nextSeqByYear = {};
+    for (const y of years) {
+      const prefix = `KVPL${y}`;
+      const latest = await Invoice.findOne({
+        invoiceNumber: new RegExp(`^${prefix}`),
+      })
+        .sort({ invoiceNumber: -1 })
+        .select('invoiceNumber')
+        .lean();
+
+      let next = 1;
+      if (latest?.invoiceNumber) {
+        const suffix = String(latest.invoiceNumber).replace(prefix, '');
+        const n = parseInt(suffix, 10);
+        if (!Number.isNaN(n) && n >= 0) next = n + 1;
+      }
+      nextSeqByYear[y] = next;
+    }
+
+    let imported = 0;
+    let skipped = 0;
+    const rowSkips = [];
+
+    for (const r of parsedRows) {
+      // Deduplicate to prevent repeated imports creating duplicate invoices
+      const dayStart = normalizeStartOfDay(r.invoiceDate);
+      const dayEnd = endOfDay(r.invoiceDate);
+
+      const existing = await Invoice.findOne({
+        user: req.user._id,
+        invoiceDate: { $gte: dayStart, $lte: dayEnd },
+        'clientDetails.name': r.client,
+        'serviceDetails.serviceType': r.service,
+        'serviceDetails.engagementType': r.engagementType,
+        'serviceDetails.period.month': r.periodMonth,
+        'serviceDetails.period.year': r.periodYear,
+        'amountDetails.baseAmount': r.baseAmount,
+      })
+        .select('_id')
+        .lean();
+
+      if (existing?._id) {
+        skipped += 1;
+        rowSkips.push(`Row ${r.rowNum}: Skipped (duplicate invoice already exists)`);
+        continue;
+      }
+
+      // If invoice number is provided, keep it (but avoid collisions)
+      let invoiceNumber = r.providedInvoiceNumber;
+      if (!invoiceNumber) {
+        const y = r.invoiceDate.getFullYear();
+        const prefix = `KVPL${y}`;
+        const seq = nextSeqByYear[y] || 1;
+        nextSeqByYear[y] = seq + 1;
+        invoiceNumber = `${prefix}${String(seq).padStart(3, '0')}`;
+      }
+
+      const existingByNumber = await Invoice.findOne({ invoiceNumber }).select('_id').lean();
+      if (existingByNumber?._id) {
+        skipped += 1;
+        rowSkips.push(`Row ${r.rowNum}: Skipped (invoice number already exists: ${invoiceNumber})`);
+        continue;
+      }
+
+      const customer = await getCustomerForName(r.client);
+
+      // Keep imported invoices in INR by default (your sheet values are treated as INR)
+      const currency = 'INR';
+      const exchangeRate = 1;
+
+      const invoiceDoc = {
+        invoiceNumber,
+        invoiceDate: r.invoiceDate,
+        dueDate: r.dueDate,
+        clientDetails: {
+          name: r.client,
+          address: '',
+          country: r.country,
+          gstin: '',
+          state: '',
+          placeOfSupply: '',
+          gstNo: '',
+        },
+        items: [
+          {
+            description: r.service,
+            hsnSac: '',
+            quantity: 1,
+            rate: r.baseAmount,
+            amount: r.baseAmount,
+          },
+        ],
+        subTotal: r.subTotal ?? r.baseAmount,
+        gstType: 'IGST',
+        gstPercentage: r.gstPercentage,
+        cgst: 0,
+        sgst: 0,
+        igst: r.gstAmount,
+        tdsPercentage: r.tdsPercentage,
+        tdsAmount: r.tdsAmount,
+        tcsPercentage: 0,
+        tcsAmount: 0,
+        remittanceCharges: r.remittanceCharges,
+        grandTotal: r.invoiceTotal,
+        currency,
+        exchangeRate,
+        status: r.status,
+        paidAmount: r.paidAmount,
+        // Reporting-standard fields (kept in INR for consistency across reports)
+        totalAmount: Math.round(r.receivableAmount * 100) / 100,
+        gstAmount: Math.round(r.gstAmount * 100) / 100,
+        dueAmount: r.dueAmount,
+        receivedAmount: r.receivedAmount,
+        isRecurring: r.engagementType === 'Recurring',
+        hasRecurringSchedule: false,
+        clientId: customer?._id || null,
+        department: 'Unassigned',
+        service: r.service,
+        notes: '',
+        invoiceUrl: r.invoiceUrl || '',
+        lutArn: '',
+        revenueId: null,
+        serviceDetails: {
+          description: r.service,
+          serviceType: r.service,
+          engagementType: r.engagementType,
+          period: {
+            month: r.periodMonth,
+            year: r.periodYear,
+          },
+        },
+        amountDetails: {
+          baseAmount: r.baseAmount,
+          invoiceTotal: r.invoiceTotal,
+          receivableAmount: r.receivableAmount,
+        },
+        currencyDetails: {
+          invoiceCurrency: currency,
+          exchangeRate,
+          inrEquivalent: 0,
+        },
+        clientEmail: customer?.email || '',
+        clientMobile: customer?.mobile || customer?.phoneNumber || '',
+        emailSent: false,
+        emailSentAt: null,
+        user: req.user._id,
+      };
+
+      await Invoice.create(invoiceDoc);
+      imported += 1;
+    }
+
+    res.json({
+      message: `Imported ${imported} invoice(s). Skipped ${skipped} row(s).`,
+      imported,
+      skipped,
+      errors: [...errors, ...rowSkips].slice(0, 200),
+    });
+  } catch (error) {
+    console.error('Error importing invoices from Excel:', error);
+    res.status(500).json({ message: error.message || 'Failed to import invoices from Excel' });
   }
 };

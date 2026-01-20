@@ -99,6 +99,9 @@ const ExpenseHistoryModal = ({ isOpen, onClose, expenses, filterType, filterValu
                       Amount
                     </th>
                     <th className="px-4 py-3 text-right text-xs font-medium uppercase tracking-wider text-gray-700">
+                      TDS
+                    </th>
+                    <th className="px-4 py-3 text-right text-xs font-medium uppercase tracking-wider text-gray-700">
                       Paid
                     </th>
                     <th className="px-4 py-3 text-center text-xs font-medium uppercase tracking-wider text-gray-700">
@@ -134,6 +137,9 @@ const ExpenseHistoryModal = ({ isOpen, onClose, expenses, filterType, filterValu
                       </td>
                       <td className="px-4 py-3 whitespace-nowrap text-sm font-semibold text-gray-900 text-right">
                         ₹{expense.totalAmount?.toLocaleString('en-IN', { minimumFractionDigits: 2 }) || '0.00'}
+                      </td>
+                      <td className="px-4 py-3 whitespace-nowrap text-sm font-semibold text-gray-900 text-right">
+                        ₹{(expense.tdsAmount || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
                       </td>
                       <td className="px-4 py-3 whitespace-nowrap text-sm font-semibold text-green-700 text-right">
                         ₹{expense.paidAmount?.toLocaleString('en-IN', { minimumFractionDigits: 2 }) || '0.00'}

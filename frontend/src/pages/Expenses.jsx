@@ -348,8 +348,16 @@ const Expenses = () => {
     setShowForm(true);
   };
 
-  const handleViewHistory = (expense) => {
-    setViewingPaymentHistory(expense);
+  const handleViewHistory = async (expense) => {
+    try {
+      if (!expense?._id) return setViewingPaymentHistory(expense);
+      const res = await expenseAPI.getById(expense._id);
+      setViewingPaymentHistory(res.data || expense);
+    } catch (e) {
+      console.error('Error fetching expense payment history:', e);
+      // Fallback to whatever we already have
+      setViewingPaymentHistory(expense);
+    }
   };
 
   const handleMarkPaid = async (expense, customPaidAmount = null) => {

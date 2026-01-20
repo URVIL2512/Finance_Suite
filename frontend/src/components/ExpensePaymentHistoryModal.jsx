@@ -5,6 +5,8 @@ const ExpensePaymentHistoryModal = ({ isOpen, onClose, expense }) => {
 
   const paymentHistory = expense.paymentHistory || [];
   const totalAmount = expense.totalAmount || 0;
+  const gstAmount = expense.gstAmount || 0;
+  const tdsAmount = expense.tdsAmount || 0;
   
   // Sort payment history by date (oldest first)
   const sortedHistory = [...paymentHistory].sort((a, b) => {
@@ -12,6 +14,24 @@ const ExpensePaymentHistoryModal = ({ isOpen, onClose, expense }) => {
     const dateB = new Date(b.paymentDate);
     return dateA - dateB;
   });
+
+  // Fallback: older records may have paidAmount/status but no paymentHistory.
+  const effectiveHistory =
+    sortedHistory.length > 0
+      ? sortedHistory
+      : (expense.paidAmount || 0) > 0
+        ? [
+            {
+              paymentDate: expense.updatedAt || expense.date || new Date(),
+              amountPaid: expense.paidAmount || 0,
+              cumulativePaid: expense.paidAmount || 0,
+              status: expense.status || ((expense.paidAmount || 0) >= totalAmount ? 'Paid' : 'Partial'),
+              transactionRef: expense.paidTransactionRef || '',
+              notes: expense.notes || '',
+              updatedBy: expense.editedBy || expense.createdBy || expense.userName || '',
+            },
+          ]
+        : [];
 
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={onClose}>
@@ -23,6 +43,11 @@ const ExpensePaymentHistoryModal = ({ isOpen, onClose, expense }) => {
             <p className="text-sm text-slate-600 mt-1">
               {expense.vendor || 'Expense'} - Total Amount: ₹{totalAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
             </p>
+            {(gstAmount || tdsAmount) ? (
+              <p className="text-xs text-slate-500 mt-1">
+                GST: ₹{Number(gstAmount || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })} • TDS: ₹{Number(tdsAmount || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+              </p>
+            ) : null}
           </div>
           <button
             type="button"
@@ -36,7 +61,7 @@ const ExpensePaymentHistoryModal = ({ isOpen, onClose, expense }) => {
 
         {/* Content */}
         <div className="flex-1 overflow-y-auto p-6 bg-slate-50">
-          {sortedHistory.length === 0 ? (
+          {effectiveHistory.length === 0 ? (
             <div className="text-center py-12">
               <svg className="w-16 h-16 mx-auto text-gray-400 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -47,11 +72,11 @@ const ExpensePaymentHistoryModal = ({ isOpen, onClose, expense }) => {
           ) : (
             <div className="space-y-4">
               {/* Timeline */}
-              {sortedHistory.map((payment, index) => {
+              {effectiveHistory.map((payment, index) => {
                 const paymentDate = new Date(payment.paymentDate);
                 const cumulativePaid = payment.cumulativePaid || 0;
                 const balance = totalAmount - cumulativePaid;
-                const isLast = index === sortedHistory.length - 1;
+                const isLast = index === effectiveHistory.length - 1;
 
                 return (
                   <div key={index} className="relative">

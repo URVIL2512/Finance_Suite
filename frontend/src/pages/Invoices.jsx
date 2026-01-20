@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { format } from 'date-fns';
 import { invoiceAPI, customerAPI, recurringInvoiceAPI } from '../services/api';
@@ -40,6 +40,8 @@ const Invoices = () => {
   const [pdfLoading, setPdfLoading] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState({ show: false, id: null });
+  const [importing, setImporting] = useState(false);
+  const invoiceImportInputRef = useRef(null);
 
   // Check if returning from items/customers page and should show invoice form
   useEffect(() => {
@@ -336,6 +338,36 @@ const Invoices = () => {
     };
   }, [pdfBlobUrl]);
 
+  const handleInvoiceImportClick = () => {
+    if (importing) return;
+    invoiceImportInputRef.current?.click?.();
+  };
+
+  const handleInvoiceImportFileChange = async (e) => {
+    const file = e.target.files?.[0];
+    // allow re-selecting the same file
+    e.target.value = '';
+    if (!file) return;
+
+    try {
+      setImporting(true);
+      const resp = await invoiceAPI.import(file);
+      const imported = resp?.data?.imported ?? 0;
+      const skipped = resp?.data?.skipped ?? 0;
+
+      showToast(resp?.data?.message || `Imported ${imported} invoice(s). Skipped ${skipped}.`, 'success');
+
+      // Refresh lists
+      await fetchInvoices();
+      await fetchAllInvoicesForDropdown();
+    } catch (error) {
+      console.error('Error importing invoices:', error);
+      showToast(error?.response?.data?.message || 'Failed to import invoices from Excel', 'error');
+    } finally {
+      setImporting(false);
+    }
+  };
+
   return (
     <div className="animate-fade-in">
       <div className="mb-6 flex justify-between items-center">
@@ -346,6 +378,13 @@ const Invoices = () => {
           <p className="page-subtitle">Create and manage professional invoices</p>
         </div>
         <div className="flex items-center gap-3">
+          <input
+            ref={invoiceImportInputRef}
+            type="file"
+            accept=".xlsx,.xls"
+            className="hidden"
+            onChange={handleInvoiceImportFileChange}
+          />
           {!showForm && (
             <button
               onClick={() => setShowFilters(!showFilters)}
@@ -355,6 +394,21 @@ const Invoices = () => {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
               </svg>
               <span>Filters</span>
+            </button>
+          )}
+          {!showForm && (
+            <button
+              onClick={handleInvoiceImportClick}
+              disabled={importing}
+              className={`px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 transition-colors flex items-center gap-2 ${
+                importing ? 'opacity-60 cursor-not-allowed' : ''
+              }`}
+              title="Import Invoice Excel (.xlsx/.xls)"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 16V4m0 12l-4-4m4 4l4-4M4 20h16" />
+              </svg>
+              <span>{importing ? 'Importing...' : 'Import Excel'}</span>
             </button>
           )}
           <button

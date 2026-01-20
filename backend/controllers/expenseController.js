@@ -231,6 +231,26 @@ export const createExpense = async (req, res) => {
       expenseData.status = normalized.status;
     }
 
+    // If an expense is created already Paid/Partial, ensure the first payment history entry exists.
+    // This makes "View History" work even for expenses created with an initial paidAmount.
+    if (
+      (!Array.isArray(expenseData.paymentHistory) || expenseData.paymentHistory.length === 0) &&
+      expenseData.status !== 'Cancel' &&
+      normalized.paid > 0.01
+    ) {
+      expenseData.paymentHistory = [
+        {
+          paymentDate: expenseData.date ? new Date(expenseData.date) : new Date(),
+          amountPaid: Math.round(normalized.paid * 100) / 100,
+          cumulativePaid: Math.round(normalized.paid * 100) / 100,
+          status: normalized.status,
+          transactionRef: expenseData.paidTransactionRef || '',
+          notes: expenseData.notes || '',
+          updatedBy: expenseData.createdBy || req.user?.name || '',
+        },
+      ];
+    }
+
     // Cost type classification (Fixed vs Variable)
     // If type not provided or invalid, infer from Category Master.
     const requestedType = String(expenseData.type || '').trim();

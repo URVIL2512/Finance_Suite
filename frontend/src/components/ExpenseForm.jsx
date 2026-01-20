@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { format } from 'date-fns';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useToast } from '../contexts/ToastContext';
-import { authAPI, paymentModeAPI, vendorAPI, bankAccountAPI } from '../services/api';
+import { authAPI, paymentModeAPI, vendorAPI, bankAccountAPI, expenseCategoryAPI } from '../services/api';
 import MobileSelect from './MobileSelect';
 
 const ExpenseForm = ({ expense, onSubmit, onCancel }) => {
@@ -15,6 +15,7 @@ const ExpenseForm = ({ expense, onSubmit, onCancel }) => {
   const [showAddCategory, setShowAddCategory] = useState(false);
   const [showCategoryDropdown, setShowCategoryDropdown] = useState(false);
   const [categorySearchTerm, setCategorySearchTerm] = useState('');
+  const [isAddingCategory, setIsAddingCategory] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const categoryDropdownRef = useRef(null);
   const [paymentModes, setPaymentModes] = useState([]);
@@ -89,7 +90,7 @@ const ExpenseForm = ({ expense, onSubmit, onCancel }) => {
   };
 
 
-  // Fetch Payment Modes, Vendors, and Bank Accounts
+  // Fetch Payment Modes, Vendors, Bank Accounts, and Expense Categories
   useEffect(() => {
     const fetchMasterData = async () => {
       try {
@@ -107,6 +108,12 @@ const ExpenseForm = ({ expense, onSubmit, onCancel }) => {
         const bankAccountsResponse = await bankAccountAPI.getAll({ isActive: true });
         const activeBankAccounts = (bankAccountsResponse.data || []).filter(account => account.isActive !== false);
         setBankAccounts(activeBankAccounts.map(account => account.accountName));
+
+        // Fetch Expense Categories
+        const expenseCategoriesResponse = await expenseCategoryAPI.getAll({ isActive: true });
+        const activeExpenseCategories = (expenseCategoriesResponse.data || []).filter((c) => c?.isActive !== false);
+        const categoryNames = activeExpenseCategories.map((c) => c.name).filter(Boolean);
+        setCategories(categoryNames);
       } catch (error) {
         console.error('Error fetching master data:', error);
         // Set default values if API fails
@@ -505,12 +512,36 @@ const ExpenseForm = ({ expense, onSubmit, onCancel }) => {
     'Remittance',
   ]);
 
-  const handleAddCategory = () => {
-    if (newCategory.trim() && !categories.includes(newCategory.trim())) {
-      setCategories([...categories, newCategory.trim()]);
-      setFormData({ ...formData, category: newCategory.trim() });
+  const handleAddCategory = async () => {
+    const name = newCategory.trim();
+    if (!name) return;
+
+    const exists = categories.some((c) => String(c).toLowerCase() === name.toLowerCase());
+    if (exists) {
+      setFormData({ ...formData, category: name });
       setNewCategory('');
       setShowAddCategory(false);
+      return;
+    }
+
+    try {
+      setIsAddingCategory(true);
+      await expenseCategoryAPI.create({ name, costType: 'Variable', isActive: true });
+
+      const expenseCategoriesResponse = await expenseCategoryAPI.getAll({ isActive: true });
+      const activeExpenseCategories = (expenseCategoriesResponse.data || []).filter((c) => c?.isActive !== false);
+      const categoryNames = activeExpenseCategories.map((c) => c.name).filter(Boolean);
+      setCategories(categoryNames);
+
+      setFormData({ ...formData, category: name });
+      setNewCategory('');
+      setShowAddCategory(false);
+      showToast('Category created successfully!', 'success');
+    } catch (e) {
+      console.error('Error creating expense category:', e);
+      showToast(e?.response?.data?.message || 'Failed to create category', 'error');
+    } finally {
+      setIsAddingCategory(false);
     }
   };
   const departments = [

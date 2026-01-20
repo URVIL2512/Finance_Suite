@@ -191,6 +191,10 @@ const invoiceSchema = new mongoose.Schema(
       type: String,
       default: '',
     },
+    invoiceUrl: {
+      type: String,
+      default: '',
+    },
     lutArn: {
       type: String,
       default: '',
