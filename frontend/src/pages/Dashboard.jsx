@@ -1,10 +1,11 @@
 import { useState, useEffect } from 'react';
-import { dashboardAPI } from '../services/api';
+import { dashboardAPI, reportsAPI } from '../services/api';
 import { Link } from 'react-router-dom';
 import MobileSelect from '../components/MobileSelect';
 
 const Dashboard = () => {
   const [summary, setSummary] = useState(null);
+  const [gstSummary, setGstSummary] = useState(null);
   const [loading, setLoading] = useState(true);
   const [year, setYear] = useState('');
 
@@ -19,6 +20,10 @@ const Dashboard = () => {
       if (year && year !== '') params.year = parseInt(year);
       const response = await dashboardAPI.getSummary(params);
       setSummary(response.data);
+      // GST KPI strip (Yearly view)
+      const gstYear = year && year !== '' ? parseInt(year) : new Date().getFullYear();
+      const gstResp = await reportsAPI.gst({ view: 'yearly', year: gstYear });
+      setGstSummary(gstResp.data);
     } catch (error) {
       console.error('Error fetching summary:', error);
     } finally {
@@ -131,6 +136,29 @@ const Dashboard = () => {
           </div>
         </div>
       </div>
+
+      {gstSummary && (
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-3 md:gap-6 mb-8">
+          <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm transition hover:shadow-md">
+            <p className="text-sm font-medium text-slate-600">GST collected (YTD)</p>
+            <p className="mt-2 text-2xl font-semibold text-slate-900">
+              ₹{(gstSummary.gstCollected || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+            </p>
+          </div>
+          <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm transition hover:shadow-md">
+            <p className="text-sm font-medium text-slate-600">GST paid (YTD)</p>
+            <p className="mt-2 text-2xl font-semibold text-slate-900">
+              ₹{(gstSummary.gstPaid || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+            </p>
+          </div>
+          <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm transition hover:shadow-md">
+            <p className="text-sm font-medium text-slate-600">Net GST payable (YTD)</p>
+            <p className="mt-2 text-2xl font-semibold text-slate-900">
+              ₹{(gstSummary.netGstPayable || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+            </p>
+          </div>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <Link

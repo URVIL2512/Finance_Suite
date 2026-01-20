@@ -109,13 +109,21 @@ export const getExpenses = async (req, res) => {
       });
       
       // Guardrail: never allow paid > total in API responses (prevents negative due in UI)
+      // But preserve "Cancel" status if it's already set
+      const currentStatus = expense.status || 'Unpaid';
       const normalized = normalizePayment({
         totalAmount: expense.totalAmount,
         paidAmount: expense.paidAmount,
       });
       expense.totalAmount = normalized.total;
       expense.paidAmount = normalized.paid;
-      expense.status = normalized.status;
+      expense.dueAmount = Math.max(0, normalized.total - normalized.paid);
+      // Preserve Cancel status - don't override it
+      if (currentStatus.toLowerCase() === 'cancel') {
+        expense.status = 'Cancel';
+      } else {
+        expense.status = normalized.status;
+      }
 
       return expense;
     });
@@ -197,13 +205,21 @@ export const createExpense = async (req, res) => {
     });
 
     // Production guardrail: paidAmount must never exceed totalAmount
+    // But preserve "Cancel" status if it's explicitly set
+    const requestedStatus = expenseData.status;
     const normalized = normalizePayment({
       totalAmount: expenseData.totalAmount,
       paidAmount: expenseData.paidAmount,
     });
     expenseData.totalAmount = normalized.total;
     expenseData.paidAmount = normalized.paid;
-    expenseData.status = normalized.status;
+    expenseData.dueAmount = Math.max(0, normalized.total - normalized.paid);
+    // Preserve Cancel status - don't auto-calculate if status is Cancel
+    if (requestedStatus && requestedStatus.toLowerCase() === 'cancel') {
+      expenseData.status = 'Cancel';
+    } else {
+      expenseData.status = normalized.status;
+    }
 
     // Check for duplicate expense before creating
     // Duplicate = same vendor, category, date, totalAmount, department
@@ -318,7 +334,14 @@ export const updateExpense = async (req, res) => {
     if (shouldNormalize) {
       req.body.totalAmount = nextNormalized.total;
       req.body.paidAmount = nextNormalized.paid;
-      req.body.status = nextNormalized.status;
+      req.body.dueAmount = Math.max(0, nextNormalized.total - nextNormalized.paid);
+      // Preserve Cancel status - don't auto-calculate if status is Cancel
+      const currentStatus = req.body.status !== undefined ? req.body.status : existingExpense.status;
+      if (currentStatus && currentStatus.toLowerCase() === 'cancel') {
+        req.body.status = 'Cancel';
+      } else {
+        req.body.status = nextNormalized.status;
+      }
     }
 
     // Payment history tracking (based on normalized values so we never record over-payments)

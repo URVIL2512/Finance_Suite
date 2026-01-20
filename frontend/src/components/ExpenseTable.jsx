@@ -56,6 +56,9 @@ const ExpenseTable = ({ expenses, onEdit, onView, onViewHistory, onMarkPaid, onD
               <th className="px-2 sm:px-3 py-3 sm:py-4 text-left text-xs font-medium uppercase tracking-wider border-r border-white/20 max-w-[100px]">
                 <div className="truncate">Payment Mode</div>
               </th>
+              <th className="px-2 sm:px-3 py-3 sm:py-4 text-center text-xs font-medium uppercase tracking-wider border-r border-white/20">
+                Recurring
+              </th>
               <th className="px-2 sm:px-3 py-3 sm:py-4 text-right text-xs font-medium uppercase tracking-wider border-r border-white/20">
                 Amount Excl Tax
               </th>
@@ -152,6 +155,17 @@ const ExpenseTable = ({ expenses, onEdit, onView, onViewHistory, onMarkPaid, onD
                     {expense.paymentMode || '-'}
                   </div>
                 </td>
+                <td className="px-2 sm:px-3 py-3 sm:py-4 whitespace-nowrap text-center text-sm text-gray-700">
+                  <span
+                    className={`px-2 py-1 text-xs font-semibold rounded-full border ${
+                      expense.isRecurring
+                        ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                        : 'bg-slate-50 text-slate-600 border-slate-200'
+                    }`}
+                  >
+                    {expense.isRecurring ? 'Yes' : 'No'}
+                  </span>
+                </td>
                 <td className="px-2 sm:px-3 py-3 sm:py-4 whitespace-nowrap text-sm font-semibold text-gray-900 text-right">
                   ₹{expense.amountExclTax?.toLocaleString('en-IN', { minimumFractionDigits: 2 }) || '0.00'}
                 </td>
@@ -167,6 +181,8 @@ const ExpenseTable = ({ expenses, onEdit, onView, onViewHistory, onMarkPaid, onD
                       ? 'bg-green-100 text-green-800 border-green-200' 
                       : expense.status === 'Partial'
                       ? 'bg-yellow-100 text-yellow-800 border-yellow-200'
+                      : expense.status === 'Cancel'
+                      ? 'bg-gray-100 text-gray-800 border-gray-200'
                       : 'bg-red-100 text-red-800 border-red-200'
                   }`}>
                     {expense.status || 'Unpaid'}
@@ -179,7 +195,7 @@ const ExpenseTable = ({ expenses, onEdit, onView, onViewHistory, onMarkPaid, onD
                   <div className="flex items-center justify-center">
                     <ActionDropdown
                       onViewHistory={onViewHistory ? () => onViewHistory(expense) : null}
-                      onMarkPaid={onMarkPaid && (expense.status !== 'Paid' && !(paid >= (expense.totalAmount || 0) && (expense.totalAmount || 0) > 0)) ? () => onMarkPaid(expense) : null}
+                      onMarkPaid={onMarkPaid && (expense.status !== 'Paid' && expense.status !== 'Cancel' && !(paid >= (expense.totalAmount || 0) && (expense.totalAmount || 0) > 0)) ? () => onMarkPaid(expense) : null}
                       onView={onView ? () => onView(expense) : null}
                       onEdit={() => onEdit(expense)}
                       onDelete={(onDeleteSingle || onDelete) ? () => {

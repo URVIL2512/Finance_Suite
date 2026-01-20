@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { format } from 'date-fns';
-import { recurringExpenseAPI, expenseAPI } from '../services/api';
+import { recurringExpenseAPI } from '../services/api';
 import RecurringExpenseModal from '../components/RecurringExpenseModal';
 import ActionDropdown from '../components/ActionDropdown';
 import { useToast } from '../contexts/ToastContext';
@@ -8,7 +8,6 @@ import { useToast } from '../contexts/ToastContext';
 const RecurringExpenses = () => {
   const { showToast } = useToast();
   const [recurringExpenses, setRecurringExpenses] = useState([]);
-  const [allExpenses, setAllExpenses] = useState([]); // Store all expenses to calculate totals
   const [loading, setLoading] = useState(true);
   const [selectedExpenses, setSelectedExpenses] = useState([]);
   const [deleting, setDeleting] = useState(false);
@@ -36,13 +35,8 @@ const RecurringExpenses = () => {
       if (!silent) {
         setLoading(true);
       }
-      // Fetch both recurring expenses and all expenses in parallel
-      const [recurringResponse, expensesResponse] = await Promise.all([
-        recurringExpenseAPI.getAll(),
-        expenseAPI.getAll({})
-      ]);
+      const recurringResponse = await recurringExpenseAPI.getAll();
       setRecurringExpenses(recurringResponse.data || []);
-      setAllExpenses(expensesResponse.data || []);
     } catch (error) {
       console.error('Error fetching recurring expenses:', error);
       // Only show error toast on initial load, not on silent refresh
@@ -57,18 +51,23 @@ const RecurringExpenses = () => {
     }
   };
 
-  // Helper function to match expenses to a recurring expense
-  const getExpensesForRecurringExpense = (recurringExpense) => {
-    const baseExpense = recurringExpense.baseExpense;
-    if (!baseExpense) return [];
+  // IMPORTANT BUSINESS LOGIC (Monthly Recurring Cost):
+  // Recurring schedules are templates. Totals on this page should reflect the per-cycle cost
+  // (e.g. monthly), not historical generated expenses. So we always aggregate over the
+  // recurring templates (baseExpense amounts), not over Expense history.
+  const getTemplateAmount = (re) => {
+    const base = re?.baseExpense;
+    const explicitTotal = parseFloat(base?.totalAmount);
+    if (!Number.isNaN(explicitTotal) && explicitTotal > 0) return explicitTotal;
 
-    // Match expenses by vendor, category, and totalAmount (these are copied when recurring expenses create new expenses)
-    return allExpenses.filter(expense => {
-      return expense.vendor === baseExpense.vendor &&
-             expense.category === baseExpense.category &&
-             expense.totalAmount === baseExpense.totalAmount;
-    });
+    const amountExclTax = parseFloat(base?.amountExclTax) || 0;
+    const gstAmount = parseFloat(base?.gstAmount) || 0;
+    const tdsAmount = parseFloat(base?.tdsAmount) || 0;
+    const derivedTotal = amountExclTax + gstAmount - tdsAmount;
+    return derivedTotal > 0 ? derivedTotal : 0;
   };
+
+  const activeRecurringExpenses = (recurringExpenses || []).filter((re) => re?.isActive !== false);
 
   const handleDeleteClick = (id) => {
     setDeleteConfirm({ show: true, id });
@@ -287,79 +286,21 @@ const RecurringExpenses = () => {
           {/* Recurring Expense Summary Cards */}
           {recurringExpenses.length > 0 && (
             <div className="mb-6 lg:mb-8">
-              {/* Top Cards */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 lg:gap-6 mb-6 lg:mb-8">
+              {/* Top Card - Total Expenses Only */}
+              <div className="grid grid-cols-1 gap-4 lg:gap-6 mb-6 lg:mb-8">
                 <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-xl shadow-lg p-6 border border-blue-200">
                   <div className="flex items-center justify-between">
                     <div>
                       <h3 className="text-sm font-semibold text-gray-600 mb-1">Total Expenses</h3>
                       <p className="text-2xl lg:text-3xl font-bold text-blue-700">
-                        ₹{recurringExpenses.reduce((sum, re) => {
-                          // Calculate total from all expenses created by this recurring expense
-                          const matchedExpenses = getExpensesForRecurringExpense(re);
-                          const total = matchedExpenses.reduce((acc, exp) => acc + (exp.totalAmount || 0), 0);
-                          return sum + total;
-                        }, 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                        ₹{activeRecurringExpenses
+                          .reduce((sum, re) => sum + getTemplateAmount(re), 0)
+                          .toLocaleString('en-IN', { minimumFractionDigits: 2 })}
                       </p>
                     </div>
                     <div className="bg-blue-200 rounded-full p-3">
                       <svg className="w-6 h-6 text-blue-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z" />
-                      </svg>
-                    </div>
-                  </div>
-                </div>
-                <div className="bg-gradient-to-br from-green-50 to-green-100 rounded-xl shadow-lg p-6 border border-green-200">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <h3 className="text-sm font-semibold text-gray-600 mb-1">Paid Expenses</h3>
-                      <p className="text-2xl lg:text-3xl font-bold text-green-700">
-                        ₹{recurringExpenses.reduce((sum, re) => {
-                          // Calculate total from all expenses created by this recurring expense that are Paid
-                          const matchedExpenses = getExpensesForRecurringExpense(re);
-                          const paidTotal = matchedExpenses
-                            .filter(exp => exp.status === 'Paid')
-                            .reduce((acc, exp) => acc + (exp.totalAmount || 0), 0);
-                          return sum + paidTotal;
-                        }, 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
-                      </p>
-                    </div>
-                    <div className="bg-green-200 rounded-full p-3">
-                      <svg className="w-6 h-6 text-green-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                      </svg>
-                    </div>
-                  </div>
-                </div>
-                <div className="bg-gradient-to-br from-red-50 to-red-100 rounded-xl shadow-lg p-6 border border-red-200">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <h3 className="text-sm font-semibold text-gray-600 mb-1">Pending Expenses</h3>
-                      <p className="text-2xl lg:text-3xl font-bold text-red-700">
-                        ₹{recurringExpenses.reduce((sum, re) => {
-                          // Calculate pending from all expenses created by this recurring expense
-                          const matchedExpenses = getExpensesForRecurringExpense(re);
-                          const pendingTotal = matchedExpenses.reduce((acc, exp) => {
-                            const status = exp.status || 'Unpaid';
-                            const totalAmount = exp.totalAmount || 0;
-                            const paidAmount = exp.paidAmount || 0;
-                            
-                            if (status === 'Unpaid') {
-                              return acc + totalAmount;
-                            } else if (status === 'Partial') {
-                              return acc + (totalAmount - paidAmount);
-                            } else {
-                              // Paid status - no pending amount
-                              return acc;
-                            }
-                          }, 0);
-                          return sum + pendingTotal;
-                        }, 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
-                      </p>
-                    </div>
-                    <div className="bg-red-200 rounded-full p-3">
-                      <svg className="w-6 h-6 text-red-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                       </svg>
                     </div>
                   </div>
@@ -371,12 +312,10 @@ const RecurringExpenses = () => {
                 <h2 className="text-xl lg:text-2xl font-bold text-gray-800 mb-4 lg:mb-6">Category Breakdown</h2>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
                   {(() => {
-                    const categoryTotals = recurringExpenses.reduce((acc, re) => {
-                      const baseExpense = re.baseExpense;
+                    const categoryTotals = activeRecurringExpenses.reduce((acc, re) => {
+                      const baseExpense = re?.baseExpense;
                       const category = baseExpense?.category || 'Uncategorized';
-                      // Calculate total from all expenses created by this recurring expense
-                      const matchedExpenses = getExpensesForRecurringExpense(re);
-                      const total = matchedExpenses.reduce((sum, exp) => sum + (exp.totalAmount || 0), 0);
+                      const total = getTemplateAmount(re);
                       acc[category] = (acc[category] || 0) + total;
                       return acc;
                     }, {});
@@ -538,9 +477,6 @@ const RecurringExpenses = () => {
                     Next Process
                   </th>
                   <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider border-r border-white/20">
-                    Payment Status
-                  </th>
-                  <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider border-r border-white/20">
                     Status
                   </th>
                   <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider">
@@ -597,23 +533,6 @@ const RecurringExpenses = () => {
                           {recurringExpense.nextProcessDate
                             ? format(new Date(recurringExpense.nextProcessDate), 'dd/MM/yyyy')
                             : 'N/A'}
-                        </td>
-                        <td className="px-4 py-4 whitespace-nowrap">
-                          {(() => {
-                            const paymentStatus = baseExpense?.status || 'Unpaid';
-                            const statusConfig = {
-                              'Paid': { className: 'badge-success', label: 'Paid' },
-                              'Partial': { className: 'bg-yellow-100 text-yellow-800 px-2 py-1 rounded-full text-xs font-semibold', label: 'Partial' },
-                              'Unpaid': { className: 'bg-red-100 text-red-800 px-2 py-1 rounded-full text-xs font-semibold', label: 'Unpaid' }
-                            };
-                            const config = statusConfig[paymentStatus] || { className: 'badge-neutral', label: paymentStatus };
-                            
-                            return (
-                              <span className={config.className}>
-                                {config.label}
-                              </span>
-                            );
-                          })()}
                         </td>
                         <td className="px-4 py-4 whitespace-nowrap">
                           <span

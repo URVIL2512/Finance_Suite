@@ -12,15 +12,6 @@ const expenseSchema = new mongoose.Schema(
     },
     paymentMode: {
       type: String,
-      enum: [
-        'Office Cash',
-        'Bank Transfer',
-        'Mihir Personal',
-        'Komal Personal HDFC',
-        'Komal Personal Cash',
-        'HR Personal',
-        'Other',
-      ],
       required: [true, 'Please select a payment mode'],
     },
     department: {
@@ -41,6 +32,11 @@ const expenseSchema = new mongoose.Schema(
     vendor: {
       type: String,
       default: '',
+    },
+    vendorId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Vendor',
+      default: null,
     },
     description: {
       type: String,
@@ -76,10 +72,23 @@ const expenseSchema = new mongoose.Schema(
       type: Number,
       default: 0,
     },
+    dueAmount: {
+      type: Number,
+      default: 0,
+    },
     status: {
       type: String,
-      enum: ['Unpaid', 'Paid', 'Partial'],
+      enum: ['Unpaid', 'Paid', 'Partial', 'Cancel'],
       default: 'Unpaid',
+    },
+    isRecurring: {
+      type: Boolean,
+      default: false,
+    },
+    type: {
+      type: String,
+      enum: ['Fixed', 'Variable'],
+      default: 'Variable',
     },
     paidTransactionRef: {
       type: String,

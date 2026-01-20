@@ -160,6 +160,9 @@ const InvoiceTable = ({ invoices, onEdit, onDelete, onView, onRecordPayment, onV
               <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider border-r border-white/20">
                 Grand Total
               </th>
+              <th className="px-4 py-3 text-center text-xs font-medium uppercase tracking-wider border-r border-white/20">
+                Recurring
+              </th>
               <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider border-r border-white/20">
                 Status
               </th>
@@ -174,6 +177,10 @@ const InvoiceTable = ({ invoices, onEdit, onDelete, onView, onRecordPayment, onV
               const currency = invoice.currencyDetails?.invoiceCurrency || invoice.currency || 'INR';
               const baseAmount = invoice.amountDetails?.baseAmount || invoice.subTotal || 0;
               const invoiceTotal = invoice.amountDetails?.invoiceTotal || invoice.grandTotal || 0;
+              const isRecurring =
+                typeof invoice?.hasRecurringSchedule === 'boolean'
+                  ? invoice.hasRecurringSchedule
+                  : !!invoice?.isRecurring;
               return (
                 <tr key={invoice._id} className="hover:bg-gray-50">
                   {onSelectInvoice && (
@@ -225,6 +232,17 @@ const InvoiceTable = ({ invoices, onEdit, onDelete, onView, onRecordPayment, onV
                   </td>
                   <td className="px-4 py-4 whitespace-nowrap text-sm font-semibold text-gray-900">
                     {currency} {invoiceTotal.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                  </td>
+                  <td className="px-4 py-4 whitespace-nowrap text-center text-sm text-gray-700">
+                    <span
+                      className={`px-2 py-1 text-xs font-semibold rounded-full border ${
+                        isRecurring
+                          ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                          : 'bg-slate-50 text-slate-600 border-slate-200'
+                      }`}
+                    >
+                      {isRecurring ? 'Yes' : 'No'}
+                    </span>
                   </td>
                   <td className="px-4 py-4 whitespace-nowrap">
                     {(() => {

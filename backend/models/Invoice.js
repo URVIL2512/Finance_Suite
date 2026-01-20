@@ -141,12 +141,51 @@ const invoiceSchema = new mongoose.Schema(
     },
     status: {
       type: String,
-      enum: ['Paid', 'Unpaid', 'Partial'],
+      enum: ['Paid', 'Unpaid', 'Partial', 'Cancel'],
       default: 'Unpaid',
     },
     paidAmount: {
       type: Number,
       default: 0,
+    },
+    // ===== Reporting-standard fields (optional, kept in INR) =====
+    // These fields help keep reporting consistent without needing deep nested parsing everywhere.
+    // Existing invoices may not have them; reports also compute safely from legacy fields.
+    totalAmount: {
+      type: Number,
+      default: 0,
+    },
+    gstAmount: {
+      type: Number,
+      default: 0,
+    },
+    dueAmount: {
+      type: Number,
+      default: 0,
+    },
+    isRecurring: {
+      type: Boolean,
+      default: false,
+    },
+    // True when this invoice has an active recurring schedule (RecurringInvoice).
+    // Kept separate from `isRecurring` so reports can still use `isRecurring` as "recurring revenue"
+    // while UI can show whether a schedule exists.
+    hasRecurringSchedule: {
+      type: Boolean,
+      default: false,
+    },
+    clientId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Customer',
+      default: null,
+    },
+    department: {
+      type: String,
+      default: 'Unassigned',
+    },
+    service: {
+      type: String,
+      default: '',
     },
     notes: {
       type: String,
@@ -226,11 +265,6 @@ const invoiceSchema = new mongoose.Schema(
     clientMobile: {
       type: String,
       default: '',
-    },
-    salesperson: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: 'Salesperson',
-      default: null,
     },
     emailSent: {
       type: Boolean,

@@ -166,7 +166,6 @@ const RecurringExpenseModal = ({ isOpen, onClose, selectedExpenseIds, expenses, 
               required
               className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-finance-blue"
             >
-              <option value="10 Seconds">Every 10 Seconds</option>
               <option value="Week">Week</option>
               <option value="Month">Month</option>
               <option value="Quarter">Quarter</option>

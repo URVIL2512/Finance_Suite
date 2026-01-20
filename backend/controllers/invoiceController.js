@@ -63,26 +63,12 @@ export const getInvoices = async (req, res) => {
         select: 'clientName country service month year invoiceAmount receivedAmount dueAmount gstAmount tdsAmount remittanceCharges',
         options: { lean: true }
       })
-      .populate({
-        path: 'salesperson',
-        select: 'name email phone employeeId department isActive',
-        options: { lean: true }
-      })
       .select('-__v')
       .sort({ invoiceDate: -1, createdAt: -1 })
       .lean();
 
-    // Filter out invoices where salesperson is deleted/inactive
-    const validInvoices = invoices.filter(invoice => {
-      // If salesperson exists but is inactive, exclude it
-      if (invoice.salesperson && invoice.salesperson.isActive === false) {
-        return false;
-      }
-      return true;
-    });
-
     // Ensure all invoices have complete data structure
-    const invoicesWithCompleteData = validInvoices.map(invoice => {
+    const invoicesWithCompleteData = invoices.map(invoice => {
       // Ensure nested objects exist
       if (!invoice.clientDetails) {
         invoice.clientDetails = {};
@@ -136,22 +122,11 @@ export const getInvoice = async (req, res) => {
         select: 'clientName country service month year invoiceAmount receivedAmount dueAmount gstAmount tdsAmount remittanceCharges invoiceDate',
         options: { lean: true }
       })
-      .populate({
-        path: 'salesperson',
-        select: 'name email phone employeeId department isActive',
-        options: { lean: true }
-      })
       .select('-__v')
       .lean();
 
     if (!invoice) {
       return res.status(404).json({ message: 'Invoice not found' });
-    }
-
-    // Check if salesperson is deleted/inactive
-    if (invoice.salesperson && invoice.salesperson.isActive === false) {
-      // Set salesperson to null if inactive
-      invoice.salesperson = null;
     }
 
     // Ensure complete data structure
@@ -237,7 +212,7 @@ const generateInvoiceNumber = async () => {
 // @access  Private
 export const createInvoice = async (req, res) => {
   try {
-    const { 
+    let { 
       revenueId, 
       invoiceDate, 
       dueDate, 
@@ -262,7 +237,6 @@ export const createInvoice = async (req, res) => {
       clientCountry,
       currency: currencyInput,
       status: statusInput,
-      salesperson: salespersonId,
     } = req.body;
 
     let baseAmountValue, gstPercent, tdsPercent, tcsPercent, remittance, country, serviceDescription, engagementType, month, year;
@@ -524,6 +498,14 @@ export const createInvoice = async (req, res) => {
         exchangeRate,
         inrEquivalent,
       },
+      // Reporting-standard fields (kept in INR for consistency across reports)
+      totalAmount: Math.round((currency !== 'INR' ? inrEquivalent : receivableAmount) * 100) / 100,
+      gstAmount: Math.round((currency !== 'INR' ? (totalGst * exchangeRate) : totalGst) * 100) / 100,
+      dueAmount: Math.round((currency !== 'INR' ? inrEquivalent : receivableAmount) * 100) / 100,
+      isRecurring: engagementType === 'Recurring',
+      service: serviceDescription || '',
+      department: req.body.department || 'Unassigned',
+      clientId: req.body.clientId || null,
       // Force new invoices to be "Unpaid" - status can only be changed after creation
       status: 'Unpaid',
       // New invoices are always "Unpaid", so receivedAmount and paidAmount are 0
@@ -533,7 +515,6 @@ export const createInvoice = async (req, res) => {
       lutArn: lutArn || '',
       clientEmail: finalClientEmail,
       clientMobile: clientMobile || '',
-      salesperson: salespersonId || null,
       user: req.user._id,
     };
 
@@ -842,7 +823,6 @@ export const updateInvoice = async (req, res) => {
       clientName,
       clientCountry,
       hsnSac,
-      salesperson: salespersonId,
     } = req.body;
 
     // CRITICAL: Invoice status can ONLY be "Paid" if payment is actually received
@@ -1248,6 +1228,27 @@ export const updateInvoice = async (req, res) => {
     invoice.status = finalStatus;
     invoice.paidAmount = finalPaidAmount;
     invoice.receivedAmount = finalReceivedAmount;
+    // Maintain reporting-standard fields (INR)
+    try {
+      const invoiceCurrency = invoice.currencyDetails?.invoiceCurrency || invoice.currency || 'INR';
+      const exRate = invoice.currencyDetails?.exchangeRate || invoice.exchangeRate || 1;
+      const receivable = invoice.amountDetails?.receivableAmount || invoice.grandTotal || 0;
+      const totalInINR =
+        invoiceCurrency !== 'INR'
+          ? (invoice.currencyDetails?.inrEquivalent || (receivable * (exRate || 1)))
+          : receivable;
+      const gst = (invoice.cgst || 0) + (invoice.sgst || 0) + (invoice.igst || 0);
+      invoice.totalAmount = Math.round(totalInINR * 100) / 100;
+      invoice.gstAmount = Math.round((invoiceCurrency !== 'INR' ? gst * (exRate || 1) : gst) * 100) / 100;
+      invoice.dueAmount = Math.max(0, Math.round((invoice.totalAmount - (invoice.paidAmount || 0)) * 100) / 100);
+      invoice.isRecurring = (invoice.serviceDetails?.engagementType || '') === 'Recurring';
+      invoice.service = invoice.service || invoice.serviceDetails?.serviceType || invoice.serviceDetails?.description || '';
+      if (req.body.department !== undefined) invoice.department = req.body.department || 'Unassigned';
+      if (req.body.clientId !== undefined) invoice.clientId = req.body.clientId || null;
+    } catch (e) {
+      // Never fail invoice update due to reporting-field sync
+      console.warn('Reporting field sync failed (invoice update):', e?.message || e);
+    }
     if (notes !== undefined) invoice.notes = notes;
     
     // Log status update for debugging
@@ -1298,7 +1299,6 @@ export const updateInvoice = async (req, res) => {
     }
     if (clientEmail !== undefined) invoice.clientEmail = clientEmail;
     if (clientMobile !== undefined) invoice.clientMobile = clientMobile;
-    if (salespersonId !== undefined) invoice.salesperson = salespersonId || null;
     if (hsnSac !== undefined && invoice.items && invoice.items.length > 0) {
       invoice.items[0].hsnSac = hsnSac;
     }
@@ -1309,8 +1309,6 @@ export const updateInvoice = async (req, res) => {
       console.log(`✅ Invoice ${invoice.invoiceNumber} saved successfully with status: ${invoice.status}`);
       console.log(`Invoice saved data: status=${invoice.status}, paidAmount=${invoice.paidAmount}, receivedAmount=${invoice.receivedAmount}`);
       
-      // Reload invoice to ensure we have the latest data
-      await invoice.populate('salesperson', 'name email phone');
     } catch (saveError) {
       console.error('❌ Error saving invoice:', saveError);
       console.error('Save error details:', saveError.message, saveError.stack);
@@ -1665,7 +1663,7 @@ export const updateInvoice = async (req, res) => {
       user: req.user._id,
     })
       .populate('revenueId')
-      .populate('salesperson', 'name email phone');
+      ;
 
     // Verify status was saved correctly - CRITICAL CHECK
     if (!updatedInvoice) {
@@ -1725,7 +1723,7 @@ export const updateInvoice = async (req, res) => {
             user: req.user._id,
           })
       .populate('revenueId')
-      .populate('salesperson', 'name email phone');
+      ;
           
           if (!freshInvoice) {
             console.error('Invoice not found for email sending');
@@ -1829,7 +1827,6 @@ export const generateInvoicePDFController = async (req, res) => {
       user: req.user._id,
     })
       .populate('revenueId')
-      .populate('salesperson', 'name email phone')
       .lean(); // Use lean() to get plain object for PDF generation
 
     if (!invoice) {

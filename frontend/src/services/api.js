@@ -123,15 +123,6 @@ export const itemAPI = {
   delete: (id) => api.delete(`/items/${id}`),
 };
 
-// Salesperson APIs
-export const salespersonAPI = {
-  getAll: () => api.get('/salespersons'),
-  getById: (id) => api.get(`/salespersons/${id}`),
-  create: (data) => api.post('/salespersons', data),
-  update: (id, data) => api.put(`/salespersons/${id}`, data),
-  delete: (id) => api.delete(`/salespersons/${id}`),
-};
-
 // HSN/SAC APIs
 export const hsnSacAPI = {
   getAll: (params) => api.get('/hsn-sac', { params }),
@@ -206,6 +197,40 @@ export const bankAccountAPI = {
   create: (data) => api.post('/bank-accounts', data),
   update: (id, data) => api.put(`/bank-accounts/${id}`, data),
   delete: (id) => api.delete(`/bank-accounts/${id}`),
+};
+
+// Reports APIs
+export const reportsAPI = {
+  profitLoss: (params) => api.get('/reports/profit-loss', { params }),
+  incomeVsExpense: (params) => api.get('/reports/income-vs-expense', { params }),
+  cashFlow: (params) => api.get('/reports/cash-flow', { params }),
+  outstandingSummary: (params) => api.get('/reports/outstanding-summary', { params }),
+  incomeSummary: (params) => api.get('/reports/income-summary', { params }),
+  recurringIncome: (params) => api.get('/reports/recurring-income', { params }),
+  invoiceAging: (params) => api.get('/reports/invoice-aging', { params }),
+  topClients: (params) => api.get('/reports/top-clients', { params }),
+  collectionEfficiency: (params) => api.get('/reports/collection-efficiency', { params }),
+  fixedVsVariableExpense: (params) => api.get('/reports/fixed-vs-variable-expense', { params }),
+  expenseDepartment: (params) => api.get('/reports/expense-department', { params }),
+  expenseVendor: (params) => api.get('/reports/expense-vendor', { params }),
+  expenseCategory: (params) => api.get('/reports/expense-category', { params }),
+  topExpenseCategories: (params) => api.get('/reports/top-expense-categories', { params }),
+  clientProfitability: (params) => api.get('/reports/client-profitability', { params }),
+  budgetVsActual: (params) => api.get('/reports/budget-vs-actual', { params }),
+  expenseForecast: (params) => api.get('/reports/expense-forecast', { params }),
+  revenueForecast: (params) => api.get('/reports/revenue-forecast', { params }),
+  gst: (params) => api.get('/reports/gst', { params }),
+  paymentModeIncome: (params) => api.get('/reports/payment-mode-income', { params }),
+  paymentModeExpense: (params) => api.get('/reports/payment-mode-expense', { params }),
+};
+
+// Budget APIs (for Budget vs Actual inputs)
+export const budgetAPI = {
+  getAll: (params) => api.get('/budgets', { params }),
+  getById: (id) => api.get(`/budgets/${id}`),
+  create: (data) => api.post('/budgets', data),
+  update: (id, data) => api.put(`/budgets/${id}`, data),
+  delete: (id) => api.delete(`/budgets/${id}`),
 };
 
 export default api;

@@ -80,7 +80,6 @@ export const updateInvoiceStatus = async (invoiceId, newStatus, options = {}) =>
     // 8. Reload invoice with populated fields
     const updatedInvoice = await Invoice.findById(invoiceId)
       .populate('revenueId')
-      .populate('salesperson', 'name email phone')
       .lean();
 
     console.log(`✅ Invoice ${invoice.invoiceNumber} status updated: ${originalStatus} → ${finalStatus}`);

@@ -1,6 +1,8 @@
 import Expense from '../models/Expense.js';
+import RecurringExpense from '../models/RecurringExpense.js';
 import Revenue from '../models/Revenue.js';
 import Invoice from '../models/Invoice.js';
+import { syncInvoicesWithCollectionsWithoutRevenue } from '../utils/revenueSync.js';
 import { generateExpenseAgingPDF } from '../utils/expenseAgingPdfGenerator.js';
 import path from 'path';
 import fs from 'fs';
@@ -8,6 +10,8 @@ import { fileURLToPath } from 'url';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+
+const CANCEL_STATUSES = ['Cancel', 'Cancelled', 'Canceled'];
 
 // @desc    Get expense dashboard summary
 // @route   GET /api/dashboard/expenses
@@ -18,28 +22,46 @@ export const getExpenseDashboard = async (req, res) => {
     const filter = { user: req.user._id };
     if (year) filter.year = parseInt(year);
     if (month) filter.month = month;
+    // Exclude cancelled expenses from dashboard totals
+    filter.status = { $nin: CANCEL_STATUSES };
 
     const expenses = await Expense.find(filter);
 
-    // Total expenses for the year
-    const totalExpenses = expenses.reduce((sum, exp) => sum + Math.max(0, exp.totalAmount || 0), 0);
-    const totalGST = expenses.reduce((sum, exp) => sum + (exp.gstAmount || 0), 0);
-    const totalTDS = expenses.reduce((sum, exp) => sum + (exp.tdsAmount || 0), 0);
+    // Get baseExpense IDs from recurring expenses (these should be excluded from dashboard calculations)
+    const recurringExpenses = await RecurringExpense.find({ user: req.user._id })
+      .select('baseExpense')
+      .lean();
     
-    // Calculate paid and unpaid amounts from expenses
-    const paidAmount = expenses.reduce((sum, exp) => {
+    const baseExpenseIds = new Set(
+      recurringExpenses
+        .map(re => re.baseExpense?.toString())
+        .filter(id => id)
+    );
+
+    // Filter out expenses that are baseExpense for recurring expenses
+    const nonRecurringExpenses = expenses
+      .filter((expense) => !baseExpenseIds.has(expense._id.toString()))
+      .filter((expense) => !CANCEL_STATUSES.includes(expense.status));
+
+    // Total expenses for the year (excluding baseExpense expenses)
+    const totalExpenses = nonRecurringExpenses.reduce((sum, exp) => sum + Math.max(0, exp.totalAmount || 0), 0);
+    const totalGST = nonRecurringExpenses.reduce((sum, exp) => sum + (exp.gstAmount || 0), 0);
+    const totalTDS = nonRecurringExpenses.reduce((sum, exp) => sum + (exp.tdsAmount || 0), 0);
+    
+    // Calculate paid and unpaid amounts from expenses (excluding baseExpense expenses)
+    const paidAmount = nonRecurringExpenses.reduce((sum, exp) => {
       const total = Math.max(0, exp.totalAmount || 0);
       const paid = Math.min(Math.max(0, exp.paidAmount || 0), total);
       return sum + paid;
     }, 0);
-    const unpaidAmount = expenses.reduce((sum, exp) => {
+    const unpaidAmount = nonRecurringExpenses.reduce((sum, exp) => {
       const total = Math.max(0, exp.totalAmount || 0);
       const paid = Math.min(Math.max(0, exp.paidAmount || 0), total);
       return sum + Math.max(0, total - paid);
     }, 0);
 
-    // Category-wise summary
-    const categorySummary = expenses.reduce((acc, exp) => {
+    // Category-wise summary (excluding baseExpense expenses)
+    const categorySummary = nonRecurringExpenses.reduce((acc, exp) => {
       if (!acc[exp.category]) {
         acc[exp.category] = {
           totalExpense: 0,
@@ -53,8 +75,8 @@ export const getExpenseDashboard = async (req, res) => {
       return acc;
     }, {});
 
-    // Month-wise summary
-    const monthSummary = expenses.reduce((acc, exp) => {
+    // Month-wise summary (excluding baseExpense expenses)
+    const monthSummary = nonRecurringExpenses.reduce((acc, exp) => {
       if (!acc[exp.month]) {
         acc[exp.month] = {
           totalExpense: 0,
@@ -68,9 +90,9 @@ export const getExpenseDashboard = async (req, res) => {
       return acc;
     }, {});
 
-    // Category-wise monthly breakdown
+    // Category-wise monthly breakdown (excluding baseExpense expenses)
     const categoryMonthlyBreakdown = {};
-    expenses.forEach((exp) => {
+    nonRecurringExpenses.forEach((exp) => {
       if (!categoryMonthlyBreakdown[exp.category]) {
         categoryMonthlyBreakdown[exp.category] = {
           category: exp.category,
@@ -85,9 +107,9 @@ export const getExpenseDashboard = async (req, res) => {
       categoryMonthlyBreakdown[exp.category].total += exp.totalAmount;
     });
 
-    // Department-wise monthly breakdown
+    // Department-wise monthly breakdown (excluding baseExpense expenses)
     const departmentMonthlyBreakdown = {};
-    expenses.forEach((exp) => {
+    nonRecurringExpenses.forEach((exp) => {
       if (!departmentMonthlyBreakdown[exp.department]) {
         departmentMonthlyBreakdown[exp.department] = {
           department: exp.department,
@@ -102,10 +124,22 @@ export const getExpenseDashboard = async (req, res) => {
       departmentMonthlyBreakdown[exp.department].total += exp.totalAmount;
     });
 
-    // Current year total (replacing all-time total)
+    // Current year total (replacing all-time total, excluding baseExpense expenses)
     const currentYear = new Date().getFullYear();
-    const currentYearExpenses = await Expense.find({ user: req.user._id, year: currentYear });
-    const allTimeTotal = currentYearExpenses.reduce((sum, exp) => sum + exp.totalAmount, 0);
+    const currentYearExpenses = await Expense.find({
+      user: req.user._id,
+      year: currentYear,
+      status: { $nin: CANCEL_STATUSES },
+    });
+    const currentYearBaseExpenseIds = new Set(
+      recurringExpenses
+        .map(re => re.baseExpense?.toString())
+        .filter(id => id)
+    );
+    const currentYearNonRecurringExpenses = currentYearExpenses.filter(expense => 
+      !currentYearBaseExpenseIds.has(expense._id.toString())
+    );
+    const allTimeTotal = currentYearNonRecurringExpenses.reduce((sum, exp) => sum + exp.totalAmount, 0);
 
     res.json({
       year: year || 'All',
@@ -155,7 +189,10 @@ export const getExpenseDashboard = async (req, res) => {
 // @access  Private
 export const getExpenseAging = async (req, res) => {
   try {
-    const expenses = await Expense.find({ user: req.user._id }).lean();
+    const expenses = await Expense.find({
+      user: req.user._id,
+      status: { $nin: CANCEL_STATUSES },
+    }).lean();
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
@@ -167,9 +204,25 @@ export const getExpenseAging = async (req, res) => {
       '30+': { label: '30+ Days', amount: 0, count: 0, expenses: [] },
     };
 
+    // Get baseExpense IDs from recurring expenses (exclude from aging report)
+    const recurringExpenses = await RecurringExpense.find({ user: req.user._id })
+      .select('baseExpense')
+      .lean();
+    
+    const baseExpenseIds = new Set(
+      recurringExpenses
+        .map(re => re.baseExpense?.toString())
+        .filter(id => id)
+    );
+
+    // Filter out expenses that are baseExpense for recurring expenses
+    const nonRecurringExpenses = expenses
+      .filter((expense) => !baseExpenseIds.has(expense._id.toString()))
+      .filter((expense) => !CANCEL_STATUSES.includes(expense.status));
+
     let totalOutstanding = 0;
 
-    expenses.forEach((expense) => {
+    nonRecurringExpenses.forEach((expense) => {
       const totalAmount = expense.totalAmount || 0;
       const paidAmount = Math.min(Math.max(0, expense.paidAmount || 0), Math.max(0, totalAmount || 0));
       const outstandingAmount = Math.max(0, (totalAmount || 0) - paidAmount);
@@ -234,7 +287,27 @@ export const getExpenseAging = async (req, res) => {
 export const exportExpenseAgingToPDF = async (req, res) => {
   try {
     const { bucket } = req.query; // Get selected bucket from query parameter
-    const expenses = await Expense.find({ user: req.user._id }).lean();
+    const expenses = await Expense.find({
+      user: req.user._id,
+      status: { $nin: CANCEL_STATUSES },
+    }).lean();
+    
+    // Get baseExpense IDs from recurring expenses (exclude from aging report)
+    const recurringExpenses = await RecurringExpense.find({ user: req.user._id })
+      .select('baseExpense')
+      .lean();
+    
+    const baseExpenseIds = new Set(
+      recurringExpenses
+        .map(re => re.baseExpense?.toString())
+        .filter(id => id)
+    );
+
+    // Filter out expenses that are baseExpense for recurring expenses
+    const nonRecurringExpenses = expenses
+      .filter((expense) => !baseExpenseIds.has(expense._id.toString()))
+      .filter((expense) => !CANCEL_STATUSES.includes(expense.status));
+    
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
@@ -248,7 +321,7 @@ export const exportExpenseAgingToPDF = async (req, res) => {
 
     let totalOutstanding = 0;
 
-    expenses.forEach((expense) => {
+    nonRecurringExpenses.forEach((expense) => {
       const totalAmount = expense.totalAmount || 0;
       const paidAmount = Math.min(Math.max(0, expense.paidAmount || 0), Math.max(0, totalAmount || 0));
       const outstandingAmount = Math.max(0, (totalAmount || 0) - paidAmount);
@@ -370,6 +443,14 @@ export const getRevenueDashboard = async (req, res) => {
     if (year) filter.year = parseInt(year);
     if (month) filter.month = month;
 
+    // Sync: ensure paid/partial invoices appear in Revenue + dashboard
+    // This is a safety net for older data or missed hooks.
+    try {
+      await syncInvoicesWithCollectionsWithoutRevenue(req.user._id);
+    } catch (syncError) {
+      console.error('⚠️ Revenue dashboard sync failed:', syncError?.message || syncError);
+    }
+
     const revenue = await Revenue.find(filter)
       .populate({
         path: 'invoiceId',
@@ -378,8 +459,8 @@ export const getRevenueDashboard = async (req, res) => {
       })
       .lean();
 
-    // Total revenue for the year
-    const totalRevenue = revenue.reduce((sum, rev) => sum + rev.invoiceAmount, 0);
+    // Total revenue (cash collected) for the year
+    const totalRevenue = revenue.reduce((sum, rev) => sum + (rev.receivedAmount || 0), 0);
     const totalGST = revenue.reduce((sum, rev) => sum + rev.gstAmount, 0);
     const totalTDS = revenue.reduce((sum, rev) => sum + rev.tdsAmount, 0);
     const totalRemittance = revenue.reduce((sum, rev) => sum + (rev.remittanceCharges || 0), 0);
@@ -389,7 +470,7 @@ export const getRevenueDashboard = async (req, res) => {
       if (!acc[rev.country]) {
         acc[rev.country] = 0;
       }
-      acc[rev.country] += rev.invoiceAmount;
+      acc[rev.country] += (rev.receivedAmount || 0);
       return acc;
     }, {});
 
@@ -398,7 +479,7 @@ export const getRevenueDashboard = async (req, res) => {
       if (!acc[rev.service]) {
         acc[rev.service] = 0;
       }
-      acc[rev.service] += rev.invoiceAmount;
+      acc[rev.service] += (rev.receivedAmount || 0);
       return acc;
     }, {});
 
@@ -434,8 +515,8 @@ export const getRevenueDashboard = async (req, res) => {
       if (!serviceMonthlyBreakdown[rev.service].months[rev.month]) {
         serviceMonthlyBreakdown[rev.service].months[rev.month] = 0;
       }
-      serviceMonthlyBreakdown[rev.service].months[rev.month] += rev.invoiceAmount;
-      serviceMonthlyBreakdown[rev.service].total += rev.invoiceAmount;
+      serviceMonthlyBreakdown[rev.service].months[rev.month] += (rev.receivedAmount || 0);
+      serviceMonthlyBreakdown[rev.service].total += (rev.receivedAmount || 0);
     });
 
     // Country-wise monthly breakdown
@@ -451,8 +532,8 @@ export const getRevenueDashboard = async (req, res) => {
       if (!countryMonthlyBreakdown[rev.country].months[rev.month]) {
         countryMonthlyBreakdown[rev.country].months[rev.month] = 0;
       }
-      countryMonthlyBreakdown[rev.country].months[rev.month] += rev.invoiceAmount;
-      countryMonthlyBreakdown[rev.country].total += rev.invoiceAmount;
+      countryMonthlyBreakdown[rev.country].months[rev.month] += (rev.receivedAmount || 0);
+      countryMonthlyBreakdown[rev.country].total += (rev.receivedAmount || 0);
     });
 
     res.json({
@@ -508,7 +589,11 @@ export const getDashboardSummary = async (req, res) => {
     const { year } = req.query;
     const yearFilter = year ? { year: parseInt(year) } : {};
 
-    const expenses = await Expense.find({ user: req.user._id, ...yearFilter });
+    const expenses = await Expense.find({
+      user: req.user._id,
+      ...yearFilter,
+      status: { $nin: CANCEL_STATUSES },
+    });
     const revenue = await Revenue.find({ user: req.user._id, ...yearFilter });
 
     const totalExpenses = expenses.reduce((sum, exp) => sum + exp.totalAmount, 0);

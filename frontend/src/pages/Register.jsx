@@ -23,6 +23,11 @@ const Register = ({ onLogin }) => {
     e.preventDefault();
     setError('');
 
+    if (!formData.email || formData.email.trim() === '') {
+      setError('Email address is required');
+      return;
+    }
+
     if (formData.password !== formData.confirmPassword) {
       setError('Passwords do not match');
       return;
@@ -38,7 +43,7 @@ const Register = ({ onLogin }) => {
     try {
       const response = await authAPI.register(
         formData.name,
-        formData.email || '',
+        formData.email,
         formData.phone || '',
         formData.password
       );
@@ -87,13 +92,14 @@ const Register = ({ onLogin }) => {
               </div>
               <div>
                 <label htmlFor="email" className="block text-sm font-semibold text-gray-700 mb-2">
-                  Email address <span className="text-gray-400 font-normal">(Optional)</span>
+                  Email address
                 </label>
                 <input
                   id="email"
                   name="email"
                   type="email"
                   autoComplete="email"
+                  required
                   className="input-field"
                   placeholder="Enter your email"
                   value={formData.email}

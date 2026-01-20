@@ -330,6 +330,7 @@ const CustomerForm = ({ customer, onSubmit, onCancel }) => {
                         name="salutation"
                         value={formData.salutation}
                         onChange={handleChange}
+                        forcePortal
                         className="select-field w-full text-sm py-2"
                       >
                         <option value="">-</option>

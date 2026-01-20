@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { format } from 'date-fns';
-import { invoiceAPI, customerAPI, salespersonAPI, itemAPI, hsnSacAPI, settingsAPI } from '../services/api';
+import { invoiceAPI, customerAPI, itemAPI, hsnSacAPI, settingsAPI } from '../services/api';
 import { getSacCodeForService } from '../utils/serviceSacCodes';
 import { useToast } from '../contexts/ToastContext';
 import ConfirmationModal from './ConfirmationModal';
@@ -23,13 +23,10 @@ const InvoiceForm = ({ invoice, customers = [], onSubmit, onCancel, onCustomerAd
   const navigate = useNavigate();
   const location = useLocation();
   const [selectedCustomerId, setSelectedCustomerId] = useState('');
-  const [selectedSalespersonId, setSelectedSalespersonId] = useState('');
-  const [salespersons, setSalespersons] = useState([]);
   const [existingItems, setExistingItems] = useState([]);
   const [hsnSacCodes, setHsnSacCodes] = useState([]);
   const [hsnSacSearchTerm, setHsnSacSearchTerm] = useState({}); // Track search per item
   const [showAddCustomer, setShowAddCustomer] = useState(false);
-  const [showAddSalesperson, setShowAddSalesperson] = useState(false);
   const [showClientDetails, setShowClientDetails] = useState(false);
   const [showAdditionalInfo, setShowAdditionalInfo] = useState(false);
   const [gstRates, setGstRates] = useState([]);
@@ -58,13 +55,6 @@ const InvoiceForm = ({ invoice, customers = [], onSubmit, onCancel, onCustomerAd
     mobile: '',
     hsnOrSac: '',
     currency: 'INR',
-  });
-  const [newSalespersonData, setNewSalespersonData] = useState({
-    name: '',
-    email: '',
-    phone: '',
-    employeeId: '',
-    department: '',
   });
   const [formData, setFormData] = useState({
     invoiceDate: format(new Date(), 'yyyy-MM-dd'),
@@ -190,13 +180,6 @@ const InvoiceForm = ({ invoice, customers = [], onSubmit, onCancel, onCustomerAd
         } else {
           setSelectedCustomerId('');
         }
-        
-        // Set salesperson if exists
-        if (invoice.salesperson) {
-          setSelectedSalespersonId(invoice.salesperson._id || invoice.salesperson);
-        } else {
-          setSelectedSalespersonId('');
-        }
       } catch (error) {
         console.error('Error loading invoice data:', error);
       }
@@ -235,23 +218,8 @@ const InvoiceForm = ({ invoice, customers = [], onSubmit, onCancel, onCustomerAd
         amount: 0,
       }]);
       setSelectedCustomerId('');
-      setSelectedSalespersonId('');
     }
   }, [invoice?._id, customers]);
-
-  // Fetch salespersons and items on component mount
-  useEffect(() => {
-    const fetchSalespersons = async () => {
-      try {
-        const response = await salespersonAPI.getAll();
-        setSalespersons(response.data || []);
-      } catch (error) {
-        console.error('Error fetching salespersons:', error);
-        setSalespersons([]);
-      }
-    };
-    fetchSalespersons();
-  }, []);
 
   useEffect(() => {
     const fetchItems = async () => {
@@ -552,68 +520,6 @@ const InvoiceForm = ({ invoice, customers = [], onSubmit, onCancel, onCustomerAd
     }
   };
 
-  const handleSalespersonSelect = (e) => {
-    const salespersonId = e.target.value;
-    setSelectedSalespersonId(salespersonId);
-  };
-
-  const handleNewSalespersonChange = (e) => {
-    const { name, value } = e.target;
-    setNewSalespersonData({
-      ...newSalespersonData,
-      [name]: value,
-    });
-  };
-
-  const handleAddSalesperson = async (e) => {
-    if (e) {
-      e.preventDefault();
-      e.stopPropagation();
-      e.nativeEvent?.stopImmediatePropagation();
-    }
-    
-    // Validate required fields
-    if (!newSalespersonData.name || newSalespersonData.name.trim() === '') {
-      showToast('Please enter salesperson name', 'error');
-      return false;
-    }
-    
-    try {
-      // Create salesperson in backend
-      const response = await salespersonAPI.create(newSalespersonData);
-      const newSalesperson = response.data;
-      
-      // Refresh salespersons list
-      const salespersonsResponse = await salespersonAPI.getAll();
-      setSalespersons(salespersonsResponse.data || []);
-      
-      // Auto-select the new salesperson
-      setSelectedSalespersonId(newSalesperson._id);
-      
-      // Hide add salesperson form
-      setShowAddSalesperson(false);
-      
-      // Reset new salesperson form
-      setNewSalespersonData({
-        name: '',
-        email: '',
-        phone: '',
-        employeeId: '',
-        department: '',
-      });
-      
-      // Show success message (non-blocking)
-      console.log('Salesperson added successfully!');
-      
-      // Return false to prevent any form submission
-      return false;
-    } catch (error) {
-      console.error('Error creating salesperson:', error);
-      const errorMessage = error.response?.data?.message || 'Failed to create salesperson';
-      showToast(errorMessage, 'error');
-      return false;
-    }
-  };
 
   // Calculate item amount based on quantity, rate, and discount
   const calculateItemAmount = (quantity, rate, discount) => {
@@ -1035,8 +941,8 @@ const InvoiceForm = ({ invoice, customers = [], onSubmit, onCancel, onCustomerAd
     e.preventDefault();
     e.stopPropagation();
     
-    // Don't submit if customer or salesperson form is open
-    if (showAddCustomer || showAddSalesperson) {
+    // Don't submit if customer form is open
+    if (showAddCustomer) {
       return;
     }
     
@@ -1091,7 +997,6 @@ const InvoiceForm = ({ invoice, customers = [], onSubmit, onCancel, onCustomerAd
       currency: formData.currency || 'INR',
       status: formData.status || 'Unpaid',
       items: submitItems, // Include items array
-      salesperson: selectedSalespersonId || null, // Include salesperson
     };
 
     onSubmit(submitData);
@@ -1358,195 +1263,16 @@ const InvoiceForm = ({ invoice, customers = [], onSubmit, onCancel, onCustomerAd
           </>
         )}
 
-        {/* Salesperson and Dates Section */}
+        {/* Dates Section */}
         <div className={invoice ? 'bg-white rounded-xl border border-slate-200 shadow-sm p-5 mb-6' : ''}>
           <div className={invoice ? 'mb-4 pb-3 border-b border-slate-200' : ''}>
             <h3 className={invoice ? 'text-base font-bold text-slate-900 flex items-center gap-2' : 'hidden'}>
               <svg className="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
               </svg>
-              Salesperson and Dates
+              Dates
             </h3>
           </div>
-          
-          {/* Salesperson Selection */}
-          <div className={invoice ? 'mb-4' : ''}>
-            <label className="form-label">Salesperson</label>
-            <div className="flex gap-3">
-              <MobileSelect
-                value={selectedSalespersonId}
-                onChange={handleSalespersonSelect}
-                className="select-field-compact flex-1"
-              >
-                <option value="">Select or add a salesperson</option>
-                {salespersons.map((salesperson) => (
-                  <option key={salesperson._id} value={salesperson._id}>
-                    {salesperson.name} {salesperson.email ? `- ${salesperson.email}` : ''} {salesperson.phone ? `- ${salesperson.phone}` : ''}
-                  </option>
-                ))}
-              </MobileSelect>
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  setShowAddSalesperson(!showAddSalesperson);
-                }}
-                className="px-4 py-2 bg-finance-blue text-white rounded-md hover:bg-finance-blueLight transition-colors text-sm font-medium"
-              >
-                + Add
-              </button>
-            </div>
-          </div>
-
-        {/* Add New Salesperson Modal */}
-        {showAddSalesperson && (
-          <div 
-            className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
-            onClick={() => {
-              setShowAddSalesperson(false);
-              setNewSalespersonData({
-                name: '',
-                email: '',
-                phone: '',
-                employeeId: '',
-                department: '',
-              });
-            }}
-          >
-            <div 
-              className="bg-white rounded-lg shadow-xl max-w-md w-full mx-4 max-h-[90vh] overflow-y-auto"
-              onClick={(e) => e.stopPropagation()}
-              onMouseDown={(e) => e.stopPropagation()}
-            >
-              {/* Modal Header */}
-              <div className="flex justify-between items-center p-4 border-b border-gray-200">
-                <h3 className="text-lg font-semibold text-finance-navy">Add New Salesperson</h3>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setShowAddSalesperson(false);
-                    setNewSalespersonData({
-                      name: '',
-                      email: '',
-                      phone: '',
-                      employeeId: '',
-                      department: '',
-                    });
-                  }}
-                  className="text-gray-400 hover:text-gray-600 transition-colors"
-                  aria-label="Close"
-                >
-                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                  </svg>
-                </button>
-              </div>
-
-              {/* Modal Body */}
-              <div 
-                className="p-6 space-y-4"
-                onClick={(e) => e.stopPropagation()}
-                onMouseDown={(e) => e.stopPropagation()}
-              >
-                <div className="space-y-4">
-                  <div>
-                    <label className="form-label">Name *</label>
-                    <input
-                      type="text"
-                      name="name"
-                      value={newSalespersonData.name}
-                      onChange={handleNewSalespersonChange}
-                      required
-                      className="input-field-compact w-full"
-                      placeholder="Enter salesperson name"
-                      autoFocus
-                    />
-                  </div>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <label className="form-label">Email</label>
-                      <input
-                        type="email"
-                        name="email"
-                        value={newSalespersonData.email}
-                        onChange={handleNewSalespersonChange}
-                        className="input-field-compact w-full"
-                        placeholder="Enter email"
-                      />
-                    </div>
-                    <div>
-                      <label className="form-label">Phone</label>
-                      <input
-                        type="tel"
-                        name="phone"
-                        value={newSalespersonData.phone}
-                        onChange={handleNewSalespersonChange}
-                        className="input-field-compact w-full"
-                        placeholder="Enter phone"
-                      />
-                    </div>
-                  </div>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <label className="form-label">Employee ID</label>
-                      <input
-                        type="text"
-                        name="employeeId"
-                        value={newSalespersonData.employeeId}
-                        onChange={handleNewSalespersonChange}
-                        className="input-field-compact w-full"
-                        placeholder="Enter employee ID"
-                      />
-                    </div>
-                    <div>
-                      <label className="form-label">Department</label>
-                      <input
-                        type="text"
-                        name="department"
-                        value={newSalespersonData.department}
-                        onChange={handleNewSalespersonChange}
-                        className="input-field-compact w-full"
-                        placeholder="Enter department"
-                      />
-                    </div>
-                  </div>
-                </div>
-
-                {/* Modal Footer */}
-                <div className="flex justify-end space-x-3 pt-4 border-t border-gray-200">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setShowAddSalesperson(false);
-                      setNewSalespersonData({
-                        name: '',
-                        email: '',
-                        phone: '',
-                        employeeId: '',
-                        department: '',
-                      });
-                    }}
-                    className="btn-secondary px-4 py-2 text-sm"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.preventDefault();
-                      e.stopPropagation();
-                      handleAddSalesperson(e);
-                    }}
-                    className="btn-primary px-4 py-2 text-sm"
-                  >
-                    Add Salesperson
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
 
         {/* Critical Fields - Always Visible */}
         <div className="grid grid-cols-3 gap-3">

@@ -9,6 +9,40 @@ import { fileURLToPath } from 'url';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+const ALLOWED_REPEAT_EVERY = new Set(['Week', 'Month', 'Quarter', 'Half Yearly', 'Six Month', 'Year']);
+
+const normalizeToStartOfDay = (d) => {
+  const date = new Date(d);
+  date.setHours(0, 0, 0, 0);
+  return date;
+};
+
+const addRecurringInterval = (baseDate, repeatEvery) => {
+  const next = new Date(baseDate);
+  switch (repeatEvery) {
+    case 'Week':
+      next.setDate(next.getDate() + 7);
+      break;
+    case 'Month':
+      next.setMonth(next.getMonth() + 1);
+      break;
+    case 'Quarter':
+      next.setMonth(next.getMonth() + 3);
+      break;
+    case 'Half Yearly':
+    case 'Six Month':
+      next.setMonth(next.getMonth() + 6);
+      break;
+    case 'Year':
+      next.setFullYear(next.getFullYear() + 1);
+      break;
+    default:
+      break;
+  }
+  next.setHours(0, 0, 0, 0);
+  return next;
+};
+
 // @desc    Create recurring invoice
 // @route   POST /api/recurring-invoices
 // @access  Private
@@ -24,6 +58,10 @@ export const createRecurringInvoice = async (req, res) => {
       return res.status(400).json({ message: 'Repeat Every and Start On are required' });
     }
 
+    if (!ALLOWED_REPEAT_EVERY.has(repeatEvery)) {
+      return res.status(400).json({ message: 'Invalid repeat frequency' });
+    }
+
     if (!neverExpires && !endsOn) {
       return res.status(400).json({ message: 'Ends On is required when Never Expires is not checked' });
     }
@@ -35,11 +73,12 @@ export const createRecurringInvoice = async (req, res) => {
       return res.status(400).json({ message: 'Ends On date must be after Start On date' });
     }
 
-    // Calculate next send date (start date)
-    const nextSendDate = new Date(startDate);
+    // Base invoice already exists, so next send should be after one interval
+    const nextSendDate = addRecurringInterval(normalizeToStartOfDay(startDate), repeatEvery);
 
     // Create recurring invoice entries for each selected invoice
     const recurringInvoices = [];
+    const validInvoiceIds = [];
     for (const invoiceId of invoiceIds) {
       // Verify invoice exists and belongs to user
       const invoice = await Invoice.findOne({
@@ -50,6 +89,7 @@ export const createRecurringInvoice = async (req, res) => {
       if (!invoice) {
         continue; // Skip if invoice not found
       }
+      validInvoiceIds.push(invoice._id);
 
       const recurringInvoice = await RecurringInvoice.create({
         baseInvoice: invoiceId,
@@ -62,6 +102,19 @@ export const createRecurringInvoice = async (req, res) => {
       });
 
       recurringInvoices.push(recurringInvoice);
+    }
+
+    // Mark base invoices as having a recurring schedule so Invoice list shows "Recurring = Yes".
+    // This does NOT change the invoice amounts; it only tags the record.
+    try {
+      if (validInvoiceIds.length > 0) {
+        await Invoice.updateMany(
+          { _id: { $in: validInvoiceIds }, user: req.user._id },
+          { $set: { hasRecurringSchedule: true } }
+        );
+      }
+    } catch (e) {
+      console.warn('Failed to mark base invoices as having recurring schedule:', e?.message || e);
     }
 
     res.status(201).json({
@@ -79,6 +132,9 @@ export const createRecurringInvoice = async (req, res) => {
 // @access  Private
 export const getRecurringInvoices = async (req, res) => {
   try {
+    // Remove any legacy seconds-based schedules (not supported)
+    await RecurringInvoice.deleteMany({ user: req.user._id, repeatEvery: '10 Seconds' });
+
     const recurringInvoices = await RecurringInvoice.find({ user: req.user._id })
       .populate('baseInvoice')
       .sort({ createdAt: -1 })
@@ -89,6 +145,21 @@ export const getRecurringInvoices = async (req, res) => {
       // If baseInvoice is null, it means the invoice was deleted
       return rec.baseInvoice !== null && rec.baseInvoice !== undefined;
     });
+
+    // Backfill: ensure all base invoices referenced by schedules are tagged.
+    try {
+      const baseIds = validRecurringInvoices
+        .map((r) => r?.baseInvoice?._id)
+        .filter(Boolean);
+      if (baseIds.length > 0) {
+        await Invoice.updateMany(
+          { _id: { $in: baseIds }, user: req.user._id },
+          { $set: { hasRecurringSchedule: true } }
+        );
+      }
+    } catch (e) {
+      console.warn('Failed to backfill base invoices recurring schedule flag:', e?.message || e);
+    }
 
     res.json(validRecurringInvoices);
   } catch (error) {
@@ -110,6 +181,11 @@ export const getRecurringInvoice = async (req, res) => {
       .lean();
 
     if (!recurringInvoice) {
+      return res.status(404).json({ message: 'Recurring invoice not found' });
+    }
+
+    if (recurringInvoice.repeatEvery === '10 Seconds') {
+      await RecurringInvoice.deleteOne({ _id: req.params.id, user: req.user._id });
       return res.status(404).json({ message: 'Recurring invoice not found' });
     }
 
@@ -141,17 +217,31 @@ export const updateRecurringInvoice = async (req, res) => {
       return res.status(404).json({ message: 'Recurring invoice not found' });
     }
 
-    if (repeatEvery) recurringInvoice.repeatEvery = repeatEvery;
+    // If a legacy seconds-based schedule exists, remove it (seconds frequency is not supported)
+    if (recurringInvoice.repeatEvery === '10 Seconds') {
+      await RecurringInvoice.deleteOne({ _id: recurringInvoice._id, user: req.user._id });
+      return res.status(404).json({ message: 'Recurring invoice not found' });
+    }
+
+    if (repeatEvery) {
+      if (!ALLOWED_REPEAT_EVERY.has(repeatEvery)) {
+        return res.status(400).json({ message: 'Invalid repeat frequency' });
+      }
+      recurringInvoice.repeatEvery = repeatEvery;
+    }
     if (startOn) {
       recurringInvoice.startOn = new Date(startOn);
-      // Update next send date if start date is in the future
-      if (new Date(startOn) > new Date()) {
-        recurringInvoice.nextSendDate = new Date(startOn);
-      }
     }
     if (endsOn !== undefined) recurringInvoice.endsOn = endsOn ? new Date(endsOn) : null;
     if (neverExpires !== undefined) recurringInvoice.neverExpires = neverExpires;
     if (isActive !== undefined) recurringInvoice.isActive = isActive;
+
+    // Recompute nextSendDate so UI shows "next send" date (startOn/lastSent + interval)
+    const baseForNext = recurringInvoice.lastSentDate || recurringInvoice.startOn;
+    recurringInvoice.nextSendDate = addRecurringInterval(
+      normalizeToStartOfDay(baseForNext),
+      recurringInvoice.repeatEvery
+    );
 
     await recurringInvoice.save();
 
@@ -176,7 +266,28 @@ export const deleteRecurringInvoice = async (req, res) => {
       return res.status(404).json({ message: 'Recurring invoice not found' });
     }
 
+    const baseInvoiceId = recurringInvoice.baseInvoice;
+
     await recurringInvoice.deleteOne();
+
+    // Sync base invoice flag:
+    // If this was the last recurring schedule for that base invoice, mark it as non-recurring (schedule).
+    try {
+      if (baseInvoiceId) {
+        const anyRemaining = await RecurringInvoice.exists({
+          user: req.user._id,
+          baseInvoice: baseInvoiceId,
+        });
+        if (!anyRemaining) {
+          await Invoice.updateOne(
+            { _id: baseInvoiceId, user: req.user._id },
+            { $set: { hasRecurringSchedule: false } }
+          );
+        }
+      }
+    } catch (e) {
+      console.warn('Failed to sync base invoice recurring schedule flag on delete:', e?.message || e);
+    }
 
     res.json({ message: 'Recurring invoice deleted successfully' });
   } catch (error) {
@@ -196,6 +307,7 @@ export const processRecurringInvoices = async (req, res) => {
     // Find all active recurring invoices that need to be sent today
     const recurringInvoices = await RecurringInvoice.find({
       isActive: true,
+      repeatEvery: { $ne: '10 Seconds' },
       nextSendDate: { $lte: today },
     }).populate('baseInvoice').populate('user');
 
@@ -230,9 +342,10 @@ export const processRecurringInvoices = async (req, res) => {
         delete newInvoiceData.emailSent;
         delete newInvoiceData.emailSentAt;
 
-        // Update invoice date to today
-        newInvoiceData.invoiceDate = today;
-        newInvoiceData.dueDate = new Date(today);
+        // Use the scheduled send date (nextSendDate) for the generated invoice date
+        const scheduledDate = normalizeToStartOfDay(recurringInvoice.nextSendDate);
+        newInvoiceData.invoiceDate = scheduledDate;
+        newInvoiceData.dueDate = new Date(scheduledDate);
         // Add payment terms days if exists
         if (baseInvoice.paymentTerms) {
           const days = baseInvoice.paymentTerms.match(/\d+/);
@@ -242,7 +355,7 @@ export const processRecurringInvoices = async (req, res) => {
         }
 
         // Generate new invoice number
-        const year = today.getFullYear();
+        const year = scheduledDate.getFullYear();
         const lastInvoice = await Invoice.findOne({
           user: recurringInvoice.user._id,
           invoiceNumber: new RegExp(`^KVPL${year}`),
@@ -298,29 +411,10 @@ export const processRecurringInvoices = async (req, res) => {
           }
         }
 
-        // Calculate next send date
-        const nextSendDate = new Date(recurringInvoice.nextSendDate);
-        switch (recurringInvoice.repeatEvery) {
-          case 'Week':
-            nextSendDate.setDate(nextSendDate.getDate() + 7);
-            break;
-          case 'Month':
-            nextSendDate.setMonth(nextSendDate.getMonth() + 1);
-            break;
-          case 'Quarter':
-            nextSendDate.setMonth(nextSendDate.getMonth() + 3);
-            break;
-          case 'Half Yearly':
-          case 'Six Month':
-            nextSendDate.setMonth(nextSendDate.getMonth() + 6);
-            break;
-          case 'Year':
-            nextSendDate.setFullYear(nextSendDate.getFullYear() + 1);
-            break;
-        }
+        const nextSendDate = addRecurringInterval(scheduledDate, recurringInvoice.repeatEvery);
 
         // Update recurring invoice
-        recurringInvoice.lastSentDate = today;
+        recurringInvoice.lastSentDate = scheduledDate;
         recurringInvoice.nextSendDate = nextSendDate;
 
         // Check if expired
@@ -378,6 +472,7 @@ export const processRecurringInvoicesDirect = async () => {
     // Find all active recurring invoices that need to be sent today
     const recurringInvoices = await RecurringInvoice.find({
       isActive: true,
+      repeatEvery: { $ne: '10 Seconds' },
       nextSendDate: { $lte: today },
     }).populate('baseInvoice').populate('user');
 
@@ -412,9 +507,10 @@ export const processRecurringInvoicesDirect = async () => {
         delete newInvoiceData.emailSent;
         delete newInvoiceData.emailSentAt;
 
-        // Update invoice date to today
-        newInvoiceData.invoiceDate = today;
-        newInvoiceData.dueDate = new Date(today);
+        // Use the scheduled send date (nextSendDate) for the generated invoice date
+        const scheduledDate = normalizeToStartOfDay(recurringInvoice.nextSendDate);
+        newInvoiceData.invoiceDate = scheduledDate;
+        newInvoiceData.dueDate = new Date(scheduledDate);
         // Add payment terms days if exists
         if (baseInvoice.paymentTerms) {
           const days = baseInvoice.paymentTerms.match(/\d+/);
@@ -424,7 +520,7 @@ export const processRecurringInvoicesDirect = async () => {
         }
 
         // Generate new invoice number
-        const year = today.getFullYear();
+        const year = scheduledDate.getFullYear();
         const lastInvoice = await Invoice.findOne({
           user: recurringInvoice.user._id,
           invoiceNumber: new RegExp(`^KVPL${year}`),
@@ -480,29 +576,10 @@ export const processRecurringInvoicesDirect = async () => {
           }
         }
 
-        // Calculate next send date
-        const nextSendDate = new Date(recurringInvoice.nextSendDate);
-        switch (recurringInvoice.repeatEvery) {
-          case 'Week':
-            nextSendDate.setDate(nextSendDate.getDate() + 7);
-            break;
-          case 'Month':
-            nextSendDate.setMonth(nextSendDate.getMonth() + 1);
-            break;
-          case 'Quarter':
-            nextSendDate.setMonth(nextSendDate.getMonth() + 3);
-            break;
-          case 'Half Yearly':
-          case 'Six Month':
-            nextSendDate.setMonth(nextSendDate.getMonth() + 6);
-            break;
-          case 'Year':
-            nextSendDate.setFullYear(nextSendDate.getFullYear() + 1);
-            break;
-        }
+        const nextSendDate = addRecurringInterval(scheduledDate, recurringInvoice.repeatEvery);
 
         // Update recurring invoice
-        recurringInvoice.lastSentDate = today;
+        recurringInvoice.lastSentDate = scheduledDate;
         recurringInvoice.nextSendDate = nextSendDate;
 
         // Check if expired

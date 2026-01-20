@@ -20,6 +20,7 @@ const Expenses = () => {
   const navigate = useNavigate();
   const [expenses, setExpenses] = useState([]);
   const [allExpenses, setAllExpenses] = useState([]); // Store all expenses for vendor dropdown
+  const [recurringExpenses, setRecurringExpenses] = useState([]); // Store recurring expenses to identify baseExpense
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [editingExpense, setEditingExpense] = useState(null);
@@ -127,6 +128,12 @@ const Expenses = () => {
 
       const response = await expenseAPI.getAll(params);
       let filteredExpenses = response.data;
+      
+      // Debug: Log all expenses and their statuses when Cancel filter is active
+      if (appliedFilters.status === 'Cancel') {
+        console.log('All expenses from API:', filteredExpenses.length);
+        console.log('Expense statuses:', filteredExpenses.map(e => ({ id: e._id, vendor: e.vendor, status: e.status })));
+      }
 
       // Client-side filtering for date range
       if (appliedFilters.startDate) {
@@ -168,6 +175,19 @@ const Expenses = () => {
           filteredExpenses = filteredExpenses.filter(expense => 
             expense.status && expense.status.toLowerCase() === 'paid'
           );
+        } else if (appliedFilters.status === 'Cancel') {
+          // Show only Cancel expenses
+          filteredExpenses = filteredExpenses.filter(expense => {
+            const status = expense.status ? String(expense.status).trim() : '';
+            const isCancel = status.toLowerCase() === 'cancel';
+            // Debug logging (remove in production)
+            if (isCancel) {
+              console.log('Found Cancel expense:', expense._id, expense.vendor, expense.status);
+            }
+            return isCancel;
+          });
+          // Debug logging (remove in production)
+          console.log('Cancel filter applied. Found', filteredExpenses.length, 'canceled expenses');
         }
       }
 
@@ -244,17 +264,21 @@ const Expenses = () => {
     }
   };
 
-  // Fetch all expenses for vendor dropdown
+  // Fetch all expenses for vendor dropdown and recurring expenses to identify baseExpense
   useEffect(() => {
-    const fetchAllExpenses = async () => {
+    const fetchAllData = async () => {
       try {
-        const response = await expenseAPI.getAll({});
-        setAllExpenses(response.data);
+        const [expensesResponse, recurringResponse] = await Promise.all([
+          expenseAPI.getAll({}),
+          recurringExpenseAPI.getAll()
+        ]);
+        setAllExpenses(expensesResponse.data);
+        setRecurringExpenses(recurringResponse.data || []);
       } catch (error) {
-        console.error('Error fetching all expenses:', error);
+        console.error('Error fetching data:', error);
       }
     };
-    fetchAllExpenses();
+    fetchAllData();
   }, []);
 
   useEffect(() => {
@@ -329,6 +353,12 @@ const Expenses = () => {
   };
 
   const handleMarkPaid = async (expense, customPaidAmount = null) => {
+    // Prevent marking as paid if status is Cancel
+    if (expense.status === 'Cancel') {
+      showToast('Cannot mark canceled expenses as paid', 'error');
+      return;
+    }
+
     try {
       const totalAmount = expense.totalAmount || 0;
       const currentPaidAmount = expense.paidAmount || 0;
@@ -372,6 +402,12 @@ const Expenses = () => {
   };
 
   const handleMarkPaidClick = (expense) => {
+    // Prevent marking as paid if status is Cancel
+    if (expense.status === 'Cancel') {
+      showToast('Cannot mark canceled expenses as paid', 'error');
+      return;
+    }
+    
     // Show modal to enter paid amount
     setMarkPaidExpense(expense);
     setMarkPaidAmount('');
@@ -423,6 +459,12 @@ const Expenses = () => {
       const updatePromises = expenseIds.map(async (id) => {
         const expense = expenses.find(exp => exp._id === id);
         if (!expense) return null;
+
+        // Skip if status is Cancel
+        if (expense.status === 'Cancel') {
+          skippedExpenses.push(expense.vendor || 'Unknown (Canceled)');
+          return null;
+        }
 
         // Skip if already paid
         if (expense.status === 'Paid' || (expense.paidAmount >= (expense.totalAmount || 0) && (expense.totalAmount || 0) > 0)) {
@@ -634,8 +676,13 @@ const Expenses = () => {
         await expenseAPI.update(editingExpense._id, data);
         showToast('Expense updated successfully!', 'success');
       } else {
-        await expenseAPI.create(data);
-        showToast('Expense created successfully!', 'success');
+        const response = await expenseAPI.create(data);
+        // Check if the response indicates a duplicate
+        if (response.data?.message && response.data.message.includes('Duplicate expense detected')) {
+          showToast('Duplicate expense detected! This expense already exists and was not added to the list.', 'error');
+        } else {
+          showToast('Expense created successfully!', 'success');
+        }
       }
       setShowForm(false);
       setEditingExpense(null);
@@ -662,7 +709,16 @@ const Expenses = () => {
   const handleRecurringExpenseSubmit = async (data) => {
     try {
       const response = await recurringExpenseAPI.create(data);
-      showToast(`Recurring expense created successfully for ${data.expenseIds.length} expense(s)!`, 'success');
+      const createdCount = response.data?.createdCount ?? data.expenseIds.length;
+      const skippedCount = response.data?.skippedCount ?? 0;
+
+      if (createdCount > 0 && skippedCount > 0) {
+        showToast(`Recurring set for ${createdCount} expense(s). ${skippedCount} already had recurring schedules and were skipped.`, 'info');
+      } else if (createdCount > 0) {
+        showToast(`Recurring expense created successfully for ${createdCount} expense(s)!`, 'success');
+      } else {
+        showToast('Selected expense(s) already have recurring schedules. No new recurring expenses were created.', 'info');
+      }
       setSelectedExpenses([]);
       setShowRecurringModal(false);
       fetchExpenses(); // Refresh expenses list
@@ -762,12 +818,22 @@ const Expenses = () => {
     return Math.min(paid, total);
   };
 
-  const expenseSummary = (expenses || []).reduce(
+  // IMPORTANT:
+  // Do NOT remove base recurring expenses from the main list.
+  // They should remain visible; recurring is shown via a Yes/No column (`expense.isRecurring`).
+  const visibleExpenses = expenses || [];
+
+  const expenseSummary = visibleExpenses.reduce(
     (acc, expense) => {
       // Total Expenses = sum of totalAmount
-      const total = parseFloat(expense?.totalAmount) || 0;
-      const paid = parseFloat(expense?.paidAmount) || 0;
-      const due = Math.max(0, total - paid);
+      const total = Number(expense?.totalAmount) || 0;
+      // Paid Amount = sum of paidAmount
+      const paidRaw = Number(expense?.paidAmount) || 0;
+      // Calculate paid amount (clamped to total, same as table)
+      const paid = Math.min(Math.max(paidRaw, 0), Math.max(total, 0));
+      // Pending (Due) = sum of Due Amount (exact same calculation as shown in table)
+      // Due Amount = max(0, max(total, 0) - paid)
+      const due = Math.max(0, Math.max(total, 0) - paid);
 
       acc.total += total;
       acc.paid += paid;
@@ -777,6 +843,22 @@ const Expenses = () => {
     },
     { total: 0, paid: 0, pending: 0 }
   );
+
+  // Debug logging when status is Paid
+  if (appliedFilters.status === 'Paid') {
+    console.log('Paid filter active:');
+    console.log('Total expenses (filtered):', visibleExpenses.length);
+    console.log('Expense summary paid:', expenseSummary.paid);
+    if (visibleExpenses.length > 0) {
+      console.log('Sample expense:', {
+        id: visibleExpenses[0]._id,
+        vendor: visibleExpenses[0].vendor,
+        totalAmount: visibleExpenses[0].totalAmount,
+        paidAmount: visibleExpenses[0].paidAmount,
+        status: visibleExpenses[0].status
+      });
+    }
+  }
 
   return (
     <div className="animate-fade-in min-h-screen">
@@ -868,13 +950,21 @@ const Expenses = () => {
 
       {/* Summary Cards */}
       {!showForm && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-6 lg:mb-8">
+        <div
+          className={`grid grid-cols-1 ${
+            appliedFilters.status === 'Paid' || appliedFilters.status === 'Cancel'
+              ? 'sm:grid-cols-1 lg:grid-cols-1'
+              : 'sm:grid-cols-2 lg:grid-cols-3'
+          } gap-4 mb-6 lg:mb-8`}
+        >
           <div className="card p-5">
             <div className="flex items-start justify-between gap-4">
               <div>
                 <p className="text-sm font-medium text-slate-600">Total Expenses</p>
                 <p className="mt-2 text-2xl font-semibold text-slate-900">
-                  ₹{expenseSummary.total.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                  ₹{appliedFilters.status === 'Paid'
+                    ? expenseSummary.paid.toLocaleString('en-IN', { minimumFractionDigits: 2 })
+                    : expenseSummary.total.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
                 </p>
               </div>
               <div className="rounded-lg border border-blue-100 bg-blue-50 p-2.5">
@@ -885,38 +975,41 @@ const Expenses = () => {
             </div>
           </div>
 
-          <div className="card p-5">
-            <div className="flex items-start justify-between gap-4">
-              <div>
-                <p className="text-sm font-medium text-slate-600">Paid Amount</p>
-                <p className="mt-2 text-2xl font-semibold text-emerald-700">
-                  ₹{expenseSummary.paid.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
-                </p>
+          {appliedFilters.status !== 'Paid' && appliedFilters.status !== 'Cancel' && (
+            <>
+              <div className="card p-5">
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <p className="text-sm font-medium text-slate-600">Paid Amount</p>
+                    <p className="mt-2 text-2xl font-semibold text-emerald-700">
+                      ₹{expenseSummary.paid.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                    </p>
+                  </div>
+                  <div className="rounded-lg border border-emerald-100 bg-emerald-50 p-2.5">
+                    <svg className="h-5 w-5 text-emerald-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                  </div>
+                </div>
               </div>
-              <div className="rounded-lg border border-emerald-100 bg-emerald-50 p-2.5">
-                <svg className="h-5 w-5 text-emerald-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-              </div>
-            </div>
-          </div>
 
-          <div className="card p-5">
-            <div className="flex items-start justify-between gap-4">
-              <div>
-                <p className="text-sm font-medium text-slate-600">Pending (Due)</p>
-                <p className="mt-2 text-2xl font-semibold text-rose-700">
-                  ₹{expenseSummary.pending.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
-                </p>
+              <div className="card p-5">
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <p className="text-sm font-medium text-slate-600">Pending (Due)</p>
+                    <p className="mt-2 text-2xl font-semibold text-rose-700">
+                      ₹{expenseSummary.pending.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                    </p>
+                  </div>
+                  <div className="rounded-lg border border-rose-100 bg-rose-50 p-2.5">
+                    <svg className="h-5 w-5 text-rose-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                  </div>
+                </div>
               </div>
-              <div className="rounded-lg border border-rose-100 bg-rose-50 p-2.5">
-                <svg className="h-5 w-5 text-rose-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-              </div>
-            </div>
-          </div>
-
+            </>
+          )}
         </div>
       )}
 
@@ -936,6 +1029,7 @@ const Expenses = () => {
             >
               <option value="UnpaidAndPartial">Unpaid & Partial</option>
               <option value="Paid">Paid</option>
+              <option value="Cancel">Cancel</option>
             </MobileSelect>
           </div>
         </div>
@@ -1188,110 +1282,7 @@ const Expenses = () => {
                       </svg>
                       {selectedExpenses.length} expense(s) selected
                     </span>
-                    {showMarkPaidInput ? (
-                      <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 w-full sm:w-auto">
-                        <div className="flex items-center gap-2">
-                          <label className="text-sm font-semibold text-gray-700 whitespace-nowrap">Paid Amount:</label>
-                          <input
-                            type="number"
-                            value={bulkPaidAmount}
-                            onChange={(e) => setBulkPaidAmount(e.target.value)}
-                            onWheel={(e) => e.target.blur()}
-                            onFocus={(e) => e.target.addEventListener('wheel', (e) => e.preventDefault(), { passive: false })}
-                            placeholder="Enter amount"
-                            step="0.01"
-                            min="0"
-                            className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 w-32"
-                          />
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <button
-                            onClick={async () => {
-                              if (!bulkPaidAmount || parseFloat(bulkPaidAmount) < 0) {
-                                showToast('Please enter a valid paid amount', 'error');
-                                return;
-                              }
-                              
-                              // Check how many expenses are already paid
-                              const alreadyPaidCount = selectedExpenses.filter(id => {
-                                const expense = expenses.find(exp => exp._id === id);
-                                return expense && (expense.status === 'Paid' || (expense.paidAmount >= (expense.totalAmount || 0) && (expense.totalAmount || 0) > 0));
-                              }).length;
-                              
-                              if (alreadyPaidCount > 0) {
-                                const unpaidCount = selectedExpenses.length - alreadyPaidCount;
-                                const message = `${alreadyPaidCount} expense(s) are already paid and will be skipped. Only ${unpaidCount} unpaid expense(s) will be updated. Continue?`;
-                                // Note: For now, we'll proceed directly. If confirmation needed, add state for this.
-                              }
-                              
-                              setMarkingPaid(true);
-                              await handleBulkMarkPaid(selectedExpenses, bulkPaidAmount);
-                              setShowMarkPaidInput(false);
-                              setBulkPaidAmount('');
-                              setMarkingPaid(false);
-                            }}
-                            disabled={markingPaid}
-                            className="px-5 py-2.5 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-all text-sm font-semibold shadow-md hover:shadow-lg flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
-                            type="button"
-                          >
-                            {markingPaid ? (
-                              <>
-                                <svg className="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647A7.962 7.962 0 0112 20c0-4.418-3.582-8-8-8z"></path>
-                                </svg>
-                                Marking...
-                              </>
-                            ) : (
-                              <>
-                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                                </svg>
-                                Mark as Paid
-                              </>
-                            )}
-                          </button>
-                          <button
-                            onClick={() => {
-                              setShowMarkPaidInput(false);
-                              setBulkPaidAmount('');
-                            }}
-                            disabled={markingPaid}
-                            className="px-5 py-2.5 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-all text-sm font-semibold shadow-md hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
-                            type="button"
-                          >
-                            Cancel
-                          </button>
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="flex items-center gap-3 flex-wrap">
-                        {(() => {
-                          // Check if all selected expenses are already paid
-                          const allPaid = selectedExpenses.every(id => {
-                            const expense = expenses.find(exp => exp._id === id);
-                            return expense && (expense.status === 'Paid' || (expense.paidAmount >= (expense.totalAmount || 0) && (expense.totalAmount || 0) > 0));
-                          });
-                          
-                          return (
-                            <button
-                              onClick={(e) => {
-                                e.preventDefault();
-                                e.stopPropagation();
-                                setShowMarkPaidInput(true);
-                              }}
-                              disabled={allPaid}
-                              className="px-5 py-2.5 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-all text-sm font-semibold shadow-md hover:shadow-lg flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
-                              type="button"
-                              title={allPaid ? 'All selected expenses are already paid' : ''}
-                            >
-                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                              </svg>
-                              Mark as Paid
-                            </button>
-                          );
-                        })()}
+                    <div className="flex items-center gap-3 flex-wrap">
                         <button
                           onClick={(e) => {
                             e.preventDefault();
@@ -1335,12 +1326,11 @@ const Expenses = () => {
                           Set as Recurring
                         </button>
                       </div>
-                    )}
                   </div>
                 </div>
               ) : null}
               <ExpenseTable 
-                expenses={expenses} 
+                expenses={visibleExpenses} 
                 onEdit={handleEdit}
                 onViewHistory={handleViewHistory}
                 onMarkPaid={handleMarkPaidClick}
@@ -1430,6 +1420,8 @@ const Expenses = () => {
                 const total = getComputedTotalAmount(markPaidExpense);
                 const paid = getPaidAmount(markPaidExpense, total);
                 const due = Math.max(0, total - paid);
+                const gstAmount = parseFloat(markPaidExpense?.gstAmount) || 0;
+                const tdsAmount = parseFloat(markPaidExpense?.tdsAmount) || 0;
                 return (
               <div className="mb-4">
                 <p className="text-sm text-slate-600 mb-2">
@@ -1437,6 +1429,12 @@ const Expenses = () => {
                 </p>
                 <p className="text-sm text-slate-600 mb-4">
                   <span className="font-semibold">Total Amount:</span> ₹{total.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                </p>
+                <p className="text-sm text-slate-600 mb-2">
+                  <span className="font-semibold">GST Amount:</span> ₹{gstAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                </p>
+                <p className="text-sm text-slate-600 mb-4">
+                  <span className="font-semibold">TDS Amount:</span> ₹{tdsAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
                 </p>
                 {paid > 0 && (
                   <p className="text-sm text-slate-600 mb-4">
@@ -1505,7 +1503,8 @@ const Expenses = () => {
                   markingPaidSingle ||
                   !markPaidAmount ||
                   parseFloat(markPaidAmount) < 0 ||
-                  (markPaidExpense?.paymentMode === 'Bank Transfer' && !markPaidBankAccount)
+                  (markPaidExpense?.paymentMode === 'Bank Transfer' && !markPaidBankAccount) ||
+                  markPaidExpense?.status === 'Cancel'
                 }
                 className="px-6 py-2.5 bg-green-600 text-white font-semibold rounded-lg hover:bg-green-700 transition-colors text-sm shadow-md flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
               >

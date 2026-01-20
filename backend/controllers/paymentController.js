@@ -4,6 +4,7 @@ import Customer from '../models/Customer.js';
 import { sendPaymentSlipEmail } from '../utils/emailService.js';
 import { generatePaymentNumber } from '../utils/paymentNumberGenerator.js';
 import { generatePaymentHistoryPDF } from '../utils/paymentHistoryPdfGenerator.js';
+import { ensureRevenueForInvoice } from '../utils/revenueSync.js';
 import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
@@ -356,6 +357,14 @@ export const createPayment = async (req, res) => {
     const newReceived = currentReceived + paymentAmountINR;
     invoiceDoc.receivedAmount = Math.round(newReceived * 100) / 100;
     invoiceDoc.paidAmount = Math.round(newReceived * 100) / 100;
+    // Maintain reporting-standard dueAmount (INR)
+    const invoiceTotalInINR =
+      (invoiceDoc.totalAmount && invoiceDoc.totalAmount > 0)
+        ? invoiceDoc.totalAmount
+        : (invoiceDoc.currencyDetails?.invoiceCurrency && invoiceDoc.currencyDetails.invoiceCurrency !== 'INR')
+          ? (invoiceDoc.currencyDetails?.inrEquivalent || (receivableAmount * (invoiceDoc.currencyDetails?.exchangeRate || invoiceDoc.exchangeRate || 1)))
+          : receivableAmount;
+    invoiceDoc.dueAmount = Math.max(0, Math.round((invoiceTotalInINR - newReceived) * 100) / 100);
 
     // Update invoice status based on receivableAmount (NOT grandTotal)
     // Status Logic:
@@ -371,6 +380,14 @@ export const createPayment = async (req, res) => {
     }
 
     await invoiceDoc.save();
+
+    // Ensure Revenue entry reflects collections (Paid + Partial)
+    try {
+      await ensureRevenueForInvoice(invoiceDoc, req.user._id);
+    } catch (revErr) {
+      console.error('⚠️ Revenue sync failed after payment create:', revErr?.message || revErr);
+      // Do not fail payment creation; revenue can be re-synced from dashboard
+    }
 
     // Populate payment before returning (do this first for faster response)
     const populatedPayment = await Payment.findById(payment._id)
@@ -575,6 +592,13 @@ export const updatePayment = async (req, res) => {
         }
 
         await invoice.save();
+
+        // Ensure Revenue entry reflects collections (Paid + Partial)
+        try {
+          await ensureRevenueForInvoice(invoice, req.user._id);
+        } catch (revErr) {
+          console.error('⚠️ Revenue sync failed after payment update:', revErr?.message || revErr);
+        }
       }
     }
 
@@ -640,6 +664,13 @@ export const deletePayment = async (req, res) => {
       }
 
       await invoice.save();
+
+      // Ensure Revenue entry reflects collections (Paid + Partial)
+      try {
+        await ensureRevenueForInvoice(invoice, req.user._id);
+      } catch (revErr) {
+        console.error('⚠️ Revenue sync failed after payment delete:', revErr?.message || revErr);
+      }
     }
 
     res.json({ message: 'Payment deleted successfully' });

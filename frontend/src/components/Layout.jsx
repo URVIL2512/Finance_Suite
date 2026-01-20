@@ -10,6 +10,7 @@ const Layout = ({ onLogout }) => {
 
   const navigation = [
     { name: 'Dashboard', href: '/dashboard', icon: '📊' },
+    { name: 'Reports', href: '/reports', icon: '📑' },
     { name: 'Settings', href: '/settings', icon: '⚙️' },
   ];
 
@@ -128,7 +129,7 @@ const Layout = ({ onLogout }) => {
         <nav className="flex-1 overflow-y-auto py-4 px-3">
           <div className="space-y-1.5">
             {/* Dashboard */}
-            {navigation.slice(0, 1).map((item) => (
+            {navigation.slice(0, 2).map((item) => (
               <Link
                 key={item.name}
                 to={item.href}

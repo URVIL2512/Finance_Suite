@@ -20,6 +20,7 @@ import PaymentModeMaster from './pages/PaymentModeMaster';
 import VendorMaster from './pages/VendorMaster';
 import BankAccountMaster from './pages/BankAccountMaster';
 import ExpenseMasters from './pages/ExpenseMasters';
+import Reports from './pages/Reports';
 import Layout from './components/Layout';
 import { getAuthToken, removeAuthToken } from './utils/auth';
 import { ToastProvider } from './contexts/ToastContext';
@@ -104,6 +105,7 @@ function App() {
           <Route path="masters/payment-mode" element={<PaymentModeMaster />} />
           <Route path="masters/vendor" element={<VendorMaster />} />
           <Route path="masters/bank-account" element={<BankAccountMaster />} />
+          <Route path="reports" element={<Reports />} />
           <Route path="settings" element={<Settings />} />
         </Route>
       </Routes>

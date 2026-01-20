@@ -97,7 +97,7 @@ const RevenueDashboard = () => {
       {/* Summary Cards */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
         <div className="bg-white rounded-lg shadow p-6">
-          <h3 className="text-lg font-semibold text-gray-700 mb-2">Total Revenue</h3>
+          <h3 className="text-lg font-semibold text-gray-700 mb-2">Total Collected</h3>
           <p className="text-3xl font-bold text-green-600">
             ₹{data?.totalRevenue?.toLocaleString('en-IN', { minimumFractionDigits: 2 }) || '0.00'}
           </p>
@@ -349,7 +349,7 @@ const RevenueDashboard = () => {
       {/* Monthly Summary - Graph */}
       <div className="mb-6">
         <div className="bg-white rounded-lg shadow p-6">
-          <h2 className="text-xl font-bold mb-4">Month-wise Revenue</h2>
+          <h2 className="text-xl font-bold mb-4">Month-wise Collections</h2>
           <p className="text-sm text-gray-600 mb-4">Reporting Year: {data?.year || 'All'}{month ? `, Month: ${month}` : ''}</p>
           <ResponsiveContainer width="100%" height={350}>
             <BarChart data={sortedMonthSummary}>
@@ -359,7 +359,7 @@ const RevenueDashboard = () => {
               <Tooltip formatter={(value) => `₹${value.toLocaleString('en-IN', { minimumFractionDigits: 2 })}`} />
               <Legend />
               <Bar dataKey="invoiceAmount" fill="#10b981" name="Invoice Amount" />
-              <Bar dataKey="received" fill="#3b82f6" name="Received" />
+              <Bar dataKey="received" fill="#3b82f6" name="Collected" />
               <Bar dataKey="due" fill="#ef4444" name="Due" />
             </BarChart>
           </ResponsiveContainer>
@@ -369,7 +369,7 @@ const RevenueDashboard = () => {
       {/* Monthly Summary Table */}
       <div className="card-gradient p-6 mb-6">
         <div className="mb-4">
-          <h2 className="text-xl font-bold text-gray-900 mb-2">Monthly Revenue Summary</h2>
+          <h2 className="text-xl font-bold text-gray-900 mb-2">Monthly Collections Summary</h2>
           <p className="text-sm text-gray-600">Reporting Year: {data?.year || 'All'}{month ? `, Month: ${month}` : ''}</p>
         </div>
         <div className="overflow-x-auto">
@@ -377,11 +377,11 @@ const RevenueDashboard = () => {
             <thead className="table-header">
               <tr>
                 <th className="px-4 py-3 text-left text-xs font-medium uppercase border-r border-white/20">Month</th>
-                <th className="px-4 py-3 text-right text-xs font-medium uppercase border-r border-white/20">Revenue</th>
-                <th className="px-4 py-3 text-right text-xs font-medium uppercase border-r border-white/20">Invoice</th>
+                <th className="px-4 py-3 text-right text-xs font-medium uppercase border-r border-white/20">Collected</th>
+                <th className="px-4 py-3 text-right text-xs font-medium uppercase border-r border-white/20">Invoice Amount</th>
                 <th className="px-4 py-3 text-right text-xs font-medium uppercase border-r border-white/20">GST</th>
                 <th className="px-4 py-3 text-right text-xs font-medium uppercase border-r border-white/20">TDS</th>
-                <th className="px-4 py-3 text-right text-xs font-medium uppercase">Received</th>
+                <th className="px-4 py-3 text-right text-xs font-medium uppercase">Due</th>
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
@@ -391,7 +391,7 @@ const RevenueDashboard = () => {
                     {monthData.month}
                   </td>
                   <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900 text-right border-r border-gray-200">
-                    ₹{monthData.invoiceAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                    ₹{monthData.received.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
                   </td>
                   <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900 text-right border-r border-gray-200">
                     ₹{monthData.invoiceAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
@@ -403,7 +403,7 @@ const RevenueDashboard = () => {
                     ₹{monthData.tds?.toLocaleString('en-IN', { minimumFractionDigits: 2 }) || '0.00'}
                   </td>
                   <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900 text-right">
-                    ₹{monthData.received.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                    ₹{monthData.due.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
                   </td>
                 </tr>
               ))}

@@ -10,7 +10,10 @@ const RevenueTable = ({ revenue }) => {
 
   const months = ['Oct', 'Nov', 'Dec', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep'];
 
-  // Helper function to calculate total: base amount + GST - TDS - Remittance
+  // Pivot view should show collections (what you actually received), not invoice totals.
+  const getCollectedAmount = (rev) => Number(rev.receivedAmount || 0) || 0;
+
+  // Helper for list view "Total" column: base + GST - TDS - remittance
   const calculateTotal = (rev) => {
     const baseAmount = rev.invoiceAmount || 0;
     const gstAmount = rev.gstAmount || 0;
@@ -34,9 +37,9 @@ const RevenueTable = ({ revenue }) => {
         entries: [], // Store all revenue entries for this group
       };
     }
-    const total = calculateTotal(rev);
-    clientRevenueMap[key].months[rev.month] = (clientRevenueMap[key].months[rev.month] || 0) + total;
-    clientRevenueMap[key].total += total;
+    const collected = getCollectedAmount(rev);
+    clientRevenueMap[key].months[rev.month] = (clientRevenueMap[key].months[rev.month] || 0) + collected;
+    clientRevenueMap[key].total += collected;
     clientRevenueMap[key].ids.push(rev._id);
     clientRevenueMap[key].entries.push(rev);
   });

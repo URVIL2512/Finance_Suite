@@ -1,5 +1,6 @@
 import Revenue from '../models/Revenue.js';
 import Invoice from '../models/Invoice.js';
+import { syncInvoicesWithCollectionsWithoutRevenue } from '../utils/revenueSync.js';
 
 // @desc    Get all revenue
 // @route   GET /api/revenue
@@ -17,121 +18,9 @@ export const getRevenue = async (req, res) => {
       filter.clientName = { $regex: clientName, $options: 'i' };
     }
 
-    // Sync: Find paid invoices without revenue entries and create them
+    // Sync: ensure paid/partial invoices with collections show up in Revenue list
     try {
-      const paidInvoicesWithoutRevenue = await Invoice.find({
-        user: req.user._id,
-        status: 'Paid',
-        $or: [
-          { revenueId: { $exists: false } },
-          { revenueId: null }
-        ]
-      }).lean();
-
-      if (paidInvoicesWithoutRevenue.length > 0) {
-        console.log(`🔄 Syncing ${paidInvoicesWithoutRevenue.length} paid invoice(s) to revenue entries...`);
-        
-        for (const invoice of paidInvoicesWithoutRevenue) {
-          try {
-            const invoiceDateValue = invoice.invoiceDate || new Date();
-            const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-            const invoiceMonth = monthNames[invoiceDateValue.getMonth()];
-            const invoiceYear = invoiceDateValue.getFullYear();
-            
-            // Get service description from invoice
-            const serviceFromInvoice = invoice.serviceDetails?.description || 
-                                     invoice.serviceDetails?.serviceType || 
-                                     invoice.items?.[0]?.description || 
-                                     'Other Services';
-            
-            // Map to valid service enum values
-            const validServices = [
-              'Website Design',
-              'B2B Sales Consulting',
-              'Outbound Lead Generation',
-              'Social Media Marketing',
-              'SEO',
-              'TeleCalling',
-              'Other Services'
-            ];
-            
-            let serviceDescription = 'Other Services';
-            const serviceLower = serviceFromInvoice.toLowerCase();
-            for (const validService of validServices) {
-              if (serviceLower.includes(validService.toLowerCase()) || 
-                  validService.toLowerCase().includes(serviceLower)) {
-                serviceDescription = validService;
-                break;
-              }
-            }
-            
-            // Calculate GST amount
-            const totalGst = (invoice.cgst || 0) + (invoice.sgst || 0) + (invoice.igst || 0);
-            
-            // Calculate received amount for revenue: Base Amount + GST - TDS - Remittance
-            const baseAmount = invoice.amountDetails?.baseAmount || invoice.subTotal || 0;
-            const tdsAmount = invoice.tdsAmount || 0;
-            const remittanceCharges = invoice.remittanceCharges || 0;
-            
-            // Received Amount = Base Amount + GST - TDS - Remittance (for Revenue)
-            const receivedAmount = baseAmount + totalGst - tdsAmount - remittanceCharges;
-            const dueAmount = 0; // Fully paid
-
-            // Ensure country is valid enum value
-            const validCountries = ['India', 'USA', 'Canada', 'Australia'];
-            const invoiceCountry = invoice.clientDetails?.country || 'India';
-            const revenueCountry = validCountries.includes(invoiceCountry) ? invoiceCountry : 'India';
-            
-            // Ensure engagementType is valid enum value
-            const invoiceEngagementType = invoice.serviceDetails?.engagementType || 'One Time';
-            const revenueEngagementType = (invoiceEngagementType === 'Recurring') ? 'Recurring' : 'One Time';
-
-            // Validate required fields
-            if (!invoice.clientDetails?.name || invoice.clientDetails.name.trim() === '') {
-              console.log(`⚠️ Skipping invoice ${invoice.invoiceNumber}: Client name is missing`);
-              continue;
-            }
-            if (!invoiceMonth || !invoiceYear) {
-              console.log(`⚠️ Skipping invoice ${invoice.invoiceNumber}: Invoice date is missing`);
-              continue;
-            }
-
-            const revenueData = {
-              clientName: invoice.clientDetails.name.trim(),
-              country: revenueCountry,
-              service: serviceDescription,
-              engagementType: revenueEngagementType,
-              invoiceNumber: invoice.invoiceNumber || '',
-              invoiceDate: invoiceDateValue,
-              invoiceAmount: baseAmount,
-              gstPercentage: invoice.gstPercentage || 0,
-              gstAmount: totalGst,
-              tdsPercentage: invoice.tdsPercentage || 0,
-              tdsAmount: tdsAmount,
-              remittanceCharges: remittanceCharges,
-              receivedAmount: Math.round(receivedAmount * 100) / 100,
-              dueAmount: dueAmount,
-              month: invoice.serviceDetails?.period?.month || invoiceMonth,
-              year: invoice.serviceDetails?.period?.year || invoiceYear,
-              invoiceGenerated: true,
-              invoiceId: invoice._id,
-              user: req.user._id,
-            };
-
-            const newRevenue = await Revenue.create(revenueData);
-            
-            // Link the revenue to the invoice
-            await Invoice.findByIdAndUpdate(invoice._id, {
-              revenueId: newRevenue._id,
-            });
-            
-            console.log(`✅ Synced invoice ${invoice.invoiceNumber} to revenue entry ${newRevenue._id}`);
-          } catch (syncError) {
-            console.error(`❌ Error syncing invoice ${invoice.invoiceNumber} to revenue:`, syncError.message);
-            // Continue with other invoices
-          }
-        }
-      }
+      await syncInvoicesWithCollectionsWithoutRevenue(req.user._id);
     } catch (syncError) {
       console.error('Error during revenue sync:', syncError);
       // Continue with fetching revenue even if sync fails

@@ -22,10 +22,17 @@ const ViewExpenseModal = ({ isOpen, onClose, expense, onMarkPaid, addNewReturnSt
   const paid = Math.min(Math.max(0, Number(expense?.paidAmount) || 0), total);
   const dueAmount = Math.max(0, total - paid);
   const isAlreadyPaid = expense?.status === 'Paid' || (paid >= total && total > 0);
+  const isCanceled = expense?.status === 'Cancel';
 
   if (!isOpen || !hasExpense) return null;
 
   const handleMarkPaidClick = async () => {
+    // Prevent marking as paid if status is Cancel
+    if (expense?.status === 'Cancel') {
+      showToast('Cannot mark canceled expenses as paid', 'error');
+      return;
+    }
+    
     if (showPaidAmountInput) {
       // Submit with entered amount
       if (!paidAmount || parseFloat(paidAmount) < 0) {
@@ -206,7 +213,7 @@ const ViewExpenseModal = ({ isOpen, onClose, expense, onMarkPaid, addNewReturnSt
                   <div className="grid grid-cols-2 gap-4">
                     <div>
                       <div className="text-xs font-semibold text-slate-500 mb-0.5">GST Amount</div>
-                      <div className="text-sm text-slate-700">
+                      <div className="text-sm font-semibold text-red-600">
                         ₹{expense.gstAmount?.toLocaleString('en-IN', { minimumFractionDigits: 2 }) || '0.00'}
                       </div>
                     </div>
@@ -218,7 +225,7 @@ const ViewExpenseModal = ({ isOpen, onClose, expense, onMarkPaid, addNewReturnSt
                   <div className="grid grid-cols-2 gap-4">
                     <div>
                       <div className="text-xs font-semibold text-slate-500 mb-0.5">TDS Amount</div>
-                      <div className="text-sm text-slate-700">
+                      <div className="text-sm font-semibold text-red-600">
                         ₹{expense.tdsAmount?.toLocaleString('en-IN', { minimumFractionDigits: 2 }) || '0.00'}
                       </div>
                     </div>
@@ -275,7 +282,7 @@ const ViewExpenseModal = ({ isOpen, onClose, expense, onMarkPaid, addNewReturnSt
 
         {/* Footer */}
         <div className="border-t border-slate-200 px-6 py-4 bg-white">
-          {onMarkPaid && !isAlreadyPaid && showPaidAmountInput && (
+          {onMarkPaid && !isAlreadyPaid && !isCanceled && showPaidAmountInput && (
             <div className="mb-4 p-4 bg-green-50 border border-green-200 rounded-lg">
               <label className="block text-sm font-semibold text-gray-700 mb-2">Enter Paid Amount</label>
               <div className="flex items-center gap-3">
@@ -308,7 +315,7 @@ const ViewExpenseModal = ({ isOpen, onClose, expense, onMarkPaid, addNewReturnSt
             </div>
           )}
           <div className="flex justify-end gap-3">
-            {onMarkPaid && !isAlreadyPaid && (
+            {onMarkPaid && !isAlreadyPaid && !isCanceled && (
               <>
                 {showPaidAmountInput && (
                   <button
@@ -329,6 +336,7 @@ const ViewExpenseModal = ({ isOpen, onClose, expense, onMarkPaid, addNewReturnSt
                   onClick={handleMarkPaidClick}
                   disabled={
                     updating ||
+                    isCanceled ||
                     (showPaidAmountInput && (!paidAmount || parseFloat(paidAmount) < 0)) ||
                     (showPaidAmountInput && expense?.paymentMode === 'Bank Transfer' && !selectedBankAccount)
                   }

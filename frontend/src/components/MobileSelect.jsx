@@ -15,6 +15,12 @@ function flattenOptions(children) {
   const walk = (childNodes) => {
     (Array.isArray(childNodes) ? childNodes : [childNodes]).forEach((child) => {
       if (!child) return;
+      // React can pass arrays of children (e.g. from `{items.map(...)}`).
+      // We must recursively flatten them to discover nested <option> nodes.
+      if (Array.isArray(child)) {
+        walk(child);
+        return;
+      }
       // React element
       if (typeof child === 'object' && child.type) {
         if (child.type === 'option') {
@@ -27,6 +33,13 @@ function flattenOptions(children) {
         }
         if (child.type === 'optgroup') {
           walk(child.props?.children);
+          return;
+        }
+
+        // Support Fragments and wrapper elements that contain <option> nodes.
+        // (Common in responsive UIs where options are conditionally rendered.)
+        if (child.props?.children) {
+          walk(child.props.children);
         }
       }
     });
@@ -54,6 +67,7 @@ const MobileSelect = ({
   name,
   id,
   required,
+  forcePortal,
   'aria-label': ariaLabel,
 }) => {
   const buttonRef = useRef(null);
@@ -152,7 +166,10 @@ const MobileSelect = ({
     onChange({ target: { value: nextValue, name, id } });
   };
 
-  if (isDesktop) {
+  // In some modals/native stacking contexts, the browser's native <select> dropdown
+  // can appear behind other elements. `forcePortal` lets callers opt into the
+  // portal-based dropdown even on desktop.
+  if (isDesktop && !forcePortal) {
     return (
       <select
         value={value}

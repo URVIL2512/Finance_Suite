@@ -341,7 +341,7 @@ const InvoiceViewEdit = ({ invoice, onClose, onUpdate, customers = [] }) => {
           )}
 
           {/* Additional Details */}
-          {(invoiceData.serviceDetails || invoiceData.salesperson || invoiceData.notes || invoiceData.lutArn) && (
+          {(invoiceData.serviceDetails || invoiceData.notes || invoiceData.lutArn) && (
             <div className="bg-white rounded-xl p-4 border border-slate-200 shadow-sm">
               <div className="flex items-center gap-2 mb-3 pb-2 border-b border-slate-200">
                 <svg className="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -369,20 +369,6 @@ const InvoiceViewEdit = ({ invoice, onClose, onUpdate, customers = [] }) => {
                       {[invoiceData.serviceDetails.period.month, invoiceData.serviceDetails.period.year].filter(Boolean).join(' ') || '-'}
                     </div>
                   </div>
-                )}
-                {invoiceData.salesperson && (
-                  <>
-                    <div>
-                      <div className="font-semibold text-slate-500 mb-0.5">Salesperson</div>
-                      <div className="text-slate-700">{typeof invoiceData.salesperson === 'object' ? invoiceData.salesperson.name : '-'}</div>
-                    </div>
-                    {typeof invoiceData.salesperson === 'object' && invoiceData.salesperson.email && (
-                      <div>
-                        <div className="font-semibold text-slate-500 mb-0.5">Email</div>
-                        <div className="text-slate-700">{invoiceData.salesperson.email}</div>
-                      </div>
-                    )}
-                  </>
                 )}
                 {invoiceData.lutArn && (
                   <div>

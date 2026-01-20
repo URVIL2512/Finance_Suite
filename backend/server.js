@@ -12,7 +12,6 @@ import invoiceRoutes from './routes/invoiceRoutes.js';
 import dashboardRoutes from './routes/dashboardRoutes.js';
 import customerRoutes from './routes/customerRoutes.js';
 import itemRoutes from './routes/itemRoutes.js';
-import salespersonRoutes from './routes/salespersonRoutes.js';
 import hsnSacRoutes from './routes/hsnSacRoutes.js';
 import settingsRoutes from './routes/settingsRoutes.js';
 import recurringInvoiceRoutes from './routes/recurringInvoiceRoutes.js';
@@ -22,9 +21,12 @@ import ledgerRoutes from './routes/ledgerRoutes.js';
 import paymentModeRoutes from './routes/paymentModeRoutes.js';
 import vendorRoutes from './routes/vendorRoutes.js';
 import bankAccountRoutes from './routes/bankAccountRoutes.js';
+import reportRoutes from './routes/reportRoutes.js';
+import budgetRoutes from './routes/budgetRoutes.js';
 import { startRecurringInvoiceScheduler } from './utils/recurringInvoiceScheduler.js';
 import { startRecurringExpenseScheduler } from './utils/recurringExpenseScheduler.js';
 import { verifyBrevoSMTP } from './utils/emailService.js';
+import PaymentMode from './models/PaymentMode.js';
 
 dotenv.config();
 
@@ -85,7 +87,6 @@ app.use('/api/invoices', invoiceRoutes);
 app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/customers', customerRoutes);
 app.use('/api/items', itemRoutes);
-app.use('/api/salespersons', salespersonRoutes);
 app.use('/api/hsn-sac', hsnSacRoutes);
 app.use('/api/settings', settingsRoutes);
 app.use('/api/recurring-invoices', recurringInvoiceRoutes);
@@ -95,6 +96,8 @@ app.use('/api/ledger', ledgerRoutes);
 app.use('/api/payment-modes', paymentModeRoutes);
 app.use('/api/vendors', vendorRoutes);
 app.use('/api/bank-accounts', bankAccountRoutes);
+app.use('/api/reports', reportRoutes);
+app.use('/api/budgets', budgetRoutes);
 
 // Health check
 app.get('/api/health', (req, res) => {
@@ -125,6 +128,10 @@ app.listen(PORT, '0.0.0.0', () => {
   connectDB()
     .then(() => {
       console.log('✅ Database connection established');
+      // Ensure per-user uniqueness indexes are correct (removes legacy global-unique index on PaymentMode.name)
+      PaymentMode.syncIndexes().catch((e) => {
+        console.warn('⚠️ PaymentMode index sync failed:', e?.message || e);
+      });
       // Start recurring invoice scheduler after DB connection
       startRecurringInvoiceScheduler();
       // Start recurring expense scheduler after DB connection

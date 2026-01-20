@@ -6,7 +6,6 @@ const paymentModeSchema = new mongoose.Schema(
       type: String,
       required: [true, 'Payment mode name is required'],
       trim: true,
-      unique: true,
     },
     description: {
       type: String,

@@ -892,7 +892,7 @@ const Sales = () => {
                       )}
 
                       {/* Additional Details - Compact */}
-                      {(viewingInvoice.serviceDetails || viewingInvoice.salesperson || viewingInvoice.notes || viewingInvoice.lutArn) && (
+                      {(viewingInvoice.serviceDetails || viewingInvoice.notes || viewingInvoice.lutArn) && (
                         <div className="bg-white rounded-xl p-4 border border-slate-200 shadow-sm">
                           <div className="flex items-center gap-2 mb-3 pb-2 border-b border-slate-200">
                             <svg className="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -920,20 +920,6 @@ const Sales = () => {
                                   {[viewingInvoice.serviceDetails.period.month, viewingInvoice.serviceDetails.period.year].filter(Boolean).join(' ') || '-'}
                                 </div>
                               </div>
-                            )}
-                            {viewingInvoice.salesperson && (
-                              <>
-                                <div>
-                                  <div className="font-semibold text-slate-500 mb-0.5">Salesperson</div>
-                                  <div className="text-slate-700">{typeof viewingInvoice.salesperson === 'object' ? viewingInvoice.salesperson.name : '-'}</div>
-                                </div>
-                                {typeof viewingInvoice.salesperson === 'object' && viewingInvoice.salesperson.email && (
-                                  <div>
-                                    <div className="font-semibold text-slate-500 mb-0.5">Email</div>
-                                    <div className="text-slate-700">{viewingInvoice.salesperson.email}</div>
-                                  </div>
-                                )}
-                              </>
                             )}
                             {viewingInvoice.lutArn && (
                               <div>

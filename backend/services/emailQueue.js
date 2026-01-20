@@ -67,7 +67,6 @@ const sendInvoiceEmailWithRetry = async (options) => {
     // Load invoice
     const invoice = await Invoice.findById(invoiceId)
       .populate('revenueId')
-      .populate('salesperson', 'name email phone')
       .lean();
 
     if (!invoice) {

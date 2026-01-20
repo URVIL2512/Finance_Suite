@@ -1,33 +1,29 @@
 import cron from 'node-cron';
 import { processRecurringExpensesDirect } from '../controllers/recurringExpenseController.js';
+import RecurringExpense from '../models/RecurringExpense.js';
 
 // Schedule to run daily at 9:00 AM for regular recurring expenses
 const RECURRING_EXPENSE_CRON_DAILY = '0 9 * * *'; // Every day at 9:00 AM
-
-// Interval for 10-second recurring expenses (10 seconds = 10000 milliseconds)
-const TEN_SECOND_INTERVAL = 10000;
 
 /**
  * Start the recurring expense scheduler
  */
 export const startRecurringExpenseScheduler = () => {
   console.log('Starting recurring expense scheduler...');
-  console.log(`10-Second Interval: Every 10 seconds (using setInterval)`);
   console.log(`Daily Schedule: ${RECURRING_EXPENSE_CRON_DAILY} (Daily at 9:00 AM)`);
 
-  // Use setInterval to check for ALL recurring expenses every 10 seconds
-  // This processes "10 Seconds" intervals immediately, and checks others (Week, Month, Quarter, Half Yearly, Year)
-  // Others will only be processed when their nextProcessDate is reached
-  setInterval(async () => {
+  // Hard cleanup: remove any legacy "10 Seconds" recurring templates.
+  // This frequency is intentionally not supported (it can rapidly inflate the Expenses table).
+  (async () => {
     try {
-      const result = await processRecurringExpensesDirect();
-      if (result.results && result.results.length > 0) {
-        console.log(`Recurring expense processing completed (${result.results.length} processed):`, result);
+      const result = await RecurringExpense.deleteMany({ repeatEvery: '10 Seconds' });
+      if (result?.deletedCount) {
+        console.log(`Deleted ${result.deletedCount} legacy recurring expense(s) with "10 Seconds" frequency`);
       }
     } catch (error) {
-      console.error('Failed to process recurring expenses:', error);
+      console.error('Failed to cleanup legacy "10 Seconds" recurring expenses:', error);
     }
-  }, TEN_SECOND_INTERVAL);
+  })();
 
   // Schedule daily at 9 AM as a backup to ensure all recurring expenses (Week, Month, Quarter, Half Yearly, Year) are processed
   // This ensures even if the server restarts, recurring expenses are still processed daily

@@ -1,6 +1,67 @@
 import RecurringExpense from '../models/RecurringExpense.js';
 import Expense from '../models/Expense.js';
 
+const ALLOWED_REPEAT_EVERY = new Set(['Week', 'Month', 'Quarter', 'Half Yearly', 'Six Month', 'Year']);
+
+const normalizeKeyPart = (value) => String(value ?? '').trim().toLowerCase();
+
+const computeExpenseTotalAmount = (expense) => {
+  const explicitTotal = Number(expense?.totalAmount);
+  if (Number.isFinite(explicitTotal) && explicitTotal > 0) return explicitTotal;
+
+  const amountExclTax = Number(expense?.amountExclTax) || 0;
+  const gstAmount = Number(expense?.gstAmount) || 0;
+  const tdsAmount = Number(expense?.tdsAmount) || 0;
+  const derived = amountExclTax + gstAmount - tdsAmount;
+  return derived > 0 ? derived : 0;
+};
+
+// Dedupe rule (business):
+// One recurring schedule per "logical expense" per repeat cycle.
+// This prevents duplicates even if user selects a different expense row with same details.
+const buildRecurringDedupeKey = (expense, repeatEvery) => {
+  const total = computeExpenseTotalAmount(expense);
+  return [
+    normalizeKeyPart(expense?.vendor),
+    normalizeKeyPart(expense?.category),
+    normalizeKeyPart(expense?.department),
+    total.toFixed(2),
+    normalizeKeyPart(repeatEvery),
+  ].join('|');
+};
+
+const normalizeToStartOfDay = (d) => {
+  const date = new Date(d);
+  date.setHours(0, 0, 0, 0);
+  return date;
+};
+
+const addRecurringInterval = (baseDate, repeatEvery) => {
+  const next = new Date(baseDate);
+  switch (repeatEvery) {
+    case 'Week':
+      next.setDate(next.getDate() + 7);
+      break;
+    case 'Month':
+      next.setMonth(next.getMonth() + 1);
+      break;
+    case 'Quarter':
+      next.setMonth(next.getMonth() + 3);
+      break;
+    case 'Half Yearly':
+    case 'Six Month':
+      next.setMonth(next.getMonth() + 6);
+      break;
+    case 'Year':
+      next.setFullYear(next.getFullYear() + 1);
+      break;
+    default:
+      break;
+  }
+  next.setHours(0, 0, 0, 0);
+  return next;
+};
+
 // @desc    Create recurring expense
 // @route   POST /api/recurring-expenses
 // @access  Private
@@ -16,6 +77,10 @@ export const createRecurringExpense = async (req, res) => {
       return res.status(400).json({ message: 'Repeat Every and Start On are required' });
     }
 
+    if (!ALLOWED_REPEAT_EVERY.has(repeatEvery)) {
+      return res.status(400).json({ message: 'Invalid repeat frequency' });
+    }
+
     if (!neverExpires && !endsOn) {
       return res.status(400).json({ message: 'Ends On is required when Never Expires is not checked' });
     }
@@ -27,25 +92,10 @@ export const createRecurringExpense = async (req, res) => {
       return res.status(400).json({ message: 'Ends On date must be after Start On date' });
     }
 
-    // Calculate next process date
-    // For "10 Seconds", use current time if startOn is today or in the past, otherwise use startOn
-    // For others, use startOn
-    const now = new Date();
-    let nextProcessDate = new Date(startDate);
-    if (repeatEvery === '10 Seconds') {
-      const startDateOnly = new Date(startDate);
-      startDateOnly.setHours(0, 0, 0, 0);
-      const todayOnly = new Date(now);
-      todayOnly.setHours(0, 0, 0, 0);
-      
-      // If startOn is today or in the past, start processing immediately
-      if (startDateOnly <= todayOnly) {
-        nextProcessDate = now;
-      } else {
-        // Future date - use the startOn date/time
-        nextProcessDate = new Date(startDate);
-      }
-    }
+    // Important:
+    // The base expense already exists (template source), so the first *generated* expense should be after one interval.
+    // Example: StartOn 20/01 + Month => NextProcess 20/02
+    const nextProcessDate = addRecurringInterval(normalizeToStartOfDay(startDate), repeatEvery);
 
     // Verify all expenses exist and belong to user in one query (much faster)
     const expenses = await Expense.find({
@@ -55,30 +105,67 @@ export const createRecurringExpense = async (req, res) => {
 
     const validExpenseIds = expenses.map(exp => exp._id);
 
-    // Check for duplicates before creating
-    // Duplicate = same baseExpense, repeatEvery, startOn (same day)
-    const startOfDay = new Date(startDate);
-    startOfDay.setHours(0, 0, 0, 0);
-    const endOfDay = new Date(startDate);
-    endOfDay.setHours(23, 59, 59, 999);
+    // Prevent duplicates (two layers):
+    // 1) Same baseExpense should not get another recurring schedule.
+    // 2) Same logical expense (vendor+category+department+total) should not get another recurring schedule for the same repeatEvery,
+    //    even if it comes from a different expense row.
+    const existingRecurring = await RecurringExpense.find({ user: req.user._id })
+      .populate({
+        path: 'baseExpense',
+        select: 'vendor category department totalAmount amountExclTax gstAmount tdsAmount',
+      })
+      .select('baseExpense repeatEvery createdAt')
+      .lean();
 
-    // Filter out expenses that already have recurring schedules
-    const existingRecurring = await RecurringExpense.find({
-      user: req.user._id,
-      baseExpense: { $in: validExpenseIds },
-      repeatEvery,
-      startOn: {
-        $gte: startOfDay,
-        $lte: endOfDay
-      }
-    }).select('baseExpense');
+    const existingBaseExpenseIds = new Set(
+      (existingRecurring || [])
+        .map((re) => (re?.baseExpense && typeof re.baseExpense === 'object' ? re.baseExpense._id : re.baseExpense))
+        .filter(Boolean)
+        .map((id) => id.toString())
+    );
 
-    const existingBaseExpenseIds = new Set(existingRecurring.map(re => re.baseExpense.toString()));
-    const newExpenseIds = validExpenseIds.filter(expId => !existingBaseExpenseIds.has(expId.toString()));
+    const existingKeys = new Set(
+      (existingRecurring || [])
+        .map((re) => {
+          const base = re?.baseExpense;
+          if (!base) return null;
+          return buildRecurringDedupeKey(base, re.repeatEvery);
+        })
+        .filter(Boolean)
+    );
+
+    const newExpenseIds = [];
+    const requestKeys = new Set();
+    for (const exp of expenses) {
+      const expId = exp?._id?.toString();
+      if (!expId) continue;
+      if (existingBaseExpenseIds.has(expId)) continue;
+
+      const key = buildRecurringDedupeKey(exp, repeatEvery);
+      if (existingKeys.has(key)) continue;
+      if (requestKeys.has(key)) continue; // prevent duplicates within same request
+
+      requestKeys.add(key);
+      newExpenseIds.push(exp._id);
+    }
+
+    const skippedCount = validExpenseIds.length - newExpenseIds.length;
 
     if (newExpenseIds.length === 0) {
+      // Even if schedules already existed, ensure the selected base expenses are tagged as recurring.
+      // This fixes old data where `isRecurring` was not present/false.
+      try {
+        await Expense.updateMany(
+          { _id: { $in: validExpenseIds }, user: req.user._id },
+          { $set: { isRecurring: true } }
+        );
+      } catch (e) {
+        console.warn('Failed to backfill base expenses as recurring (skipped-only):', e?.message || e);
+      }
       return res.status(200).json({
-        message: 'All selected expenses already have recurring schedules. No duplicates created.',
+        message: 'All selected expenses already have recurring schedules. No new recurring expenses were created.',
+        createdCount: 0,
+        skippedCount,
         recurringExpenses: existingRecurring,
       });
     }
@@ -98,8 +185,21 @@ export const createRecurringExpense = async (req, res) => {
     const newRecurringExpenses = await RecurringExpense.insertMany(recurringExpenseDocs);
     const allRecurringExpenses = [...existingRecurring, ...newRecurringExpenses];
 
+    // Mark base expenses as recurring so they remain visible with "Recurring = Yes" in the Expenses list.
+    // This does NOT change the expense amounts; it only tags the record.
+    try {
+      await Expense.updateMany(
+        { _id: { $in: validExpenseIds }, user: req.user._id },
+        { $set: { isRecurring: true } }
+      );
+    } catch (e) {
+      console.warn('Failed to mark base expenses as recurring:', e?.message || e);
+    }
+
     res.status(201).json({
-      message: `Recurring expense created for ${newRecurringExpenses.length} expense(s). ${existingRecurring.length} duplicate(s) skipped.`,
+      message: `Recurring expense created for ${newRecurringExpenses.length} expense(s). ${skippedCount} already had recurring schedules and were skipped.`,
+      createdCount: newRecurringExpenses.length,
+      skippedCount,
       recurringExpenses: allRecurringExpenses,
     });
   } catch (error) {
@@ -113,6 +213,9 @@ export const createRecurringExpense = async (req, res) => {
 // @access  Private
 export const getRecurringExpenses = async (req, res) => {
   try {
+    // Remove any legacy seconds-based schedules (not supported)
+    await RecurringExpense.deleteMany({ user: req.user._id, repeatEvery: '10 Seconds' });
+
     const recurringExpenses = await RecurringExpense.find({ user: req.user._id })
       .populate({
         path: 'baseExpense',
@@ -137,6 +240,22 @@ export const getRecurringExpenses = async (req, res) => {
       return rec.baseExpense && typeof rec.baseExpense === 'object' && rec.baseExpense._id;
     });
 
+    // Backfill: ensure all base expenses referenced by schedules are tagged as recurring.
+    // This keeps Expenses list "Recurring" column accurate for old data.
+    try {
+      const baseIds = validRecurringExpenses
+        .map((r) => r?.baseExpense?._id)
+        .filter(Boolean);
+      if (baseIds.length > 0) {
+        await Expense.updateMany(
+          { _id: { $in: baseIds }, user: req.user._id },
+          { $set: { isRecurring: true } }
+        );
+      }
+    } catch (e) {
+      console.warn('Failed to backfill base expenses as recurring (getRecurringExpenses):', e?.message || e);
+    }
+
     // Automatically remove duplicates (keep the oldest one based on createdAt)
     const seenRecurring = new Map();
     const duplicateIds = [];
@@ -145,15 +264,9 @@ export const getRecurringExpenses = async (req, res) => {
       const baseExpense = rec.baseExpense;
       if (!baseExpense) return;
       
-      // Create a unique key based on baseExpense ID, repeatEvery, and startOn (same day)
-      const startDate = new Date(rec.startOn);
-      startDate.setHours(0, 0, 0, 0);
-      
-      const key = JSON.stringify({
-        baseExpenseId: baseExpense._id.toString(),
-        repeatEvery: rec.repeatEvery || '',
-        startOn: startDate.toISOString().split('T')[0], // YYYY-MM-DD format
-      });
+      // Duplicate definition (align with createRecurringExpense):
+      // One recurring schedule per logical expense + repeatEvery.
+      const key = buildRecurringDedupeKey(baseExpense, rec.repeatEvery);
       
       if (seenRecurring.has(key)) {
         // Duplicate found - compare createdAt to keep the oldest
@@ -228,6 +341,11 @@ export const getRecurringExpense = async (req, res) => {
       return res.status(404).json({ message: 'Recurring expense not found' });
     }
 
+    if (recurringExpense.repeatEvery === '10 Seconds') {
+      await RecurringExpense.deleteOne({ _id: req.params.id, user: req.user._id });
+      return res.status(404).json({ message: 'Recurring expense not found' });
+    }
+
     // Check if base expense is deleted
     if (!recurringExpense.baseExpense) {
       // Auto-clean orphan recurring schedule
@@ -266,17 +384,31 @@ export const updateRecurringExpense = async (req, res) => {
       return res.status(404).json({ message: 'Recurring expense not found' });
     }
 
-    if (repeatEvery) recurringExpense.repeatEvery = repeatEvery;
+    // If a legacy seconds-based schedule exists, remove it (seconds frequency is not supported)
+    if (recurringExpense.repeatEvery === '10 Seconds') {
+      await RecurringExpense.deleteOne({ _id: recurringExpense._id, user: req.user._id });
+      return res.status(404).json({ message: 'Recurring expense not found' });
+    }
+
+    if (repeatEvery) {
+      if (!ALLOWED_REPEAT_EVERY.has(repeatEvery)) {
+        return res.status(400).json({ message: 'Invalid repeat frequency' });
+      }
+      recurringExpense.repeatEvery = repeatEvery;
+    }
     if (startOn) {
       recurringExpense.startOn = new Date(startOn);
-      // Update next process date if start date is in the future
-      if (new Date(startOn) > new Date()) {
-        recurringExpense.nextProcessDate = new Date(startOn);
-      }
     }
     if (endsOn !== undefined) recurringExpense.endsOn = endsOn ? new Date(endsOn) : null;
     if (neverExpires !== undefined) recurringExpense.neverExpires = neverExpires;
     if (isActive !== undefined) recurringExpense.isActive = isActive;
+
+    // Recompute nextProcessDate so UI always shows "next run" date (startOn/lastProcessed + interval)
+    const baseForNext = recurringExpense.lastProcessedDate || recurringExpense.startOn;
+    recurringExpense.nextProcessDate = addRecurringInterval(
+      normalizeToStartOfDay(baseForNext),
+      recurringExpense.repeatEvery
+    );
 
     await recurringExpense.save();
 
@@ -301,7 +433,28 @@ export const deleteRecurringExpense = async (req, res) => {
       return res.status(404).json({ message: 'Recurring expense not found' });
     }
 
+    const baseExpenseId = recurringExpense.baseExpense;
+
     await recurringExpense.deleteOne();
+
+    // Sync base expense flag:
+    // If this was the last recurring schedule for that base expense, mark it as non-recurring.
+    try {
+      if (baseExpenseId) {
+        const anyRemaining = await RecurringExpense.exists({
+          user: req.user._id,
+          baseExpense: baseExpenseId,
+        });
+        if (!anyRemaining) {
+          await Expense.updateOne(
+            { _id: baseExpenseId, user: req.user._id },
+            { $set: { isRecurring: false } }
+          );
+        }
+      }
+    } catch (e) {
+      console.warn('Failed to sync base expense recurring flag on delete:', e?.message || e);
+    }
 
     res.json({ message: 'Recurring expense deleted successfully' });
   } catch (error) {
@@ -315,18 +468,14 @@ export const deleteRecurringExpense = async (req, res) => {
 // @access  Private (should be called by cron job with special token)
 export const processRecurringExpenses = async (req, res) => {
   try {
-    const now = new Date();
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
     // Find all active recurring expenses that need to be processed
-    // For 10-second intervals, use current time; for others, use today's midnight
     const recurringExpenses = await RecurringExpense.find({
       isActive: true,
-      $or: [
-        { repeatEvery: '10 Seconds', nextProcessDate: { $lte: now } },
-        { repeatEvery: { $ne: '10 Seconds' }, nextProcessDate: { $lte: today } }
-      ]
+      repeatEvery: { $ne: '10 Seconds' },
+      nextProcessDate: { $lte: today },
     }).populate('baseExpense').populate('user');
 
     const results = [];
@@ -363,15 +512,17 @@ export const processRecurringExpenses = async (req, res) => {
         newExpenseData.status = 'Unpaid';
         newExpenseData.paidTransactionRef = '';
         newExpenseData.paymentHistory = [];
+        newExpenseData.isRecurring = true;
+        newExpenseData.dueAmount = Math.max(0, (newExpenseData.totalAmount || 0) - (newExpenseData.paidAmount || 0));
 
-        // Update expense date to now (for 10 seconds) or today (for others)
-        const expenseDate = recurringExpense.repeatEvery === '10 Seconds' ? now : today;
-        newExpenseData.date = expenseDate;
+        // Use the scheduled run date (nextProcessDate) for the generated expense date
+        const scheduledDate = normalizeToStartOfDay(recurringExpense.nextProcessDate);
+        newExpenseData.date = scheduledDate;
         
         // Set month and year based on expense date
         const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-        newExpenseData.month = monthNames[expenseDate.getMonth()];
-        newExpenseData.year = expenseDate.getFullYear();
+        newExpenseData.month = monthNames[scheduledDate.getMonth()];
+        newExpenseData.year = scheduledDate.getFullYear();
 
         newExpenseData.user = recurringExpense.user._id;
 
@@ -405,32 +556,10 @@ export const processRecurringExpenses = async (req, res) => {
         }
 
         // Calculate next process date
-        const nextProcessDate = new Date(recurringExpense.nextProcessDate);
-        switch (recurringExpense.repeatEvery) {
-          case '10 Seconds':
-            nextProcessDate.setSeconds(nextProcessDate.getSeconds() + 10);
-            break;
-          case 'Week':
-            nextProcessDate.setDate(nextProcessDate.getDate() + 7);
-            break;
-          case 'Month':
-            nextProcessDate.setMonth(nextProcessDate.getMonth() + 1);
-            break;
-          case 'Quarter':
-            nextProcessDate.setMonth(nextProcessDate.getMonth() + 3);
-            break;
-          case 'Half Yearly':
-          case 'Six Month':
-            nextProcessDate.setMonth(nextProcessDate.getMonth() + 6);
-            break;
-          case 'Year':
-            nextProcessDate.setFullYear(nextProcessDate.getFullYear() + 1);
-            break;
-        }
+        const nextProcessDate = addRecurringInterval(scheduledDate, recurringExpense.repeatEvery);
 
         // Update recurring expense
-        const processedDate = recurringExpense.repeatEvery === '10 Seconds' ? now : today;
-        recurringExpense.lastProcessedDate = processedDate;
+        recurringExpense.lastProcessedDate = scheduledDate;
         recurringExpense.nextProcessDate = nextProcessDate;
 
         // Check if expired
@@ -481,18 +610,14 @@ export const processRecurringExpenses = async (req, res) => {
 // This function can be called directly without HTTP request/response
 export const processRecurringExpensesDirect = async () => {
   try {
-    const now = new Date();
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
     // Find all active recurring expenses that need to be processed
-    // For 10-second intervals, use current time; for others, use today's midnight
     const recurringExpenses = await RecurringExpense.find({
       isActive: true,
-      $or: [
-        { repeatEvery: '10 Seconds', nextProcessDate: { $lte: now } },
-        { repeatEvery: { $ne: '10 Seconds' }, nextProcessDate: { $lte: today } }
-      ]
+      repeatEvery: { $ne: '10 Seconds' },
+      nextProcessDate: { $lte: today },
     }).populate('baseExpense').populate('user');
 
     const results = [];
@@ -529,15 +654,17 @@ export const processRecurringExpensesDirect = async () => {
         newExpenseData.status = 'Unpaid';
         newExpenseData.paidTransactionRef = '';
         newExpenseData.paymentHistory = [];
+        newExpenseData.isRecurring = true;
+        newExpenseData.dueAmount = Math.max(0, (newExpenseData.totalAmount || 0) - (newExpenseData.paidAmount || 0));
 
-        // Update expense date to now (for 10 seconds) or today (for others)
-        const expenseDate = recurringExpense.repeatEvery === '10 Seconds' ? now : today;
-        newExpenseData.date = expenseDate;
+        // Use the scheduled run date (nextProcessDate) for the generated expense date
+        const scheduledDate = normalizeToStartOfDay(recurringExpense.nextProcessDate);
+        newExpenseData.date = scheduledDate;
         
         // Set month and year based on expense date
         const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-        newExpenseData.month = monthNames[expenseDate.getMonth()];
-        newExpenseData.year = expenseDate.getFullYear();
+        newExpenseData.month = monthNames[scheduledDate.getMonth()];
+        newExpenseData.year = scheduledDate.getFullYear();
 
         newExpenseData.user = recurringExpense.user._id;
 
@@ -571,32 +698,10 @@ export const processRecurringExpensesDirect = async () => {
         }
 
         // Calculate next process date
-        const nextProcessDate = new Date(recurringExpense.nextProcessDate);
-        switch (recurringExpense.repeatEvery) {
-          case '10 Seconds':
-            nextProcessDate.setSeconds(nextProcessDate.getSeconds() + 10);
-            break;
-          case 'Week':
-            nextProcessDate.setDate(nextProcessDate.getDate() + 7);
-            break;
-          case 'Month':
-            nextProcessDate.setMonth(nextProcessDate.getMonth() + 1);
-            break;
-          case 'Quarter':
-            nextProcessDate.setMonth(nextProcessDate.getMonth() + 3);
-            break;
-          case 'Half Yearly':
-          case 'Six Month':
-            nextProcessDate.setMonth(nextProcessDate.getMonth() + 6);
-            break;
-          case 'Year':
-            nextProcessDate.setFullYear(nextProcessDate.getFullYear() + 1);
-            break;
-        }
+        const nextProcessDate = addRecurringInterval(scheduledDate, recurringExpense.repeatEvery);
 
         // Update recurring expense
-        const processedDate = recurringExpense.repeatEvery === '10 Seconds' ? now : today;
-        recurringExpense.lastProcessedDate = processedDate;
+        recurringExpense.lastProcessedDate = scheduledDate;
         recurringExpense.nextProcessDate = nextProcessDate;
 
         // Check if expired

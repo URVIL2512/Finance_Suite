@@ -9,7 +9,7 @@ const recurringInvoiceSchema = new mongoose.Schema(
     },
     repeatEvery: {
       type: String,
-      enum: ['10 Seconds', 'Week', 'Month', 'Quarter', 'Half Yearly', 'Six Month', 'Year'],
+      enum: ['Week', 'Month', 'Quarter', 'Half Yearly', 'Six Month', 'Year'],
       required: true,
     },
     startOn: {

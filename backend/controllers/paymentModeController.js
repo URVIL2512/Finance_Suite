@@ -73,9 +73,11 @@ export const createPaymentMode = async (req, res) => {
       return res.status(400).json({ message: 'Payment mode name is required' });
     }
 
+    const normalizedName = name.trim();
+
     // Check if payment mode with same name already exists for this user
     const existingPaymentMode = await PaymentMode.findOne({
-      name: name.trim(),
+      name: { $regex: `^${normalizedName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, $options: 'i' },
       user: req.user._id,
     });
 
@@ -84,7 +86,7 @@ export const createPaymentMode = async (req, res) => {
     }
 
     const paymentMode = await PaymentMode.create({
-      name: name.trim(),
+      name: normalizedName,
       description: description || '',
       isActive: isActive !== undefined ? isActive : true,
       user: req.user._id,
@@ -123,8 +125,9 @@ export const updatePaymentMode = async (req, res) => {
 
     // If name is being updated, check for duplicates
     if (name && name.trim() !== paymentMode.name) {
+      const normalizedName = name.trim();
       const existingPaymentMode = await PaymentMode.findOne({
-        name: name.trim(),
+        name: { $regex: `^${normalizedName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, $options: 'i' },
         user: req.user._id,
         _id: { $ne: req.params.id },
       });
@@ -132,7 +135,7 @@ export const updatePaymentMode = async (req, res) => {
       if (existingPaymentMode) {
         return res.status(400).json({ message: 'Payment mode with this name already exists' });
       }
-      paymentMode.name = name.trim();
+      paymentMode.name = normalizedName;
     }
 
     if (description !== undefined) {

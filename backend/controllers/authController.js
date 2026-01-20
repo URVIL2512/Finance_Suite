@@ -8,18 +8,26 @@ export const register = async (req, res) => {
   try {
     const { name, email, phone, password } = req.body;
 
-    // Check if user exists (only if email is provided)
-    if (email) {
-      const userExists = await User.findOne({ email });
-      if (userExists) {
-        return res.status(400).json({ message: 'User already exists' });
-      }
+    if (!name || String(name).trim() === '') {
+      return res.status(400).json({ message: 'Name is required' });
+    }
+    if (!email || String(email).trim() === '') {
+      return res.status(400).json({ message: 'Email is required' });
+    }
+    if (!password || String(password).length < 6) {
+      return res.status(400).json({ message: 'Password must be at least 6 characters' });
+    }
+
+    // Check if user exists (email required)
+    const userExists = await User.findOne({ email });
+    if (userExists) {
+      return res.status(400).json({ message: 'User already exists' });
     }
 
     // Create user
     const user = await User.create({
       name,
-      email: email || undefined,
+      email,
       phone: phone || undefined,
       password,
     });

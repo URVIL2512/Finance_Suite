@@ -9,7 +9,7 @@ const recurringExpenseSchema = new mongoose.Schema(
     },
     repeatEvery: {
       type: String,
-      enum: ['10 Seconds', 'Week', 'Month', 'Quarter', 'Half Yearly', 'Six Month', 'Year'],
+      enum: ['Week', 'Month', 'Quarter', 'Half Yearly', 'Six Month', 'Year'],
       required: true,
     },
     startOn: {
@@ -54,6 +54,7 @@ const recurringExpenseSchema = new mongoose.Schema(
 // Index for faster queries
 recurringExpenseSchema.index({ user: 1, isActive: 1 });
 recurringExpenseSchema.index({ nextProcessDate: 1, isActive: 1 });
+recurringExpenseSchema.index({ user: 1, baseExpense: 1 });
 
 const RecurringExpense = mongoose.model('RecurringExpense', recurringExpenseSchema);
 

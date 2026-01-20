@@ -9,6 +9,8 @@ const ExpenseForm = ({ expense, onSubmit, onCancel }) => {
   const { showToast } = useToast();
   const navigate = useNavigate();
   const location = useLocation();
+  const DRAFT_KEY = 'kology:expenseFormDraft:v1';
+  const didInitDraft = useRef(false);
   const [newCategory, setNewCategory] = useState('');
   const [showAddCategory, setShowAddCategory] = useState(false);
   const [showCategoryDropdown, setShowCategoryDropdown] = useState(false);
@@ -41,7 +43,7 @@ const ExpenseForm = ({ expense, onSubmit, onCancel }) => {
     tdsPercentage: '',
     tdsAmount: '',
     totalAmount: '',
-    paidAmount: '0',
+    paidAmount: '',
     status: 'Unpaid',
     paidTransactionRef: '',
     month: format(new Date(), 'MMM'),
@@ -51,6 +53,40 @@ const ExpenseForm = ({ expense, onSubmit, onCancel }) => {
     userEmail: '',
     userPhone: '',
   });
+
+  const loadDraft = () => {
+    try {
+      const raw = sessionStorage.getItem(DRAFT_KEY);
+      if (!raw) return null;
+      const parsed = JSON.parse(raw);
+      if (!parsed || typeof parsed !== 'object') return null;
+      return parsed;
+    } catch {
+      return null;
+    }
+  };
+
+  const saveDraft = (next) => {
+    try {
+      sessionStorage.setItem(DRAFT_KEY, JSON.stringify(next));
+    } catch {
+      // ignore
+    }
+  };
+
+  const clearDraft = () => {
+    try {
+      sessionStorage.removeItem(DRAFT_KEY);
+    } catch {
+      // ignore
+    }
+  };
+
+  const handleCancelInternal = () => {
+    // Only clear drafts for new expense creation (not when editing an existing one)
+    if (!expense) clearDraft();
+    onCancel();
+  };
 
 
   // Fetch Payment Modes, Vendors, and Bank Accounts
@@ -101,7 +137,7 @@ const ExpenseForm = ({ expense, onSubmit, onCancel }) => {
           tdsPercentage: expense.tdsPercentage === 0 || expense.tdsPercentage === null || expense.tdsPercentage === undefined ? '' : String(expense.tdsPercentage),
           tdsAmount: expense.tdsAmount === 0 || expense.tdsAmount === null || expense.tdsAmount === undefined ? '' : String(expense.tdsAmount),
           totalAmount: expense.totalAmount === 0 || expense.totalAmount === null || expense.totalAmount === undefined ? '' : String(expense.totalAmount),
-          paidAmount: expense.paidAmount === 0 || expense.paidAmount === null || expense.paidAmount === undefined ? '0' : String(expense.paidAmount),
+          paidAmount: expense.paidAmount === 0 || expense.paidAmount === null || expense.paidAmount === undefined ? '' : String(expense.paidAmount),
           status: expense.status || 'Unpaid',
           paidTransactionRef: expense.paidTransactionRef || '',
           month: expense.month || format(new Date(), 'MMM'),
@@ -111,6 +147,7 @@ const ExpenseForm = ({ expense, onSubmit, onCancel }) => {
           userEmail: expense.userEmail || '',
           userPhone: expense.userPhone || '',
         });
+        didInitDraft.current = false; // don't persist drafts for edit flows by default
       } else {
         // New expense - initialize form and fetch user profile
         const initialFormData = {
@@ -127,7 +164,7 @@ const ExpenseForm = ({ expense, onSubmit, onCancel }) => {
           tdsPercentage: '',
           tdsAmount: '',
           totalAmount: '',
-          paidAmount: '0',
+          paidAmount: '',
           status: 'Unpaid',
           paidTransactionRef: '',
           month: format(new Date(), 'MMM'),
@@ -138,25 +175,38 @@ const ExpenseForm = ({ expense, onSubmit, onCancel }) => {
           userPhone: '',
         };
 
+        // Restore draft if coming back from masters (vendor/payment-mode/bank-account)
+        const draft = loadDraft();
+        const merged = draft ? { ...initialFormData, ...draft } : initialFormData;
+
         // Fetch user profile and auto-populate user information (hidden from user)
         try {
           const response = await authAPI.getMe();
           const user = response.data;
           if (user) {
-            initialFormData.userName = user.name || '';
-            initialFormData.userEmail = user.email || '';
-            initialFormData.userPhone = user.phone || '';
+            if (!merged.userName) merged.userName = user.name || '';
+            if (!merged.userEmail) merged.userEmail = user.email || '';
+            if (!merged.userPhone) merged.userPhone = user.phone || '';
           }
         } catch (error) {
           console.error('Error fetching user profile:', error);
         }
 
-        setFormData(initialFormData);
+        setFormData(merged);
+        didInitDraft.current = true;
       }
     };
 
     initializeForm();
   }, [expense]);
+
+  // Persist new-expense drafts so navigating to Masters doesn't wipe the form.
+  useEffect(() => {
+    if (expense) return;
+    if (!didInitDraft.current) return;
+    saveDraft(formData);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [formData, expense]);
 
   // Track which fields were manually changed to avoid circular updates
   const lastChangedField = useRef('');
@@ -251,7 +301,12 @@ const ExpenseForm = ({ expense, onSubmit, onCancel }) => {
 
   // Auto-update status when paidAmount/total changes
   // Use computed total so status stays correct even when totalAmount is missing.
+  // Don't auto-update if status is Cancel (user explicitly set it)
   useEffect(() => {
+    if (formData.status === 'Cancel') {
+      return; // Don't auto-update Cancel status
+    }
+    
     const totalAmount = computedTotalAmount;
     const paidAmount = parseFloat(formData.paidAmount) || 0;
     
@@ -276,7 +331,7 @@ const ExpenseForm = ({ expense, onSubmit, onCancel }) => {
         }));
       }
     }
-  }, [formData.paidAmount, formData.totalAmount, formData.amountExclTax, formData.gstAmount, formData.tdsAmount]);
+  }, [formData.paidAmount, formData.totalAmount, formData.amountExclTax, formData.gstAmount, formData.tdsAmount, formData.status]);
 
   // Calculate balance (Due Amount)
   // Prefer stored totalAmount, but fall back to derived total (Amount + GST - TDS)
@@ -369,7 +424,7 @@ const ExpenseForm = ({ expense, onSubmit, onCancel }) => {
       [name]: name === 'amountExclTax' || name === 'gstPercentage' || name === 'gstAmount' || name === 'tdsPercentage' || name === 'tdsAmount'
         ? value === '' ? '' : parseFloat(value) || ''
         : name === 'paidAmount'
-        ? value === '' ? '0' : parseFloat(value) || '0'
+        ? value === '' ? '' : parseFloat(value) || ''
         : value,
     });
   };
@@ -422,6 +477,8 @@ const ExpenseForm = ({ expense, onSubmit, onCancel }) => {
       };
       
       await onSubmit(submitData);
+      // Clear draft only after a successful submit
+      if (!expense) clearDraft();
     } finally {
       // Reset after a short delay to allow for any async operations
       setTimeout(() => {
@@ -467,7 +524,7 @@ const ExpenseForm = ({ expense, onSubmit, onCancel }) => {
   return (
     <div 
       className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4"
-      onClick={onCancel}
+      onClick={handleCancelInternal}
     >
       <div 
         className="bg-white rounded-xl shadow-2xl w-full max-w-4xl max-h-[95vh] overflow-hidden flex flex-col"
@@ -480,7 +537,7 @@ const ExpenseForm = ({ expense, onSubmit, onCancel }) => {
           </h2>
           <button
             type="button"
-            onClick={onCancel}
+            onClick={handleCancelInternal}
             className="text-gray-400 hover:text-red-600 active:text-red-700 active:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 transition-all duration-150 text-3xl font-light leading-none w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-100 active:scale-95"
             aria-label="Close"
           >
@@ -1199,13 +1256,14 @@ const ExpenseForm = ({ expense, onSubmit, onCancel }) => {
                     value={formData.status}
                     onChange={handleChange}
                     required
-                    disabled
-                    className="select-field w-full text-sm py-2.5 bg-gray-50 cursor-not-allowed opacity-70"
-                    title="Status is automatically calculated based on Paid Amount"
+                    disabled={!expense}
+                    className={`select-field w-full text-sm py-2.5 ${!expense ? 'bg-gray-50 cursor-not-allowed opacity-70' : ''}`}
+                    title={!expense ? 'Status is automatically set to "Unpaid" for new expenses' : ''}
                   >
                     <option value="Unpaid">Unpaid</option>
                     <option value="Partial">Partial</option>
                     <option value="Paid">Paid</option>
+                    <option value="Cancel">Cancel</option>
                   </MobileSelect>
                 </div>
                 <div className="space-y-2">
@@ -1282,7 +1340,7 @@ const ExpenseForm = ({ expense, onSubmit, onCancel }) => {
           <div className="border-t border-gray-200 px-8 py-5 bg-white flex justify-end gap-3">
             <button
               type="button"
-              onClick={onCancel}
+              onClick={handleCancelInternal}
               className="px-6 py-2.5 bg-gray-100 text-gray-700 font-semibold rounded-lg hover:bg-gray-200 active:bg-gray-300 active:scale-95 focus:outline-none focus:ring-2 focus:ring-gray-400 focus:ring-offset-2 transition-all duration-150 text-sm shadow-sm hover:shadow-md active:shadow-sm"
             >
               Cancel
