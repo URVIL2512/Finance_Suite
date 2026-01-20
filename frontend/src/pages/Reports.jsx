@@ -814,10 +814,11 @@ const Reports = () => {
             {/* Invoice aging */}
             {active === 'invoiceAging' && invoiceAging && (
               <div className="space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
                   <Kpi label="Paid invoices (INR)" value={money(invoiceAging.paidInvoices?.total)} />
                   <Kpi label="Paid count" value={String(invoiceAging.paidInvoices?.count || 0)} />
                   <Kpi label="Outstanding (INR)" value={money(invoiceAging.outstanding?.total)} />
+                  <Kpi label="Overdue (INR)" value={money(invoiceAging.outstanding?.overdueTotal)} />
                 </div>
                 <div className="max-h-80 overflow-auto border border-slate-200 rounded-lg">
                   <table className="w-full text-sm">
