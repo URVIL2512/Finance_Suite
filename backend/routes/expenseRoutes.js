@@ -8,6 +8,7 @@ import {
   deleteExpense,
   exportExpensesToPDF,
   importExpensesFromExcel,
+  removeDuplicateExpenses,
 } from '../controllers/expenseController.js';
 import { protect } from '../middleware/auth.js';
 
@@ -40,6 +41,7 @@ const upload = multer({
 router.route('/').get(getExpenses).post(createExpense);
 router.route('/export/pdf').post(exportExpensesToPDF);
 router.route('/import').post(upload.single('file'), importExpensesFromExcel);
+router.route('/remove-duplicates').post(removeDuplicateExpenses);
 router.route('/:id').get(getExpense).put(updateExpense).delete(deleteExpense);
 
 export default router;

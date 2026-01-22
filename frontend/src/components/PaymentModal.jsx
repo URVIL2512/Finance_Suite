@@ -42,6 +42,12 @@ const PaymentModal = ({ isOpen, onClose, invoice, payment, mode = 'edit', onPaym
 
   useEffect(() => {
     if (isOpen) {
+      // Check if invoice is voided
+      if (invoice && invoice.status === 'Void') {
+        showToast('Cannot record payment for a voided invoice', 'error');
+        onClose();
+        return;
+      }
       fetchCustomers();
       fetchInvoices();
       

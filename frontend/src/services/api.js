@@ -75,6 +75,7 @@ export const expenseAPI = {
       },
     });
   },
+  removeDuplicates: () => api.post('/expenses/remove-duplicates'),
 };
 
 // Revenue APIs
@@ -94,6 +95,8 @@ export const invoiceAPI = {
   create: (data) => api.post('/invoices', data),
   update: (id, data) => api.put(`/invoices/${id}`, data),
   delete: (id) => api.delete(`/invoices/${id}`),
+  deleteMultiple: (invoiceIds) => api.delete('/invoices/bulk', { data: { invoiceIds } }),
+  void: (id) => api.put(`/invoices/${id}/void`),
   import: (file) => {
     const formData = new FormData();
     formData.append('file', file);

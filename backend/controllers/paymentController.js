@@ -141,6 +141,12 @@ export const createPayment = async (req, res) => {
       return res.status(404).json({ message: 'Invoice not found' });
     }
 
+    // Prevent payment recording for voided invoices
+    if (invoiceDoc.status === 'Void') {
+      console.error('❌ Payment creation failed: Invoice is voided', { invoiceId: invoice, invoiceNumber: invoiceDoc.invoiceNumber });
+      return res.status(400).json({ message: 'Cannot record payment for a voided invoice' });
+    }
+
     // Get invoice currency and convert to INR if needed
     const invoiceCurrency = invoiceDoc.currencyDetails?.invoiceCurrency || invoiceDoc.currency || 'INR';
     const isNonINR = invoiceCurrency !== 'INR';

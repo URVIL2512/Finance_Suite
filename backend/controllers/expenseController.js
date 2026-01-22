@@ -1,6 +1,10 @@
 import Expense from '../models/Expense.js';
 import RecurringExpense from '../models/RecurringExpense.js';
 import ExpenseCategory from '../models/ExpenseCategory.js';
+import PaymentMode from '../models/PaymentMode.js';
+import Vendor from '../models/Vendor.js';
+import BankAccount from '../models/BankAccount.js';
+import Department from '../models/Department.js';
 import { generateExpensesPDF } from '../utils/expensePdfGenerator.js';
 import path from 'path';
 import fs from 'fs';
@@ -602,7 +606,220 @@ export const importExpensesFromExcel = async (req, res) => {
     const errors = [];
     const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
-    // Process each row
+    // Step 1: Collect all unique master values from Excel data
+    const uniqueCategories = new Set();
+    const uniqueDepartments = new Set();
+    const uniquePaymentModes = new Set();
+    const uniqueVendors = new Set();
+    const uniqueBankAccounts = new Set();
+
+    // First pass: collect all unique master values
+    for (let i = 0; i < data.length; i++) {
+      const row = data[i];
+      const category = getColumnValue(row, columnMapping.category);
+      const department = getColumnValue(row, columnMapping.department);
+      const paymentMode = getColumnValue(row, columnMapping.paymentMode);
+      const vendor = getColumnValue(row, columnMapping.vendor);
+      const bankAccount = getColumnValue(row, columnMapping.bankAccount);
+
+      if (category && String(category).trim()) {
+        uniqueCategories.add(String(category).trim());
+      }
+      if (department && String(department).trim()) {
+        uniqueDepartments.add(String(department).trim());
+      }
+      if (paymentMode && String(paymentMode).trim()) {
+        uniquePaymentModes.add(String(paymentMode).trim());
+      }
+      if (vendor && String(vendor).trim()) {
+        uniqueVendors.add(String(vendor).trim());
+      }
+      if (bankAccount && String(bankAccount).trim()) {
+        uniqueBankAccounts.add(String(bankAccount).trim());
+      }
+    }
+
+    // Step 2: Create missing masters automatically
+    const userId = req.user._id;
+    const createdMasters = {
+      categories: 0,
+      departments: 0,
+      paymentModes: 0,
+      vendors: 0,
+      bankAccounts: 0,
+    };
+
+    try {
+      // Create missing Categories
+      if (uniqueCategories.size > 0) {
+        const existingCategories = await ExpenseCategory.find({
+          user: userId,
+        }).select('name').lean();
+
+        const existingCategoryNames = new Set(
+          existingCategories.map((cat) => cat.name.toLowerCase())
+        );
+
+        for (const categoryName of uniqueCategories) {
+          if (!existingCategoryNames.has(categoryName.toLowerCase())) {
+            try {
+              await ExpenseCategory.create({
+                name: categoryName,
+                costType: 'Variable',
+                isActive: true,
+                user: userId,
+              });
+              createdMasters.categories++;
+              // Add to existing set to avoid duplicates in same import
+              existingCategoryNames.add(categoryName.toLowerCase());
+            } catch (error) {
+              // Ignore duplicate key errors (race condition or case-insensitive duplicate)
+              if (error.code !== 11000) {
+                console.error(`Error creating category "${categoryName}":`, error.message);
+              }
+            }
+          }
+        }
+      }
+
+      // Create missing Departments
+      if (uniqueDepartments.size > 0) {
+        const existingDepartments = await Department.find({
+          user: userId,
+        }).select('name').lean();
+
+        const existingDepartmentNames = new Set(
+          existingDepartments.map((dept) => dept.name.toLowerCase())
+        );
+
+        for (const departmentName of uniqueDepartments) {
+          if (!existingDepartmentNames.has(departmentName.toLowerCase())) {
+            try {
+              await Department.create({
+                name: departmentName,
+                isActive: true,
+                user: userId,
+              });
+              createdMasters.departments++;
+              // Add to existing set to avoid duplicates in same import
+              existingDepartmentNames.add(departmentName.toLowerCase());
+            } catch (error) {
+              // Ignore duplicate key errors (race condition or case-insensitive duplicate)
+              if (error.code !== 11000) {
+                console.error(`Error creating department "${departmentName}":`, error.message);
+              }
+            }
+          }
+        }
+      }
+
+      // Create missing Payment Modes
+      if (uniquePaymentModes.size > 0) {
+        const existingPaymentModes = await PaymentMode.find({
+          user: userId,
+        }).select('name').lean();
+
+        const existingPaymentModeNames = new Set(
+          existingPaymentModes.map((pm) => pm.name.toLowerCase())
+        );
+
+        for (const paymentModeName of uniquePaymentModes) {
+          if (!existingPaymentModeNames.has(paymentModeName.toLowerCase())) {
+            try {
+              await PaymentMode.create({
+                name: paymentModeName,
+                description: '',
+                isActive: true,
+                user: userId,
+              });
+              createdMasters.paymentModes++;
+              // Add to existing set to avoid duplicates in same import
+              existingPaymentModeNames.add(paymentModeName.toLowerCase());
+            } catch (error) {
+              // Ignore duplicate key errors (race condition or case-insensitive duplicate)
+              if (error.code !== 11000) {
+                console.error(`Error creating payment mode "${paymentModeName}":`, error.message);
+              }
+            }
+          }
+        }
+      }
+
+      // Create missing Vendors
+      if (uniqueVendors.size > 0) {
+        const existingVendors = await Vendor.find({
+          user: userId,
+        }).select('name').lean();
+
+        const existingVendorNames = new Set(
+          existingVendors.map((v) => v.name.toLowerCase())
+        );
+
+        for (const vendorName of uniqueVendors) {
+          if (!existingVendorNames.has(vendorName.toLowerCase())) {
+            try {
+              await Vendor.create({
+                name: vendorName,
+                gstin: '',
+                email: '',
+                phone: '',
+                address: '',
+                defaultPaymentTerms: '',
+                isActive: true,
+                user: userId,
+              });
+              createdMasters.vendors++;
+              // Add to existing set to avoid duplicates in same import
+              existingVendorNames.add(vendorName.toLowerCase());
+            } catch (error) {
+              // Ignore duplicate key errors (race condition or case-insensitive duplicate)
+              if (error.code !== 11000) {
+                console.error(`Error creating vendor "${vendorName}":`, error.message);
+              }
+            }
+          }
+        }
+      }
+
+      // Create missing Bank Accounts
+      if (uniqueBankAccounts.size > 0) {
+        const existingBankAccounts = await BankAccount.find({
+          user: userId,
+        }).select('accountName').lean();
+
+        const existingBankAccountNames = new Set(
+          existingBankAccounts.map((ba) => ba.accountName.toLowerCase())
+        );
+
+        for (const bankAccountName of uniqueBankAccounts) {
+          if (!existingBankAccountNames.has(bankAccountName.toLowerCase())) {
+            try {
+              await BankAccount.create({
+                accountName: bankAccountName,
+                bankName: bankAccountName, // Use account name as bank name if not provided
+                ifsc: '',
+                accountNumber: '',
+                isActive: true,
+                user: userId,
+              });
+              createdMasters.bankAccounts++;
+              // Add to existing set to avoid duplicates in same import
+              existingBankAccountNames.add(bankAccountName.toLowerCase());
+            } catch (error) {
+              // Ignore duplicate key errors (race condition or case-insensitive duplicate)
+              if (error.code !== 11000) {
+                console.error(`Error creating bank account "${bankAccountName}":`, error.message);
+              }
+            }
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Error creating masters:', error);
+      // Continue with expense import even if master creation fails
+    }
+
+    // Step 3: Process each row to create expenses
     for (let i = 0; i < data.length; i++) {
       const row = data[i];
       const rowNum = i + 2; // +2 because Excel is 1-indexed and we skip header
@@ -849,17 +1066,187 @@ export const importExpensesFromExcel = async (req, res) => {
       });
     }
 
-    // Insert expenses (bulk insert)
-    const createdExpenses = await Expense.insertMany(expensesToCreate, { ordered: false });
+    // Step 4: Check for duplicates before inserting
+    const expensesToInsert = [];
+    const duplicateExpenses = [];
+
+    for (let i = 0; i < expensesToCreate.length; i++) {
+      const expenseData = expensesToCreate[i];
+      const rowNum = i + 2; // +2 because Excel is 1-indexed and we skip header
+
+      try {
+        // Check for duplicate using same logic as createExpense
+        // Duplicate = same vendor, category, date, totalAmount, department
+        const expenseDate = expenseData.date ? new Date(expenseData.date) : new Date();
+        const startOfDay = new Date(expenseDate);
+        startOfDay.setHours(0, 0, 0, 0);
+        const endOfDay = new Date(expenseDate);
+        endOfDay.setHours(23, 59, 59, 999);
+        
+        const duplicateCheck = await Expense.findOne({
+          user: userId,
+          vendor: expenseData.vendor || '',
+          category: expenseData.category || '',
+          department: expenseData.department || '',
+          totalAmount: expenseData.totalAmount || 0,
+          date: {
+            $gte: startOfDay,
+            $lte: endOfDay
+          }
+        });
+
+        if (duplicateCheck) {
+          // Duplicate found - skip this expense
+          duplicateExpenses.push({
+            row: rowNum,
+            vendor: expenseData.vendor || '',
+            category: expenseData.category || '',
+            department: expenseData.department || '',
+            date: expenseData.date,
+            totalAmount: expenseData.totalAmount || 0
+          });
+        } else {
+          // No duplicate - add to list for insertion
+          expensesToInsert.push(expenseData);
+        }
+      } catch (error) {
+        // If duplicate check fails, still try to insert (fail-safe)
+        console.error(`Error checking duplicate for row ${rowNum}:`, error);
+        expensesToInsert.push(expenseData);
+      }
+    }
+
+    // Add duplicate warnings to errors array
+    if (duplicateExpenses.length > 0) {
+      duplicateExpenses.forEach(dup => {
+        errors.push(`Row ${dup.row}: Duplicate expense detected (Vendor: ${dup.vendor}, Category: ${dup.category}, Department: ${dup.department}, Date: ${new Date(dup.date).toLocaleDateString()}, Amount: ₹${dup.totalAmount.toFixed(2)}). Skipped.`);
+      });
+    }
+
+    if (expensesToInsert.length === 0) {
+      return res.status(400).json({
+        message: 'All expenses are duplicates. No new expenses were imported.',
+        errors: errors,
+        duplicates: duplicateExpenses.length,
+      });
+    }
+
+    // Insert only non-duplicate expenses (bulk insert)
+    const createdExpenses = await Expense.insertMany(expensesToInsert, { ordered: false });
+
+    // Build success message with master creation info
+    const masterCreationSummary = [];
+    if (createdMasters.categories > 0) {
+      masterCreationSummary.push(`${createdMasters.categories} categor${createdMasters.categories === 1 ? 'y' : 'ies'}`);
+    }
+    if (createdMasters.departments > 0) {
+      masterCreationSummary.push(`${createdMasters.departments} department${createdMasters.departments === 1 ? '' : 's'}`);
+    }
+    if (createdMasters.paymentModes > 0) {
+      masterCreationSummary.push(`${createdMasters.paymentModes} payment mode${createdMasters.paymentModes === 1 ? '' : 's'}`);
+    }
+    if (createdMasters.vendors > 0) {
+      masterCreationSummary.push(`${createdMasters.vendors} vendor${createdMasters.vendors === 1 ? '' : 's'}`);
+    }
+    if (createdMasters.bankAccounts > 0) {
+      masterCreationSummary.push(`${createdMasters.bankAccounts} bank account${createdMasters.bankAccounts === 1 ? '' : 's'}`);
+    }
+
+    let message = `Successfully imported ${createdExpenses.length} expense(s)`;
+    if (duplicateExpenses.length > 0) {
+      message += `. ${duplicateExpenses.length} duplicate expense(s) were skipped.`;
+    }
+    if (masterCreationSummary.length > 0) {
+      message += ` Automatically created ${masterCreationSummary.join(', ')}.`;
+    }
 
     res.status(201).json({
-      message: `Successfully imported ${createdExpenses.length} expense(s)`,
+      message,
       imported: createdExpenses.length,
       total: expensesToCreate.length,
+      duplicates: duplicateExpenses.length,
+      mastersCreated: createdMasters,
       errors: errors.length > 0 ? errors : undefined,
     });
   } catch (error) {
     console.error('Error importing expenses from Excel:', error);
     res.status(500).json({ message: error.message || 'Failed to import expenses from Excel' });
+  }
+};
+
+// @desc    Remove duplicate expenses
+// @route   POST /api/expenses/remove-duplicates
+// @access  Private
+export const removeDuplicateExpenses = async (req, res) => {
+  try {
+    const userId = req.user._id;
+
+    // Get all expenses for the user
+    const allExpenses = await Expense.find({ user: userId })
+      .select('_id vendor category department totalAmount date createdAt')
+      .sort({ createdAt: 1 }) // Sort by creation date (oldest first)
+      .lean();
+
+    // Group expenses by duplicate criteria
+    const expenseGroups = new Map();
+    const duplicateIds = [];
+
+    allExpenses.forEach(expense => {
+      // Create a unique key based on vendor, category, date, totalAmount, department
+      const expenseDate = expense.date ? new Date(expense.date) : new Date();
+      expenseDate.setHours(0, 0, 0, 0);
+      
+      const key = JSON.stringify({
+        vendor: (expense.vendor || '').trim(),
+        category: (expense.category || '').trim(),
+        department: (expense.department || '').trim(),
+        totalAmount: parseFloat(expense.totalAmount) || 0,
+        date: expenseDate.toISOString().split('T')[0], // YYYY-MM-DD format
+      });
+
+      if (!expenseGroups.has(key)) {
+        // First occurrence - keep this one
+        expenseGroups.set(key, [expense]);
+      } else {
+        // Duplicate found - add to group
+        expenseGroups.get(key).push(expense);
+      }
+    });
+
+    // Identify duplicates (keep the oldest one in each group)
+    expenseGroups.forEach((expenses, key) => {
+      if (expenses.length > 1) {
+        // Sort by createdAt to keep the oldest
+        expenses.sort((a, b) => {
+          const dateA = new Date(a.createdAt);
+          const dateB = new Date(b.createdAt);
+          return dateA - dateB;
+        });
+
+        // Keep the first (oldest) one, mark the rest as duplicates
+        for (let i = 1; i < expenses.length; i++) {
+          duplicateIds.push(expenses[i]._id);
+        }
+      }
+    });
+
+    // Delete duplicates in bulk
+    let deletedCount = 0;
+    if (duplicateIds.length > 0) {
+      const deleteResult = await Expense.deleteMany({
+        _id: { $in: duplicateIds },
+        user: userId,
+      });
+      deletedCount = deleteResult.deletedCount || 0;
+    }
+
+    res.status(200).json({
+      message: `Successfully removed ${deletedCount} duplicate expense(s)`,
+      removed: deletedCount,
+      totalDuplicates: duplicateIds.length,
+    });
+  } catch (error) {
+    console.error('Error removing duplicate expenses:', error);
+    res.status(500).json({ message: error.message || 'Failed to remove duplicate expenses' });
   }
 };

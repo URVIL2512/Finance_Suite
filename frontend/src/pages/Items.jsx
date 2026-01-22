@@ -26,6 +26,27 @@ const Items = () => {
     fetchItems();
   }, []);
 
+  // Listen for refresh events from import (when invoices are imported, items may be created)
+  useEffect(() => {
+    const handleStorageChange = (e) => {
+      if (e.key === 'refreshMasters' || e.type === 'storage') {
+        // Refresh items when masters are updated
+        fetchItems();
+      }
+    };
+
+    // Listen for storage events (works across tabs)
+    window.addEventListener('storage', handleStorageChange);
+    
+    // Also listen for custom events (works in same tab)
+    window.addEventListener('refreshMasters', handleStorageChange);
+
+    return () => {
+      window.removeEventListener('storage', handleStorageChange);
+      window.removeEventListener('refreshMasters', handleStorageChange);
+    };
+  }, []);
+
   // Auto-show form if coming from invoice page
   useEffect(() => {
     if (returnPath && !showForm && !editingItem) {
@@ -189,6 +210,7 @@ const Items = () => {
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Type</th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Unit</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">HSN/SAC Code</th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Selling Price</th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Cost Price</th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Sellable</th>
@@ -211,6 +233,7 @@ const Items = () => {
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{item.name}</td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{item.unit || '-'}</td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{item.hsnSac || '-'}</td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                           {item.sellable ? `INR ${item.sellingPrice?.toFixed(2) || '0.00'}` : '-'}
                         </td>

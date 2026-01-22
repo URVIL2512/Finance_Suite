@@ -28,6 +28,27 @@ const Customers = () => {
     fetchCustomers();
   }, []);
 
+  // Listen for refresh events from import (when invoices are imported, customers may be created)
+  useEffect(() => {
+    const handleStorageChange = (e) => {
+      if (e.key === 'refreshMasters' || e.type === 'storage') {
+        // Refresh customers when masters are updated
+        fetchCustomers();
+      }
+    };
+
+    // Listen for storage events (works across tabs)
+    window.addEventListener('storage', handleStorageChange);
+    
+    // Also listen for custom events (works in same tab)
+    window.addEventListener('refreshMasters', handleStorageChange);
+
+    return () => {
+      window.removeEventListener('storage', handleStorageChange);
+      window.removeEventListener('refreshMasters', handleStorageChange);
+    };
+  }, []);
+
   // Auto-open form if redirected from invoice page
   useEffect(() => {
     if (returnPath) {

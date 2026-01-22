@@ -94,6 +94,17 @@ const InvoiceForm = ({ invoice, customers = [], onSubmit, onCancel, onCustomerAd
   useEffect(() => {
     if (invoice && invoice._id) {
       try {
+        console.log('📝 Loading invoice data for editing:', invoice);
+        console.log('📝 Full invoice object:', JSON.stringify(invoice, null, 2));
+        console.log('📝 Client Details:', invoice.clientDetails);
+        console.log('📝 Client Details type:', typeof invoice.clientDetails);
+        console.log('📝 Client Details keys:', invoice.clientDetails ? Object.keys(invoice.clientDetails) : 'null/undefined');
+        console.log('📝 Client Details full content:', JSON.stringify(invoice.clientDetails, null, 2));
+        console.log('📝 Client Email (top level):', invoice.clientEmail);
+        console.log('📝 Client Mobile (top level):', invoice.clientMobile);
+        console.log('📝 Client Email (from clientDetails):', invoice.clientDetails?.email);
+        console.log('📝 Client Mobile (from clientDetails):', invoice.clientDetails?.mobile);
+        
         const invoiceDate = invoice.invoiceDate ? new Date(invoice.invoiceDate) : new Date();
         const dueDate = invoice.dueDate ? new Date(invoice.dueDate) : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
         
@@ -111,25 +122,83 @@ const InvoiceForm = ({ invoice, customers = [], onSubmit, onCancel, onCustomerAd
         const remittance = invoice.remittanceCharges ?? 0;
         const exchangeRateValue = invoice.currencyDetails?.exchangeRate ?? invoice.exchangeRate ?? 1;
         
-        // Extract client details with proper fallbacks
-        const clientState = invoice.clientDetails?.state ?? '';
-        const clientMobile = invoice.clientMobile ?? '';
+        // Extract client details with proper fallbacks - be very explicit
+        const clientDetails = invoice.clientDetails || {};
+        
+        // Log the actual values to debug
+        console.log('🔍 Debugging clientDetails extraction:');
+        console.log('  - clientDetails.name:', clientDetails.name);
+        console.log('  - clientDetails.email:', clientDetails.email);
+        console.log('  - clientDetails.mobile:', clientDetails.mobile);
+        console.log('  - clientDetails.address:', clientDetails.address);
+        console.log('  - clientDetails.gstin:', clientDetails.gstin);
+        console.log('  - clientDetails.state:', clientDetails.state);
+        console.log('  - invoice.clientEmail:', invoice.clientEmail);
+        console.log('  - invoice.clientMobile:', invoice.clientMobile);
+        
+        const clientState = clientDetails.state || invoice.clientState || '';
+        const clientMobile = invoice.clientMobile || clientDetails.mobile || '';
         const exchangeRate = exchangeRateValue && exchangeRateValue !== 1 ? String(exchangeRateValue) : '';
-        const clientCountry = invoice.clientDetails?.country || 'India';
+        const clientCountry = clientDetails.country || invoice.clientCountry || 'India';
         const isIndianClient = clientCountry === 'India';
         
-        setFormData({
+        // Extract all client details fields explicitly - try multiple possible field names
+        const clientName = clientDetails.name || 
+                          clientDetails.clientName || 
+                          invoice.clientName || 
+                          invoice.clientDetails?.name || 
+                          '';
+        const clientAddress = clientDetails.address || 
+                             clientDetails.billingAddress || 
+                             invoice.clientAddress || 
+                             '';
+        const clientGstin = clientDetails.gstin || 
+                           clientDetails.gstin || 
+                           invoice.clientGstin || 
+                           '';
+        const placeOfSupply = clientDetails.placeOfSupply || 
+                            invoice.placeOfSupply || 
+                            '';
+        const gstNo = clientDetails.gstNo || 
+                     invoice.gstNo || 
+                     '';
+        // Try multiple possible locations for email
+        const clientEmail = invoice.clientEmail || 
+                           clientDetails.email || 
+                           clientDetails.clientEmail || 
+                           invoice.clientDetails?.email || 
+                           '';
+        // Try multiple possible locations for mobile
+        const clientMobileValue = invoice.clientMobile || 
+                                 clientDetails.mobile || 
+                                 clientDetails.clientMobile || 
+                                 invoice.clientDetails?.mobile || 
+                                 '';
+        
+        console.log('📋 Extracted client data:', {
+          clientName,
+          clientEmail,
+          clientMobile: clientMobileValue,
+          clientAddress,
+          clientGstin,
+          clientState,
+          placeOfSupply,
+          gstNo,
+          clientCountry,
+        });
+        
+        const formDataToSet = {
           invoiceDate: format(invoiceDate, 'yyyy-MM-dd'),
           dueDate: format(dueDate, 'yyyy-MM-dd'),
-          clientName: invoice.clientDetails?.name || '',
-          clientAddress: invoice.clientDetails?.address || '',
-          clientGstin: invoice.clientDetails?.gstin || '',
+          clientName: clientName,
+          clientAddress: clientAddress,
+          clientGstin: clientGstin,
           clientState: clientState,
-          placeOfSupply: invoice.clientDetails?.placeOfSupply || '',
-          gstNo: invoice.clientDetails?.gstNo || '',
+          placeOfSupply: placeOfSupply,
+          gstNo: gstNo,
           clientCountry: clientCountry,
-          clientEmail: invoice.clientEmail || '',
-          clientMobile: clientMobile,
+          clientEmail: clientEmail,
+          clientMobile: clientMobileValue,
           hsnSac: invoice.items?.[0]?.hsnSac || '',
           currency: invoice.currencyDetails?.invoiceCurrency || invoice.currency || 'INR',
           exchangeRate: exchangeRate,
@@ -140,6 +209,22 @@ const InvoiceForm = ({ invoice, customers = [], onSubmit, onCancel, onCustomerAd
           tcsPercentage: isIndianClient && tcsPercent > 0 ? String(tcsPercent) : '',
           remittanceCharges: remittance > 0 ? String(remittance) : '',
           status: invoice.status || 'Unpaid',
+        };
+        
+        console.log('📝 Setting form data:', formDataToSet);
+        console.log('📝 Form data client fields check:', {
+          clientName: formDataToSet.clientName,
+          clientEmail: formDataToSet.clientEmail,
+          clientMobile: formDataToSet.clientMobile,
+          clientAddress: formDataToSet.clientAddress,
+          clientGstin: formDataToSet.clientGstin,
+          clientState: formDataToSet.clientState,
+        });
+        
+        // Force set formData - use a function to ensure it's set correctly
+        setFormData(() => {
+          console.log('✅ FormData state setter called with:', formDataToSet);
+          return formDataToSet;
         });
         
         // Load items from invoice
@@ -165,20 +250,9 @@ const InvoiceForm = ({ invoice, customers = [], onSubmit, onCancel, onCustomerAd
           }]);
         }
         
-        // Try to find and select the customer if it exists
-        if (invoice.clientEmail && customers.length > 0) {
-          const foundCustomer = customers.find(
-            c => c.email === invoice.clientEmail && 
-                 c.clientName === invoice.clientDetails?.name
-          );
-          if (foundCustomer) {
-            setSelectedCustomerId(foundCustomer._id);
-          } else {
-            setSelectedCustomerId('');
-          }
-        } else {
-          setSelectedCustomerId('');
-        }
+        // Don't try to match customer here - that will be done in a separate useEffect
+        // This ensures formData is set from invoice FIRST, before customer matching
+        console.log('✅ Invoice data loaded into formData - customer matching will happen separately');
       } catch (error) {
         console.error('Error loading invoice data:', error);
       }
@@ -218,7 +292,131 @@ const InvoiceForm = ({ invoice, customers = [], onSubmit, onCancel, onCustomerAd
       }]);
       setSelectedCustomerId('');
     }
-  }, [invoice?._id, customers]);
+  }, [invoice]); // Only depend on invoice - don't re-run when customers load
+
+  // Separate useEffect for customer matching - only runs when customers or invoice.clientId changes
+  useEffect(() => {
+    // Only run if we have an invoice and customers are loaded
+    if (!invoice || !invoice._id || customers.length === 0) {
+      return;
+    }
+
+    console.log('🔍 Searching for customer to match with invoice...');
+    
+    // Try to find and select the customer if it exists
+    let foundCustomer = null;
+    const invoiceClientDetails = invoice.clientDetails || {};
+    const invoiceClientName = invoiceClientDetails.name || invoice.clientName || '';
+    const invoiceClientEmail = invoice.clientEmail || invoiceClientDetails.email || '';
+    
+    console.log('🔍 Customer search criteria:', {
+      clientId: invoice.clientId,
+      clientName: invoiceClientName,
+      clientEmail: invoiceClientEmail,
+      customersCount: customers.length
+    });
+    
+    // First check if invoice has a clientId (direct link to customer)
+    if (invoice.clientId) {
+      foundCustomer = customers.find(c => c._id === invoice.clientId);
+      if (foundCustomer) {
+        console.log('✅ Found customer by clientId:', foundCustomer.displayName || foundCustomer.clientName);
+      }
+    } 
+    // Otherwise, try to match by email and name
+    if (!foundCustomer && invoiceClientEmail) {
+      foundCustomer = customers.find(
+        c => {
+          const emailMatch = c.email && invoiceClientEmail && 
+            (c.email === invoiceClientEmail || c.email?.toLowerCase() === invoiceClientEmail?.toLowerCase());
+          const nameMatch = invoiceClientName && (
+            c.clientName === invoiceClientName || 
+            c.displayName === invoiceClientName ||
+            c.companyName === invoiceClientName ||
+            (c.clientName && invoiceClientName && c.clientName.toLowerCase() === invoiceClientName.toLowerCase()) ||
+            (c.displayName && invoiceClientName && c.displayName.toLowerCase() === invoiceClientName.toLowerCase()) ||
+            (c.companyName && invoiceClientName && c.companyName.toLowerCase() === invoiceClientName.toLowerCase())
+          );
+          return emailMatch && nameMatch;
+        }
+      );
+      if (foundCustomer) {
+        console.log('✅ Found customer by email + name:', foundCustomer.displayName || foundCustomer.clientName);
+      } else {
+        // Try matching by email only
+        foundCustomer = customers.find(
+          c => c.email && invoiceClientEmail && 
+            (c.email === invoiceClientEmail || c.email?.toLowerCase() === invoiceClientEmail?.toLowerCase())
+        );
+        if (foundCustomer) {
+          console.log('✅ Found customer by email only:', foundCustomer.displayName || foundCustomer.clientName);
+        }
+      }
+    }
+    
+    // If still not found, try matching by name only (case-insensitive)
+    if (!foundCustomer && invoiceClientName) {
+      foundCustomer = customers.find(
+        c => {
+          const name = c.displayName || c.clientName || c.companyName || '';
+          return name && invoiceClientName && 
+            (name === invoiceClientName || name.toLowerCase() === invoiceClientName.toLowerCase());
+        }
+      );
+      if (foundCustomer) {
+        console.log('✅ Found customer by name only:', foundCustomer.displayName || foundCustomer.clientName);
+      }
+    }
+    
+    // ONLY update formData if customer is FOUND
+    if (foundCustomer) {
+      console.log('✅ Customer found - updating formData with customer master data');
+      console.log('✅ Setting selected customer ID:', foundCustomer._id);
+      setSelectedCustomerId(foundCustomer._id);
+      
+      // Auto-fill customer details if customer is found (this will override invoice clientDetails with customer data)
+      // This ensures we use the latest customer data
+      const gstinValue = foundCustomer.gstin !== undefined && foundCustomer.gstin !== null && foundCustomer.gstin !== '' 
+        ? String(foundCustomer.gstin).trim() 
+        : (invoice.clientDetails?.gstin || '');
+      const hsnSacValue = foundCustomer.hsnOrSac !== undefined && foundCustomer.hsnOrSac !== null && foundCustomer.hsnOrSac !== ''
+        ? String(foundCustomer.hsnOrSac).trim()
+        : (invoice.items?.[0]?.hsnSac || '');
+      
+      const clientCountry = foundCustomer.country || foundCustomer.billingAddress?.country || invoice.clientDetails?.country || 'India';
+      const isIndianClient = clientCountry === 'India';
+      const selectedCurrency = foundCustomer.currency || invoice.currencyDetails?.invoiceCurrency || invoice.currency || 'INR';
+      const exchangeRate = getExchangeRate(selectedCurrency);
+      
+      // Update form data with customer details, but preserve invoice-specific data like amounts
+      setFormData(prev => ({
+        ...prev,
+        clientAddress: formatBillingAddress(foundCustomer.billingAddress) || prev.clientAddress,
+        clientGstin: gstinValue,
+        clientState: foundCustomer.state || foundCustomer.billingAddress?.state || prev.clientState,
+        placeOfSupply: foundCustomer.placeOfSupply || prev.placeOfSupply,
+        gstNo: foundCustomer.gstNo || prev.gstNo,
+        clientEmail: foundCustomer.email || prev.clientEmail,
+        clientMobile: formatMobileNumber(foundCustomer.mobile) || prev.clientMobile,
+        hsnSac: hsnSacValue,
+        clientName: foundCustomer.displayName || foundCustomer.clientName || foundCustomer.companyName || prev.clientName,
+        clientCountry: clientCountry,
+        currency: selectedCurrency,
+        exchangeRate: selectedCurrency === 'INR' ? '' : String(exchangeRate),
+        gstPercentage: isIndianClient && foundCustomer.gstPercentage !== undefined && foundCustomer.gstPercentage !== null && foundCustomer.gstPercentage > 0 ? String(foundCustomer.gstPercentage) : prev.gstPercentage,
+        tdsPercentage: isIndianClient && foundCustomer.tdsPercentage !== undefined && foundCustomer.tdsPercentage !== null && foundCustomer.tdsPercentage > 0 ? String(foundCustomer.tdsPercentage) : prev.tdsPercentage,
+        tcsPercentage: isIndianClient && foundCustomer.tcsPercentage !== undefined && foundCustomer.tcsPercentage !== null && foundCustomer.tcsPercentage > 0 ? String(foundCustomer.tcsPercentage) : prev.tcsPercentage,
+      }));
+      console.log('✅ Customer details auto-filled in form');
+    } else {
+      // Customer NOT found - DO NOT update formData
+      // formData already contains invoice data from the first useEffect
+      console.log('⚠️ No matching customer found for invoice');
+      console.log('✅ Keeping invoice clientDetails data in formData (already set from invoice)');
+      setSelectedCustomerId('');
+      // DO NOT call setFormData here - invoice data is already in formData!
+    }
+  }, [customers, invoice?.clientId, invoice?._id]); // Only depend on customers and invoice.clientId
 
   useEffect(() => {
     const fetchItems = async () => {
@@ -970,6 +1168,44 @@ const InvoiceForm = ({ invoice, customers = [], onSubmit, onCancel, onCustomerAd
     // Calculate base amount from items
     const calculatedBaseAmount = submitItems.reduce((total, item) => total + (item.amount || 0), 0);
 
+    // Check if amounts are being changed for a Paid invoice
+    let finalStatus = formData.status || 'Unpaid';
+    if (invoice && invoice.status === 'Paid') {
+      const originalBaseAmount = invoice.amountDetails?.baseAmount || invoice.subTotal || 0;
+      const originalGstPercent = invoice.gstPercentage || 0;
+      const originalTdsPercent = invoice.tdsPercentage || 0;
+      const originalTcsPercent = invoice.tcsPercentage || 0;
+      const originalRemittance = invoice.remittanceCharges || 0;
+      
+      const newBaseAmount = calculatedBaseAmount || originalBaseAmount;
+      const newGstPercent = formData.gstPercentage ? parseFloat(formData.gstPercentage) : originalGstPercent;
+      const newTdsPercent = formData.tdsPercentage ? parseFloat(formData.tdsPercentage) : originalTdsPercent;
+      const newTcsPercent = formData.tcsPercentage ? parseFloat(formData.tcsPercentage) : originalTcsPercent;
+      const newRemittance = formData.remittanceCharges ? parseFloat(formData.remittanceCharges) : originalRemittance;
+      
+      // Check if any amount-related fields have changed
+      const amountsChanged = 
+        Math.abs(newBaseAmount - originalBaseAmount) > 0.01 ||
+        Math.abs(newGstPercent - originalGstPercent) > 0.01 ||
+        Math.abs(newTdsPercent - originalTdsPercent) > 0.01 ||
+        Math.abs(newTcsPercent - originalTcsPercent) > 0.01 ||
+        Math.abs(newRemittance - originalRemittance) > 0.01 ||
+        // Check if items have changed
+        (submitItems.length !== invoice.items?.length) ||
+        submitItems.some((item, index) => {
+          const originalItem = invoice.items?.[index];
+          return !originalItem || 
+                 Math.abs(item.amount - (originalItem.amount || 0)) > 0.01 ||
+                 item.description !== originalItem.description;
+        });
+      
+      if (amountsChanged) {
+        console.log('💰 Paid invoice amounts changed - automatically setting status to Unpaid');
+        finalStatus = 'Unpaid';
+        // Don't send status explicitly - let backend handle it, but we'll set it to Unpaid
+      }
+    }
+
     const submitData = {
       ...formData,
       invoiceDate: formData.invoiceDate,
@@ -983,16 +1219,53 @@ const InvoiceForm = ({ invoice, customers = [], onSubmit, onCancel, onCustomerAd
       clientName: formData.clientName || invoice?.clientDetails?.name || '',
       clientCountry: formData.clientCountry || invoice?.clientDetails?.country || 'India',
       currency: formData.currency || 'INR',
-      status: formData.status || 'Unpaid',
+      // For Paid invoices with changed amounts, don't send status (backend will auto-set to Unpaid)
+      // For other cases, send the status
+      status: (invoice && invoice.status === 'Paid' && finalStatus === 'Unpaid') ? undefined : finalStatus,
       items: submitItems, // Include items array
     };
 
     onSubmit(submitData);
   };
 
+  // Debug: Log formData whenever it changes to see if it's being set correctly
   useEffect(() => {
-    if (invoice) {
-      if (invoice.clientAddress || invoice.clientGstin || invoice.clientState) setShowClientDetails(true);
+    if (invoice && invoice._id) {
+      console.log('🔍 Current formData state:', {
+        clientName: formData.clientName,
+        clientEmail: formData.clientEmail,
+        clientMobile: formData.clientMobile,
+        clientAddress: formData.clientAddress,
+        clientGstin: formData.clientGstin,
+        clientState: formData.clientState,
+      });
+    }
+  }, [formData, invoice]);
+
+  useEffect(() => {
+    if (invoice && invoice._id) {
+      // Auto-expand Client Details section when editing invoice with client data
+      const hasClientData = invoice.clientDetails?.address || invoice.clientDetails?.gstin || invoice.clientDetails?.state || 
+          invoice.clientEmail || invoice.clientMobile || invoice.clientDetails?.placeOfSupply ||
+          invoice.clientDetails?.name || invoice.clientDetails?.gstNo ||
+          invoice.clientAddress || invoice.clientGstin || invoice.clientState;
+      
+      if (hasClientData) {
+        console.log('📝 Auto-expanding Client Details section - invoice has client data');
+        console.log('📋 Client data check:', {
+          address: invoice.clientDetails?.address,
+          gstin: invoice.clientDetails?.gstin,
+          state: invoice.clientDetails?.state,
+          email: invoice.clientEmail,
+          mobile: invoice.clientMobile,
+          placeOfSupply: invoice.clientDetails?.placeOfSupply,
+          name: invoice.clientDetails?.name,
+          gstNo: invoice.clientDetails?.gstNo,
+        });
+        setShowClientDetails(true);
+      } else {
+        console.log('⚠️ No client data found in invoice - Client Details section will remain collapsed');
+      }
       if (invoice.notes) setShowAdditionalInfo(true);
     }
   }, [invoice]);
@@ -1045,48 +1318,49 @@ const InvoiceForm = ({ invoice, customers = [], onSubmit, onCancel, onCustomerAd
         </div>
       )}
       <form onSubmit={handleSubmit} className={invoice ? 'space-y-6' : 'space-y-3'}>
+        {/* Customer Name Section - Show for both create and edit */}
+        <div>
+          <label className="form-label">Customer Name *</label>
+          <div className="flex gap-3">
+            <MobileSelect
+              value={selectedCustomerId}
+              onChange={handleCustomerSelect}
+              required
+              className="select-field-compact flex-1"
+            >
+              <option value="">Select or add a customer</option>
+              {customers.map((customer) => (
+                <option key={customer._id} value={customer._id}>
+                  {customer.displayName || customer.clientName || customer.companyName} - {customer.email} - {customer.country || 'India'} ({customer.currency || 'INR'})
+                </option>
+              ))}
+            </MobileSelect>
+            <button
+              type="button"
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                // Navigate to customers page with return state
+                // Always use /invoices as return path (standard route)
+                navigate('/customers', {
+                  state: {
+                    returnTo: '/invoices',
+                    returnState: {
+                      showInvoiceForm: true,
+                      invoiceId: invoice?._id,
+                    },
+                  },
+                });
+              }}
+              className="px-4 py-2 bg-finance-blue text-white rounded-md hover:bg-finance-blueLight transition-colors text-sm font-medium"
+            >
+              + Add
+            </button>
+          </div>
+        </div>
+
         {!invoice && (
           <>
-            {/* Customer Name Section */}
-            <div>
-              <label className="form-label">Customer Name *</label>
-              <div className="flex gap-3">
-                <MobileSelect
-                  value={selectedCustomerId}
-                  onChange={handleCustomerSelect}
-                  required
-                  className="select-field-compact flex-1"
-                >
-                  <option value="">Select or add a customer</option>
-                  {customers.map((customer) => (
-                    <option key={customer._id} value={customer._id}>
-                      {customer.clientName} - {customer.email} - {customer.country} ({customer.currency})
-                    </option>
-                  ))}
-                </MobileSelect>
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    // Navigate to customers page with return state
-                    // Always use /invoices as return path (standard route)
-                    navigate('/customers', {
-                      state: {
-                        returnTo: '/invoices',
-                        returnState: {
-                          showInvoiceForm: true,
-                          invoiceId: invoice?._id,
-                        },
-                      },
-                    });
-                  }}
-                  className="px-4 py-2 bg-finance-blue text-white rounded-md hover:bg-finance-blueLight transition-colors text-sm font-medium"
-                >
-                  + Add
-                </button>
-              </div>
-            </div>
 
             {/* Add New Customer Form */}
             {showAddCustomer && (
@@ -1293,35 +1567,15 @@ const InvoiceForm = ({ invoice, customers = [], onSubmit, onCancel, onCustomerAd
               value={formData.status}
               onChange={handleChange}
               required
-              disabled={!invoice || formData.status === 'Paid'}
-              className={`select-field-compact ${(!invoice || formData.status === 'Paid') ? 'bg-slate-50 cursor-not-allowed' : ''}`}
+              disabled={false}
+              className="select-field-compact"
             >
               <option value="Unpaid">Unpaid</option>
-              {!invoice ? null : (
-                <>
-                  {formData.status === 'Unpaid' && (
-                    <>
-                      <option value="Partial">Partial</option>
-                      <option value="Paid">Paid</option>
-                    </>
-                  )}
-                  {formData.status === 'Partial' && (
-                    <>
-                      <option value="Partial">Partial</option>
-                      <option value="Paid">Paid</option>
-                    </>
-                  )}
-                  {formData.status === 'Paid' && (
-                    <option value="Paid">Paid</option>
-                  )}
-                </>
-              )}
+              <option value="Partial">Partial</option>
+              <option value="Paid">Paid</option>
             </MobileSelect>
             {invoice && formData.status === 'Paid' && (
-              <p className="text-xs text-gray-500 mt-1">Status is frozen once set to "Paid"</p>
-            )}
-            {invoice && formData.status === 'Partial' && (
-              <p className="text-xs text-blue-600 mt-1 font-medium">Can only change to "Paid"</p>
+              <p className="text-xs text-gray-500 mt-1">Status will change to "Unpaid" if amounts are edited</p>
             )}
           </div>
         </div>
@@ -1409,13 +1663,19 @@ const InvoiceForm = ({ invoice, customers = [], onSubmit, onCancel, onCustomerAd
                               const value = e.target.value;
                               handleItemChange(item.id, 'description', value);
                               
-                              // Auto-fill rate when item is selected from dropdown or typed exactly
+                              // Auto-fill rate and hsnSac when item is selected from dropdown or typed exactly
                               const matchedItem = existingItems.find(
                                 existingItem => existingItem.name.toLowerCase().trim() === value.toLowerCase().trim()
                               );
-                              if (matchedItem && matchedItem.sellingPrice && matchedItem.sellingPrice > 0) {
-                                // Auto-fill rate immediately when item matches
-                                handleItemChange(item.id, 'rate', matchedItem.sellingPrice);
+                              if (matchedItem) {
+                                if (matchedItem.sellingPrice && matchedItem.sellingPrice > 0) {
+                                  // Auto-fill rate immediately when item matches
+                                  handleItemChange(item.id, 'rate', matchedItem.sellingPrice);
+                                }
+                                if (matchedItem.hsnSac && matchedItem.hsnSac.trim()) {
+                                  // Auto-fill hsnSac when item matches
+                                  handleItemChange(item.id, 'hsnSac', matchedItem.hsnSac.trim());
+                                }
                               }
                             }}
                             onBlur={(e) => {
@@ -1425,10 +1685,13 @@ const InvoiceForm = ({ invoice, customers = [], onSubmit, onCancel, onCustomerAd
                                 existingItem => existingItem.name.toLowerCase().trim() === value.toLowerCase().trim()
                               );
                               if (matchedItem) {
-                                // Update description, rate if available
+                                // Update description, rate, and hsnSac if available
                                 handleItemChange(item.id, 'description', matchedItem.name);
                                 if (matchedItem.sellingPrice && matchedItem.sellingPrice > 0) {
                                   handleItemChange(item.id, 'rate', matchedItem.sellingPrice);
+                                }
+                                if (matchedItem.hsnSac && matchedItem.hsnSac.trim()) {
+                                  handleItemChange(item.id, 'hsnSac', matchedItem.hsnSac.trim());
                                 }
                               }
                             }}

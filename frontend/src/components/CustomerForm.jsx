@@ -7,6 +7,7 @@ const CustomerForm = ({ customer, onSubmit, onCancel }) => {
   const { showToast } = useToast();
   const [activeTab, setActiveTab] = useState('details'); // 'details', 'address', 'otherInfo'
   const [isDisplayNameManuallyEdited, setIsDisplayNameManuallyEdited] = useState(false);
+  const [showClientDetails, setShowClientDetails] = useState(false);
   const [formData, setFormData] = useState({
     // Primary Contact
     salutation: '',
@@ -34,6 +35,7 @@ const CustomerForm = ({ customer, onSubmit, onCancel }) => {
     pan: '',
     placeOfSupply: '',
     gstNo: '',
+    gstin: '',
     currency: 'INR',
     paymentTerms: 'Due on Receipt',
     documents: [],
@@ -99,6 +101,7 @@ const CustomerForm = ({ customer, onSubmit, onCancel }) => {
         pan: customer.pan || '',
         placeOfSupply: customer.placeOfSupply || '',
         gstNo: customer.gstNo || '',
+        gstin: customer.gstin || '',
         currency: customer.currency || 'INR',
         paymentTerms: customer.paymentTerms || 'Due on Receipt',
         documents: customer.documents || [],
@@ -250,6 +253,7 @@ const CustomerForm = ({ customer, onSubmit, onCancel }) => {
       mobile: typeof formData.mobile === 'object' 
         ? formData.mobile.number 
         : formData.mobile || '',
+      gstin: formData.gstin || '', // Include GSTIN field
     };
     
     onSubmit(submitData);
@@ -488,6 +492,109 @@ const CustomerForm = ({ customer, onSubmit, onCancel }) => {
                           className="input-field flex-1 text-sm py-2.5 text-gray-900"
                           placeholder="Mobile"
                           style={{ color: '#111827', fontSize: '14px' }}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Client Details Section - Matching Invoice Form */}
+                <div className="space-y-4 border-b border-gray-200 pb-5">
+                  <button
+                    type="button"
+                    onClick={() => setShowClientDetails(!showClientDetails)}
+                    className="accordion-header w-full"
+                  >
+                    <span>Client Details</span>
+                    <span>{showClientDetails ? '−' : '+'}</span>
+                  </button>
+                  <div className={`accordion-content ${showClientDetails ? 'max-h-[700px] mt-1' : 'max-h-0'}`}>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="md:col-span-2">
+                        <label className="form-label text-xs font-medium text-gray-700 mb-1.5 block">
+                          Client Email <span className="text-red-500">*</span>
+                        </label>
+                        <input
+                          type="email"
+                          name="email"
+                          value={formData.email}
+                          onChange={handleChange}
+                          required
+                          className="input-field w-full text-sm py-2"
+                          placeholder="Enter client email"
+                        />
+                      </div>
+                      <div>
+                        <label className="form-label text-xs font-medium text-gray-700 mb-1.5 block">Client Mobile</label>
+                        <input
+                          type="tel"
+                          value={formData.mobile?.number || ''}
+                          onChange={(e) => handlePhoneChange('mobile', 'number', e.target.value)}
+                          className="input-field w-full text-sm py-2"
+                          placeholder="Enter mobile"
+                        />
+                      </div>
+                      {(formData.billingAddress?.country === 'India' || !formData.billingAddress?.country) && (
+                        <>
+                          <div>
+                            <label className="form-label text-xs font-medium text-gray-700 mb-1.5 block">Client State</label>
+                            <MobileSelect
+                              value={formData.billingAddress?.state || ''}
+                              onChange={(e) => handleNestedChange('billingAddress', 'state', e.target.value)}
+                              className="select-field w-full text-sm py-2"
+                            >
+                              <option value="">Select State</option>
+                              {indianStates.map((state) => (
+                                <option key={state} value={state}>{state}</option>
+                              ))}
+                            </MobileSelect>
+                          </div>
+                          <div>
+                            <label className="form-label text-xs font-medium text-gray-700 mb-1.5 block">Place of Supply</label>
+                            <MobileSelect
+                              name="placeOfSupply"
+                              value={formData.placeOfSupply}
+                              onChange={handleChange}
+                              className="select-field w-full text-sm py-2"
+                            >
+                              <option value="">Select State</option>
+                              {indianStates.map((state) => (
+                                <option key={state} value={state}>{state}</option>
+                              ))}
+                            </MobileSelect>
+                          </div>
+                          <div>
+                            <label className="form-label text-xs font-medium text-gray-700 mb-1.5 block">Client GSTIN</label>
+                            <input
+                              type="text"
+                              name="gstin"
+                              value={formData.gstin}
+                              onChange={handleChange}
+                              className="input-field w-full text-sm py-2"
+                              placeholder="Enter GSTIN"
+                            />
+                          </div>
+                          <div>
+                            <label className="form-label text-xs font-medium text-gray-700 mb-1.5 block">GST No</label>
+                            <input
+                              type="text"
+                              name="gstNo"
+                              value={formData.gstNo}
+                              onChange={handleChange}
+                              className="input-field w-full text-sm py-2"
+                              placeholder="Enter GST Number"
+                            />
+                          </div>
+                        </>
+                      )}
+                      <div className="md:col-span-2">
+                        <label className="form-label text-xs font-medium text-gray-700 mb-1.5 block">Client Address</label>
+                        <textarea
+                          value={formData.billingAddress?.street1 || ''}
+                          onChange={(e) => handleNestedChange('billingAddress', 'street1', e.target.value)}
+                          className="input-field w-full text-sm py-2"
+                          placeholder="Enter client address"
+                          rows="2"
                         />
                       </div>
                     </div>

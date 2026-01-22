@@ -8,6 +8,7 @@ import InvoiceViewEdit from '../components/InvoiceViewEdit';
 import RecurringInvoiceModal from '../components/RecurringInvoiceModal';
 import PaymentModal from '../components/PaymentModal';
 import ConfirmationModal from '../components/ConfirmationModal';
+import EmailConfirmationModal from '../components/EmailConfirmationModal';
 import { getAuthToken } from '../utils/auth';
 import { useToast } from '../contexts/ToastContext';
 import MobileSelect from '../components/MobileSelect';
@@ -26,6 +27,7 @@ const Invoices = () => {
   const [editingInvoice, setEditingInvoice] = useState(null);
   const [viewingInvoice, setViewingInvoice] = useState(null);
   const [pendingCustomerSelect, setPendingCustomerSelect] = useState(null);
+  const [searchQuery, setSearchQuery] = useState('');
   const [filters, setFilters] = useState({
     year: '',
     status: '',
@@ -40,6 +42,8 @@ const Invoices = () => {
   const [pdfLoading, setPdfLoading] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState({ show: false, id: null });
+  const [bulkDeleteConfirm, setBulkDeleteConfirm] = useState({ show: false, invoiceIds: [] });
+  const [emailConfirm, setEmailConfirm] = useState({ show: false, invoiceData: null, clientEmail: '' });
   const [importing, setImporting] = useState(false);
   const invoiceImportInputRef = useRef(null);
 
@@ -78,7 +82,7 @@ const Invoices = () => {
     fetchInvoices();
     // Always fetch customers to keep dropdown updated
     fetchCustomers();
-  }, [filters]);
+  }, [filters, searchQuery]);
 
   // Ensure customers are loaded when invoice form is shown
   useEffect(() => {
@@ -114,6 +118,65 @@ const Invoices = () => {
         );
       }
       
+      // Client-side search filtering - search across multiple fields
+      if (searchQuery.trim()) {
+        const query = searchQuery.toLowerCase().trim();
+        filteredInvoices = filteredInvoices.filter(invoice => {
+          // Search in invoice number
+          const invoiceNumberMatch = invoice.invoiceNumber && 
+            invoice.invoiceNumber.toLowerCase().includes(query);
+          
+          // Search in client name
+          const clientNameMatch = invoice.clientDetails?.name && 
+            invoice.clientDetails.name.toLowerCase().includes(query);
+          
+          // Search in client email
+          const clientEmailMatch = invoice.clientEmail && 
+            invoice.clientEmail.toLowerCase().includes(query);
+          
+          // Search in service/description
+          const serviceMatch = invoice.service && 
+            invoice.service.toLowerCase().includes(query);
+          
+          // Search in items description
+          const itemsMatch = invoice.items && invoice.items.some(item => 
+            item.description && item.description.toLowerCase().includes(query)
+          );
+          
+          // Search in invoice date (format: DD/MM/YYYY)
+          const invoiceDate = invoice.invoiceDate ? new Date(invoice.invoiceDate) : null;
+          let dateMatch = false;
+          if (invoiceDate && !isNaN(invoiceDate.getTime())) {
+            const dateStr = `${String(invoiceDate.getDate()).padStart(2, '0')}/${String(invoiceDate.getMonth() + 1).padStart(2, '0')}/${invoiceDate.getFullYear()}`;
+            dateMatch = dateStr.includes(query);
+          }
+          
+          // Search in due date
+          const dueDate = invoice.dueDate ? new Date(invoice.dueDate) : null;
+          let dueDateMatch = false;
+          if (dueDate && !isNaN(dueDate.getTime())) {
+            const dueDateStr = `${String(dueDate.getDate()).padStart(2, '0')}/${String(dueDate.getMonth() + 1).padStart(2, '0')}/${dueDate.getFullYear()}`;
+            dueDateMatch = dueDateStr.includes(query);
+          }
+          
+          // Search in amount (grand total, subtotal, receivable)
+          const grandTotal = (invoice.grandTotal || invoice.amountDetails?.invoiceTotal || 0).toString();
+          const subtotal = (invoice.subTotal || invoice.amountDetails?.baseAmount || 0).toString();
+          const receivable = (invoice.amountDetails?.receivableAmount || 0).toString();
+          const amountMatch = grandTotal.includes(query) || 
+                             subtotal.includes(query) || 
+                             receivable.includes(query);
+          
+          // Search in status
+          const statusMatch = invoice.status && 
+            invoice.status.toLowerCase().includes(query);
+          
+          return invoiceNumberMatch || clientNameMatch || clientEmailMatch || 
+                 serviceMatch || itemsMatch || dateMatch || dueDateMatch || 
+                 amountMatch || statusMatch;
+        });
+      }
+      
       setInvoices(filteredInvoices);
     } catch (error) {
       console.error('Error fetching invoices:', error);
@@ -139,9 +202,36 @@ const Invoices = () => {
   };
 
 
-  const handleEdit = (invoice) => {
-    setEditingInvoice(invoice);
-    setShowForm(true);
+  const handleEdit = async (invoice) => {
+    console.log('✏️ Edit invoice clicked:', invoice);
+    if (invoice && invoice._id) {
+      try {
+        // Fetch fresh invoice data to ensure we have all fields including clientDetails
+        console.log('📥 Fetching full invoice data for editing...');
+        const response = await invoiceAPI.getById(invoice._id);
+        if (response.data) {
+          console.log('✅ Full invoice data fetched:', response.data);
+          console.log('📋 Client Details:', response.data.clientDetails);
+          console.log('📧 Client Email:', response.data.clientEmail);
+          console.log('📱 Client Mobile:', response.data.clientMobile);
+          setEditingInvoice(response.data);
+          setShowForm(true);
+        } else {
+          console.warn('⚠️ No invoice data in response, using provided invoice');
+          setEditingInvoice(invoice);
+          setShowForm(true);
+        }
+      } catch (error) {
+        console.error('❌ Error fetching invoice for editing:', error);
+        showToast('Failed to load invoice data. Using cached data.', 'warning');
+        // Fallback to provided invoice data
+        setEditingInvoice(invoice);
+        setShowForm(true);
+      }
+    } else {
+      console.error('❌ Invoice is null, undefined, or missing _id:', invoice);
+      showToast('Error: Cannot edit invoice. Invoice data is invalid.', 'error');
+    }
   };
 
   const handleDelete = async (id) => {
@@ -162,24 +252,51 @@ const Invoices = () => {
     }
   };
 
+  const handleBulkDelete = () => {
+    if (selectedInvoices.length === 0) {
+      showToast('Please select at least one invoice to delete', 'warning');
+      return;
+    }
+    setBulkDeleteConfirm({ show: true, invoiceIds: selectedInvoices });
+  };
+
+  const handleBulkDeleteConfirm = async () => {
+    if (!bulkDeleteConfirm.invoiceIds || bulkDeleteConfirm.invoiceIds.length === 0) return;
+    try {
+      const response = await invoiceAPI.deleteMultiple(bulkDeleteConfirm.invoiceIds);
+      showToast(`Successfully deleted ${response.data.deletedCount} invoice(s)`, 'success');
+      setBulkDeleteConfirm({ show: false, invoiceIds: [] });
+      setSelectedInvoices([]); // Clear selection
+      fetchInvoices();
+    } catch (error) {
+      console.error('Error deleting invoices:', error);
+      const errorMessage = error.response?.data?.message || 'Failed to delete invoices';
+      showToast(errorMessage, 'error');
+      setBulkDeleteConfirm({ show: false, invoiceIds: [] });
+    }
+  };
+
   const handleClearFilters = () => {
     setFilters({
       year: '',
       status: '',
       clientName: '',
     });
+    setSearchQuery(''); // Also clear search when clearing filters
   };
 
   const handleFormSubmit = async (data) => {
     try {
       if (editingInvoice) {
-        const response = await invoiceAPI.update(editingInvoice._id, data);
-        const invoiceData = response.data;
-        
-        // Show instant success message
-        const emailToShow = invoiceData.clientEmail || data.clientEmail || 'client';
-        showToast(`Invoice updated successfully! Email is being sent to ${emailToShow}.`, 'success');
+        // Show email confirmation modal for editing invoices
+        const clientEmail = data.clientEmail || editingInvoice.clientEmail || '';
+        setEmailConfirm({ 
+          show: true, 
+          invoiceData: data, 
+          clientEmail: clientEmail 
+        });
       } else {
+        // For new invoices, create directly (email is always sent for new invoices)
         // Validate email is present for new invoices
         if (!data.clientEmail || data.clientEmail.trim() === '') {
           showToast('Error: Client email is required to send the invoice', 'error');
@@ -197,10 +314,10 @@ const Invoices = () => {
         
         // Show instant success message
         showToast(`Invoice created successfully! Email is being sent to ${invoiceData.clientEmail || data.clientEmail}.`, 'success');
+        setShowForm(false);
+        setEditingInvoice(null);
+        fetchInvoices();
       }
-      setShowForm(false);
-      setEditingInvoice(null);
-      fetchInvoices();
     } catch (error) {
       console.error('Error saving invoice:', error);
       console.error('Error response:', error.response?.data);
@@ -220,6 +337,50 @@ const Invoices = () => {
     }
   };
 
+  const handleEmailConfirm = async (sendEmail) => {
+    if (!emailConfirm.invoiceData) return;
+    
+    try {
+      // Add sendEmail flag to the data
+      const dataWithEmailFlag = {
+        ...emailConfirm.invoiceData,
+        sendEmail: sendEmail, // Add flag to control email sending
+      };
+      
+      const response = await invoiceAPI.update(editingInvoice._id, dataWithEmailFlag);
+      const invoiceData = response.data;
+      
+      // Show success message based on email sending
+      if (sendEmail && emailConfirm.clientEmail) {
+        showToast(`Invoice updated successfully! Email is being sent to ${emailConfirm.clientEmail}.`, 'success');
+      } else {
+        showToast('Invoice updated successfully!', 'success');
+      }
+      
+      setEmailConfirm({ show: false, invoiceData: null, clientEmail: '' });
+      setShowForm(false);
+      setEditingInvoice(null);
+      fetchInvoices();
+    } catch (error) {
+      console.error('Error updating invoice:', error);
+      console.error('Error response:', error.response?.data);
+      let errorMessage = 'Failed to update invoice';
+      
+      if (error.code === 'ERR_NETWORK' || error.message?.includes('Network Error')) {
+        errorMessage = 'Cannot connect to server. Please ensure the backend server is running on port 5000.';
+      } else if (error.response?.data?.message) {
+        errorMessage = error.response.data.message;
+      } else if (error.response?.data?.error) {
+        errorMessage = error.response.data.error;
+      } else if (error.message) {
+        errorMessage = error.message;
+      }
+      
+      showToast(errorMessage, 'error');
+      setEmailConfirm({ show: false, invoiceData: null, clientEmail: '' });
+    }
+  };
+
   const handleRecurringInvoiceSubmit = async (data) => {
     try {
       const response = await recurringInvoiceAPI.create(data);
@@ -235,8 +396,24 @@ const Invoices = () => {
   };
 
   const handleRecordPayment = (invoice) => {
+    if (invoice.status === 'Void') {
+      showToast('Cannot record payment for a voided invoice', 'error');
+      return;
+    }
     setSelectedInvoiceForPayment(invoice);
     setShowPaymentModal(true);
+  };
+
+  const handleVoid = async (id) => {
+    try {
+      await invoiceAPI.void(id);
+      showToast('Invoice voided successfully', 'success');
+      fetchInvoices();
+    } catch (error) {
+      console.error('Error voiding invoice:', error);
+      const errorMessage = error.response?.data?.message || 'Failed to void invoice';
+      showToast(errorMessage, 'error');
+    }
   };
 
   const handlePaymentRecorded = () => {
@@ -349,20 +526,85 @@ const Invoices = () => {
     e.target.value = '';
     if (!file) return;
 
+    // Validate file type
+    const validExtensions = ['.xlsx', '.xls'];
+    const fileName = file.name.toLowerCase();
+    const isValidFile = validExtensions.some(ext => fileName.endsWith(ext));
+    
+    if (!isValidFile) {
+      showToast('Invalid file type. Please upload an Excel file (.xlsx or .xls)', 'error');
+      return;
+    }
+
+    // Validate file size (max 10MB)
+    const maxSize = 10 * 1024 * 1024; // 10MB
+    if (file.size > maxSize) {
+      showToast('File size exceeds 10MB limit. Please upload a smaller file.', 'error');
+      return;
+    }
+
     try {
       setImporting(true);
+      console.log('📥 Starting invoice import...', { fileName: file.name, fileSize: file.size });
+      
       const resp = await invoiceAPI.import(file);
       const imported = resp?.data?.imported ?? 0;
       const skipped = resp?.data?.skipped ?? 0;
+      const mastersCreated = resp?.data?.mastersCreated || { customers: 0, items: 0 };
+      const errors = resp?.data?.errors || [];
 
-      showToast(resp?.data?.message || `Imported ${imported} invoice(s). Skipped ${skipped}.`, 'success');
+      // Build message with master creation info
+      let message = resp?.data?.message || `Imported ${imported} invoice(s). Skipped ${skipped}.`;
+      if (mastersCreated.customers > 0 || mastersCreated.items > 0) {
+        const masterParts = [];
+        if (mastersCreated.customers > 0) {
+          masterParts.push(`${mastersCreated.customers} customer${mastersCreated.customers === 1 ? '' : 's'}`);
+        }
+        if (mastersCreated.items > 0) {
+          masterParts.push(`${mastersCreated.items} item${mastersCreated.items === 1 ? '' : 's'}`);
+        }
+        message += ` Created ${masterParts.join(' and ')}.`;
+      }
+
+      // Show errors if any (limit to first 5 for toast)
+      if (errors.length > 0) {
+        const errorPreview = errors.slice(0, 5).join('; ');
+        const moreErrors = errors.length > 5 ? ` and ${errors.length - 5} more error(s)` : '';
+        console.warn('⚠️ Import completed with errors:', errors);
+        showToast(`${message} Errors: ${errorPreview}${moreErrors}. Check console for details.`, 'warning');
+      } else {
+        showToast(message, 'success');
+      }
 
       // Refresh lists
       await fetchInvoices();
       await fetchAllInvoicesForDropdown();
+      await fetchCustomers(); // Refresh customers as they may have been created during import
+
+      // Notify other pages to refresh (Items and Customers pages)
+      // This will trigger a refresh if those pages are open
+      // Dispatch custom event for same-tab communication
+      window.dispatchEvent(new CustomEvent('refreshMasters'));
+      // Also set in localStorage to trigger storage event (works across tabs)
+      localStorage.setItem('refreshMasters', Date.now().toString());
+      // Remove immediately to allow future updates
+      setTimeout(() => localStorage.removeItem('refreshMasters'), 100);
     } catch (error) {
-      console.error('Error importing invoices:', error);
-      showToast(error?.response?.data?.message || 'Failed to import invoices from Excel', 'error');
+      console.error('❌ Error importing invoices:', error);
+      console.error('Error details:', error.response?.data);
+      
+      // Provide more detailed error messages
+      let errorMessage = 'Failed to import invoices from Excel';
+      if (error.response?.data?.message) {
+        errorMessage = error.response.data.message;
+      } else if (error.response?.data?.errors && Array.isArray(error.response.data.errors)) {
+        const errorList = error.response.data.errors.slice(0, 10).join('; ');
+        errorMessage = `Import failed: ${errorList}${error.response.data.errors.length > 10 ? ' (and more...)' : ''}`;
+      } else if (error.message) {
+        errorMessage = error.message;
+      }
+      
+      showToast(errorMessage, 'error');
     } finally {
       setImporting(false);
     }
@@ -386,15 +628,46 @@ const Invoices = () => {
             onChange={handleInvoiceImportFileChange}
           />
           {!showForm && (
-            <button
-              onClick={() => setShowFilters(!showFilters)}
-              className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 transition-colors flex items-center gap-2"
-            >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
-              </svg>
-              <span>Filters</span>
-            </button>
+            <>
+              {/* Search Input */}
+              <div className="relative">
+                <input
+                  type="text"
+                  placeholder="Search invoices..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="pl-10 pr-4 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-finance-blue focus:border-transparent w-64"
+                />
+                <svg 
+                  className="absolute left-3 top-2.5 w-5 h-5 text-gray-400" 
+                  fill="none" 
+                  stroke="currentColor" 
+                  viewBox="0 0 24 24"
+                >
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                </svg>
+                {searchQuery && (
+                  <button
+                    onClick={() => setSearchQuery('')}
+                    className="absolute right-2 top-2 text-gray-400 hover:text-gray-600"
+                    title="Clear search"
+                  >
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                )}
+              </div>
+              <button
+                onClick={() => setShowFilters(!showFilters)}
+                className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 transition-colors flex items-center gap-2"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
+                </svg>
+                <span>Filters</span>
+              </button>
+            </>
           )}
           {!showForm && (
             <button
@@ -674,12 +947,23 @@ const Invoices = () => {
                       <span className="text-sm font-medium text-blue-800">
                         {selectedInvoices.length} invoice(s) selected
                       </span>
-                      <button
-                        onClick={() => setShowRecurringModal(true)}
-                        className="px-4 py-2 bg-finance-blue text-white rounded-md hover:bg-finance-blueLight transition-colors text-sm font-medium"
-                      >
-                        Set as Recurring
-                      </button>
+                      <div className="flex items-center gap-3">
+                        <button
+                          onClick={handleBulkDelete}
+                          className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 transition-colors text-sm font-medium flex items-center gap-2"
+                        >
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                          </svg>
+                          Delete Selected
+                        </button>
+                        <button
+                          onClick={() => setShowRecurringModal(true)}
+                          className="px-4 py-2 bg-finance-blue text-white rounded-md hover:bg-finance-blueLight transition-colors text-sm font-medium"
+                        >
+                          Set as Recurring
+                        </button>
+                      </div>
                     </div>
                   )}
                   <InvoiceTable 
@@ -749,6 +1033,26 @@ const Invoices = () => {
         confirmText="Delete"
         cancelText="Cancel"
         confirmButtonColor="red"
+      />
+
+      {/* Bulk Delete Confirmation Modal */}
+      <ConfirmationModal
+        isOpen={bulkDeleteConfirm.show}
+        onClose={() => setBulkDeleteConfirm({ show: false, invoiceIds: [] })}
+        onConfirm={handleBulkDeleteConfirm}
+        title="Confirm Bulk Delete"
+        message={`Are you sure you want to delete ${bulkDeleteConfirm.invoiceIds.length} invoice(s)? This action cannot be undone.`}
+        confirmText={`Delete ${bulkDeleteConfirm.invoiceIds.length} Invoice(s)`}
+        cancelText="Cancel"
+        confirmButtonColor="red"
+      />
+
+      {/* Email Confirmation Modal */}
+      <EmailConfirmationModal
+        isOpen={emailConfirm.show}
+        onClose={() => setEmailConfirm({ show: false, invoiceData: null, clientEmail: '' })}
+        onConfirm={handleEmailConfirm}
+        clientEmail={emailConfirm.clientEmail}
       />
 
     </div>

@@ -4,6 +4,7 @@ import path from 'path';
 import https from 'https';
 import Settings from '../models/Settings.js';
 import Customer from '../models/Customer.js';
+import Item from '../models/Item.js';
 import { DESIGN_SYSTEM, formatCurrency, formatDate, getCurrencySymbol } from './pdfDesignSystem.js';
 
 // Current market exchange rates (as of 2026)
@@ -156,10 +157,6 @@ const drawCompanyBlock = async (doc, startY) => {
     });
     
     currentY += logoHeight + spacing.xs;
-    doc.fillColor(colors.textGray)
-      .fontSize(fontSize.md)
-      .font(fonts.oblique)
-      .text('Connect. Communicate. Collaborate', layout.leftMargin, currentY);
   } catch (error) {
     console.error('Error loading logo, using text fallback:', error);
     doc.fillColor(colors.primaryBlue)
@@ -171,26 +168,27 @@ const drawCompanyBlock = async (doc, startY) => {
       .fontSize(fontSize.md)
       .font(fonts.oblique)
       .text('Connect. Communicate. Collaborate', layout.leftMargin, currentY);
+    currentY += spacing.sm;
   }
   
   // Company Information
-  currentY += SECTION_GAP;
+  currentY += spacing.sm;
   doc.fillColor(colors.darkText)
     .fontSize(fontSize.xl)
     .font(fonts.bold)
     .text('Kology Ventures Private Limited', layout.leftMargin, currentY);
   
-  currentY += 18;
+  currentY += spacing.md;
   doc.fontSize(fontSize.base)
     .font(fonts.regular)
     .fillColor(colors.textGray);
   
   doc.text('Gandhinagar, Gujarat 382421, India', layout.leftMargin, currentY);
-  currentY += 13;
+  currentY += spacing.sm;
   doc.text('GSTIN: 24AALCK3637K1Z9', layout.leftMargin, currentY);
-  currentY += 13;
+  currentY += spacing.sm;
   doc.text('Phone: +91 9328850777 | Email: mihir@kology.in', layout.leftMargin, currentY);
-  currentY += 13;
+  currentY += spacing.sm;
   doc.text('Website: www.kology.co', layout.leftMargin, currentY);
   
   return currentY + SECTION_GAP;
@@ -217,16 +215,16 @@ const drawInvoiceMeta = (
 
   let currentY = startY;
 
-  // Title - smaller size as requested
+  // Title - larger size for prominence
   doc.fillColor(colors.darkText)
     .font(fonts.bold)
-    .fontSize(14) // Reduced to 14 for smaller size
+    .fontSize(18) // Increased to 18 for better visibility
     .text('TAX INVOICE', invoiceBoxX, currentY, {
       align: 'right',
       width: invoiceBoxWidth
     });
 
-  currentY += 25; // Reduced spacing after title
+  currentY += spacing.md; // Spacing after title
 
   // Invoice number
   doc.fontSize(12)
@@ -235,7 +233,7 @@ const drawInvoiceMeta = (
       width: invoiceBoxWidth
     });
 
-  currentY += 22;
+  currentY += spacing.lg;
 
   // Balance Due (label + amount)
   doc.fillColor(colors.textGray)
@@ -246,7 +244,7 @@ const drawInvoiceMeta = (
       width: invoiceBoxWidth
     });
 
-  currentY += 12;
+  currentY += spacing.sm;
 
   doc.fillColor(colors.darkText)
     .fontSize(14) // reduced from 22
@@ -256,7 +254,7 @@ const drawInvoiceMeta = (
       width: invoiceBoxWidth
     });
 
-  currentY += 26;
+  currentY += spacing.lg;
 
   // Meta details
   doc.fillColor(colors.textGray)
@@ -267,14 +265,14 @@ const drawInvoiceMeta = (
       width: invoiceBoxWidth
     });
 
-  currentY += 12;
+  currentY += spacing.sm;
 
   doc.text(`Terms: ${paymentTerms}`, invoiceBoxX, currentY, {
     align: 'right',
     width: invoiceBoxWidth
   });
 
-  currentY += 12;
+  currentY += spacing.sm;
 
   doc.text(`Due Date: ${formatDate(invoice.dueDate)}`, invoiceBoxX, currentY, {
     align: 'right',
@@ -302,7 +300,7 @@ const drawClientBlock = (doc, startY, invoice) => {
     .font(fonts.bold)
     .text('Bill To:', layout.leftMargin, currentY);
   
-  currentY += 16;
+  currentY += spacing.md;
   
   // Client Name - use proper name or fallback
   const clientName = invoice.clientDetails?.name?.trim() || 
@@ -317,7 +315,7 @@ const drawClientBlock = (doc, startY, invoice) => {
     .font(fonts.bold)
     .text(clientName, layout.leftMargin, currentY);
   
-  currentY += 14;
+  currentY += spacing.sm;
   
   // Client Details
   doc.fillColor(colors.textGray)
@@ -331,29 +329,29 @@ const drawClientBlock = (doc, startY, invoice) => {
     const addressLines = clientAddress.split(',').map(line => line.trim()).filter(line => line);
     addressLines.forEach(line => {
       doc.text(line, layout.leftMargin, currentY, { width: 260 });
-      currentY += 12;
+      currentY += spacing.sm;
     });
   } else if (clientAddress) {
     // If address looks like test data, show it but it should be updated
     doc.text(clientAddress, layout.leftMargin, currentY, { width: 260 });
-    currentY += 12;
+    currentY += spacing.sm;
   }
   
   // Only show country if not already in address
   if (invoice.clientDetails?.country && 
       (!clientAddress || !clientAddress.includes(invoice.clientDetails.country))) {
     doc.text(`Country: ${invoice.clientDetails.country}`, layout.leftMargin, currentY);
-    currentY += 12;
+    currentY += spacing.sm;
   }
   
   if (invoice.clientDetails?.placeOfSupply) {
     doc.text(`Place of Supply: ${invoice.clientDetails.placeOfSupply}`, layout.leftMargin, currentY);
-    currentY += 12;
+    currentY += spacing.sm;
   }
   
   if (invoice.clientDetails?.gstNo) {
     doc.text(`GST No: ${invoice.clientDetails.gstNo}`, layout.leftMargin, currentY);
-    currentY += 12;
+    currentY += spacing.sm;
   }
   
   return currentY + spacing.md;
@@ -369,25 +367,25 @@ const drawItemsTable = (doc, startY, invoice, currency) => {
   let currentY = startY;
   const tableWidth = layout.contentWidth;
   
-  // Column positions
+  // Column positions - adjusted for larger numbers
   const colX = {
     number: layout.leftMargin,
     description: layout.leftMargin + 30,
-    hsnSac: layout.leftMargin + 240,
-    qty: layout.leftMargin + 310,
-    rate: layout.leftMargin + 350,
-    igst: layout.leftMargin + 400,
-    amount: layout.leftMargin + 450,
+    hsnSac: layout.leftMargin + 230,
+    qty: layout.leftMargin + 295,
+    rate: layout.leftMargin + 330,
+    igst: layout.leftMargin + 390,
+    amount: layout.leftMargin + 435,
   };
   
   const colWidth = {
     number: 25,
-    description: 205,
-    hsnSac: 65,
-    qty: 35,
-    rate: 45,
-    igst: 45,
-    amount: 65,
+    description: 195,  // Reduced slightly to accommodate wider number columns
+    hsnSac: 60,        // Reduced slightly
+    qty: 30,           // Reduced slightly
+    rate: 55,          // Increased from 45 to accommodate large numbers
+    igst: 40,          // Reduced slightly
+    amount: 80,        // Increased from 65 to accommodate large numbers
   };
   
   // Table Header
@@ -404,13 +402,13 @@ const drawItemsTable = (doc, startY, invoice, currency) => {
     .fontSize(fontSize.md)
     .font(fonts.bold);
   
-  doc.text('#', colX.number + 12, currentY + 12);
-  doc.text('Item & Description', colX.description + spacing.xs, currentY + 12);
-  doc.text('HSN/SAC', colX.hsnSac + spacing.xs, currentY + 12);
-  doc.text('Qty', colX.qty, currentY + 12, { width: colWidth.qty, align: 'right' });
-  doc.text('Rate', colX.rate, currentY + 12, { width: colWidth.rate, align: 'right' });
-  doc.text('IGST', colX.igst, currentY + 12, { width: colWidth.igst, align: 'right' });
-  doc.text('Amount', colX.amount, currentY + 12, { width: colWidth.amount, align: 'right' });
+  doc.text('#', colX.number, currentY + 12, { width: colWidth.number, align: 'center' });
+  doc.text('Item & Description', colX.description, currentY + 12, { width: colWidth.description, align: 'center' });
+  doc.text('HSN/SAC', colX.hsnSac, currentY + 12, { width: colWidth.hsnSac, align: 'center' });
+  doc.text('Qty', colX.qty, currentY + 12, { width: colWidth.qty, align: 'center' });
+  doc.text('Rate', colX.rate, currentY + 12, { width: colWidth.rate, align: 'center' });
+  doc.text('IGST', colX.igst, currentY + 12, { width: colWidth.igst, align: 'center' });
+  doc.text('Amount', colX.amount, currentY + 12, { width: colWidth.amount, align: 'center' });
   
   currentY += table.headerHeight;
   doc.font(fonts.regular)
@@ -453,35 +451,71 @@ const drawItemsTable = (doc, startY, invoice, currency) => {
       .lineTo(colX.amount, currentY + rowHeight)
       .stroke();
     
-    // Row content
+    // Row content - all centered
     doc.fillColor(colors.textGray)
       .fontSize(fontSize.base)
       .font(fonts.bold)
-      .text((index + 1).toString(), colX.number + 12, currentY + table.rowPadding);
+      .text((index + 1).toString(), colX.number, currentY + table.rowPadding, { 
+        width: colWidth.number, 
+        align: 'center' 
+      });
     
     doc.fillColor(colors.darkText)
       .font(fonts.regular)
-      .text(item.description, colX.description + spacing.xs, currentY + table.rowPadding, { 
-        width: colWidth.description - spacing.md 
+      .text(item.description, colX.description, currentY + table.rowPadding, { 
+        width: colWidth.description,
+        align: 'center'
       });
+    
+    // Get HSN/SAC code - check multiple possible field names and handle empty values
+    let hsnSacValue = item.hsnSac || item.hsn_sac || item.hsnSacCode || '';
+    if (typeof hsnSacValue === 'string') {
+      hsnSacValue = hsnSacValue.trim();
+    } else if (hsnSacValue != null) {
+      hsnSacValue = String(hsnSacValue).trim();
+    } else {
+      hsnSacValue = '';
+    }
+    
+    // Debug logging (only log if hsnSac is missing to help identify issues)
+    if (!hsnSacValue || hsnSacValue === '-') {
+      console.log(`⚠️ PDF Generator - Item ${index + 1} missing HSN/SAC:`, {
+        itemDescription: item.description,
+        hsnSac: item.hsnSac,
+        hsnSacValue: hsnSacValue
+      });
+    }
     
     doc.fillColor(colors.textGray)
       .fontSize(fontSize.sm)
-      .text(item.hsnSac || '-', colX.hsnSac + spacing.xs, currentY + table.rowPadding, { 
-        width: colWidth.hsnSac - spacing.md 
+      .text(hsnSacValue || '-', colX.hsnSac, currentY + table.rowPadding, { 
+        width: colWidth.hsnSac,
+        align: 'center'
       });
     
     doc.fillColor(colors.darkText)
       .fontSize(fontSize.base)
       .text(item.quantity.toFixed(2), colX.qty, currentY + table.rowPadding, { 
         width: colWidth.qty, 
-        align: 'right' 
+        align: 'center',
+        ellipsis: false,
+        lineGap: 0
       });
     
-    doc.text(item.rate.toLocaleString('en-IN', { minimumFractionDigits: 2 }), colX.rate, currentY + table.rowPadding, { 
-      width: colWidth.rate, 
-      align: 'right' 
-    });
+    // Format rate with Indian locale
+    const rateText = item.rate.toLocaleString('en-IN', { minimumFractionDigits: 2 });
+    // Check if we need smaller font for very large numbers
+    doc.font(fonts.regular).fontSize(fontSize.base);
+    const rateTextWidth = doc.widthOfString(rateText);
+    const useSmallerFont = rateTextWidth > colWidth.rate;
+    
+    doc.fontSize(useSmallerFont ? fontSize.sm : fontSize.base)
+      .text(rateText, colX.rate, currentY + table.rowPadding, { 
+        width: colWidth.rate, 
+        align: 'center',
+        ellipsis: false,
+        lineGap: 0
+      });
     
     // GST
     let itemGST = 0;
@@ -492,33 +526,53 @@ const drawItemsTable = (doc, startY, invoice, currency) => {
     }
     
     if (itemGST > 0) {
+      const gstText = itemGST.toLocaleString('en-IN', { minimumFractionDigits: 2 });
+      doc.font(fonts.regular).fontSize(fontSize.base);
+      const gstTextWidth = doc.widthOfString(gstText);
+      const useSmallerFontGST = gstTextWidth > colWidth.igst;
+      
       doc.fillColor(colors.darkText)
-        .fontSize(fontSize.base)
-        .text(itemGST.toLocaleString('en-IN', { minimumFractionDigits: 2 }), colX.igst, currentY + table.rowPadding, { 
+        .fontSize(useSmallerFontGST ? fontSize.sm : fontSize.base)
+        .text(gstText, colX.igst, currentY + table.rowPadding, { 
           width: colWidth.igst, 
-          align: 'right' 
+          align: 'center',
+          ellipsis: false,
+          lineGap: 0
         });
       doc.fillColor(colors.textGray)
         .fontSize(fontSize.xs)
         .text(`(${invoice.gstPercentage.toFixed(0)}%)`, colX.igst, currentY + 22, { 
           width: colWidth.igst, 
-          align: 'right' 
+          align: 'center',
+          ellipsis: false,
+          lineGap: 0
         });
     } else {
       doc.fillColor(colors.textGray)
         .fontSize(fontSize.base)
         .text('0.00', colX.igst, currentY + table.rowPadding, { 
           width: colWidth.igst, 
-          align: 'right' 
+          align: 'center',
+          ellipsis: false,
+          lineGap: 0
         });
     }
     
+    // Format amount with Indian locale
+    const amountText = item.amount.toLocaleString('en-IN', { minimumFractionDigits: 2 });
+    // Check if we need smaller font for very large numbers
+    doc.font(fonts.bold).fontSize(fontSize.md);
+    const amountTextWidth = doc.widthOfString(amountText);
+    const useSmallerFontAmount = amountTextWidth > colWidth.amount;
+    
     doc.fillColor(colors.darkText)
-      .fontSize(fontSize.md)
+      .fontSize(useSmallerFontAmount ? fontSize.base : fontSize.md)
       .font(fonts.bold)
-      .text(item.amount.toLocaleString('en-IN', { minimumFractionDigits: 2 }), colX.amount, currentY + table.rowPadding, { 
+      .text(amountText, colX.amount, currentY + table.rowPadding, { 
         width: colWidth.amount, 
-        align: 'right' 
+        align: 'center',
+        ellipsis: false,
+        lineGap: 0
       });
     
     currentY += rowHeight;
@@ -560,10 +614,10 @@ const drawTotalsBlock = (doc, startY, invoice, currency, receivableAmount) => {
   currentY = totalsStartY + 15;
   
   // Consistent positioning for all totals rows
-  const labelWidth = 130; // Uniform label width
+  const labelWidth = 120; // Reduced to give more space for amounts
   const labelX = totalsX;
   const amountX = totalsX + labelWidth;
-  const amountWidth = totalsBoxWidth - labelWidth;
+  const amountWidth = totalsBoxWidth - labelWidth; // Now 75px instead of 65px
   const rowSpacing = 20; // Uniform row spacing
   
   // Sub Total - properly aligned
@@ -573,12 +627,19 @@ const drawTotalsBlock = (doc, startY, invoice, currency, receivableAmount) => {
     .text('Sub Total', labelX, currentY, { width: labelWidth, align: 'right' });
   
   // Sub Total amount - right-aligned for consistency
+  const subTotalText = formatCurrency(subTotal, currency);
+  doc.font(fonts.bold).fontSize(fontSize.md);
+  const subTotalWidth = doc.widthOfString(subTotalText);
+  const useSmallerFontSubTotal = subTotalWidth > amountWidth;
+  
   doc.fillColor(colors.darkText)
     .font(fonts.bold)
-    .fontSize(fontSize.md)
-    .text(formatCurrency(subTotal, currency), amountX, currentY, {
+    .fontSize(useSmallerFontSubTotal ? fontSize.base : fontSize.md)
+    .text(subTotalText, amountX, currentY, {
       width: amountWidth,
-      align: 'right'
+      align: 'right',
+      ellipsis: false,
+      lineGap: 0
     });
   
   currentY += rowSpacing;
@@ -596,12 +657,19 @@ const drawTotalsBlock = (doc, startY, invoice, currency, receivableAmount) => {
       .text(`CGST (${cgstPercent}%):`, labelX, currentY, { width: labelWidth, align: 'right' });
     
     // CGST amount - right-aligned for consistency
+    const cgstText = formatCurrency(cgstAmount, currency);
+    doc.font(fonts.bold).fontSize(fontSize.md);
+    const cgstWidth = doc.widthOfString(cgstText);
+    const useSmallerFontCGST = cgstWidth > amountWidth;
+    
     doc.fillColor(colors.darkText)
       .font(fonts.bold)
-      .fontSize(fontSize.md)
-      .text(formatCurrency(cgstAmount, currency), amountX, currentY, {
+      .fontSize(useSmallerFontCGST ? fontSize.base : fontSize.md)
+      .text(cgstText, amountX, currentY, {
         width: amountWidth,
-        align: 'right'
+        align: 'right',
+        ellipsis: false,
+        lineGap: 0
       });
     
     currentY += rowSpacing;
@@ -612,12 +680,19 @@ const drawTotalsBlock = (doc, startY, invoice, currency, receivableAmount) => {
       .text(`SGST (${sgstPercent}%):`, labelX, currentY, { width: labelWidth, align: 'right' });
     
     // SGST amount - right-aligned for consistency
+    const sgstText = formatCurrency(sgstAmount, currency);
+    doc.font(fonts.bold).fontSize(fontSize.md);
+    const sgstWidth = doc.widthOfString(sgstText);
+    const useSmallerFontSGST = sgstWidth > amountWidth;
+    
     doc.fillColor(colors.darkText)
       .font(fonts.bold)
-      .fontSize(fontSize.md)
-      .text(formatCurrency(sgstAmount, currency), amountX, currentY, {
+      .fontSize(useSmallerFontSGST ? fontSize.base : fontSize.md)
+      .text(sgstText, amountX, currentY, {
         width: amountWidth,
-        align: 'right'
+        align: 'right',
+        ellipsis: false,
+        lineGap: 0
       });
     
     currentY += rowSpacing;
@@ -632,12 +707,19 @@ const drawTotalsBlock = (doc, startY, invoice, currency, receivableAmount) => {
       .text(`${igstLabel} (${igstPercent}%):`, labelX, currentY, { width: labelWidth, align: 'right' });
     
     // IGST amount - right-aligned for consistency
+    const igstText = formatCurrency(igstAmount, currency);
+    doc.font(fonts.bold).fontSize(fontSize.md);
+    const igstWidth = doc.widthOfString(igstText);
+    const useSmallerFontIGST = igstWidth > amountWidth;
+    
     doc.fillColor(colors.darkText)
       .font(fonts.bold)
-      .fontSize(fontSize.md)
-      .text(formatCurrency(igstAmount, currency), amountX, currentY, {
+      .fontSize(useSmallerFontIGST ? fontSize.base : fontSize.md)
+      .text(igstText, amountX, currentY, {
         width: amountWidth,
-        align: 'right'
+        align: 'right',
+        ellipsis: false,
+        lineGap: 0
       });
     
     currentY += rowSpacing;
@@ -651,12 +733,19 @@ const drawTotalsBlock = (doc, startY, invoice, currency, receivableAmount) => {
       .text(`TDS (${invoice.tdsPercentage.toFixed(0)}%):`, labelX, currentY, { width: labelWidth, align: 'right' });
     
     // TDS amount - right-aligned for consistency
+    const tdsText = `-${formatCurrency(invoice.tdsAmount, currency)}`;
+    doc.font(fonts.bold).fontSize(fontSize.md);
+    const tdsWidth = doc.widthOfString(tdsText);
+    const useSmallerFontTDS = tdsWidth > amountWidth;
+    
     doc.fillColor(colors.warningRed)
       .font(fonts.bold)
-      .fontSize(fontSize.md)
-      .text(`-${formatCurrency(invoice.tdsAmount, currency)}`, amountX, currentY, {
+      .fontSize(useSmallerFontTDS ? fontSize.base : fontSize.md)
+      .text(tdsText, amountX, currentY, {
         width: amountWidth,
-        align: 'right'
+        align: 'right',
+        ellipsis: false,
+        lineGap: 0
       });
     
     currentY += rowSpacing;
@@ -670,12 +759,19 @@ const drawTotalsBlock = (doc, startY, invoice, currency, receivableAmount) => {
       .text(`TCS (${invoice.tcsPercentage.toFixed(2)}%):`, labelX, currentY, { width: labelWidth, align: 'right' });
     
     // TCS amount - right-aligned for consistency
+    const tcsText = `-${formatCurrency(invoice.tcsAmount, currency)}`;
+    doc.font(fonts.bold).fontSize(fontSize.md);
+    const tcsWidth = doc.widthOfString(tcsText);
+    const useSmallerFontTCS = tcsWidth > amountWidth;
+    
     doc.fillColor(colors.warningRed)
       .font(fonts.bold)
-      .fontSize(fontSize.md)
-      .text(`-${formatCurrency(invoice.tcsAmount, currency)}`, amountX, currentY, {
+      .fontSize(useSmallerFontTCS ? fontSize.base : fontSize.md)
+      .text(tcsText, amountX, currentY, {
         width: amountWidth,
-        align: 'right'
+        align: 'right',
+        ellipsis: false,
+        lineGap: 0
       });
     
     currentY += rowSpacing;
@@ -689,19 +785,26 @@ const drawTotalsBlock = (doc, startY, invoice, currency, receivableAmount) => {
       .text('Remittance Charges:', labelX, currentY, { width: labelWidth, align: 'right' });
     
     // Remittance Charges amount - right-aligned for consistency
+    const remittanceText = `-${formatCurrency(invoice.remittanceCharges, currency)}`;
+    doc.font(fonts.bold).fontSize(fontSize.md);
+    const remittanceWidth = doc.widthOfString(remittanceText);
+    const useSmallerFontRemittance = remittanceWidth > amountWidth;
+    
     doc.fillColor(colors.warningRed)
       .font(fonts.bold)
-      .fontSize(fontSize.md)
-      .text(`-${formatCurrency(invoice.remittanceCharges, currency)}`, amountX, currentY, {
+      .fontSize(useSmallerFontRemittance ? fontSize.base : fontSize.md)
+      .text(remittanceText, amountX, currentY, {
         width: amountWidth,
-        align: 'right'
+        align: 'right',
+        ellipsis: false,
+        lineGap: 0
       });
     
     currentY += rowSpacing;
   }
   
   // Separator - uniform spacing
-  currentY += 10;
+  currentY += spacing.sm;
   doc.strokeColor(colors.borderGray)
     .lineWidth(1.5);
   doc.moveTo(labelX, currentY)
@@ -717,12 +820,19 @@ const drawTotalsBlock = (doc, startY, invoice, currency, receivableAmount) => {
     .text('Total:', labelX, currentY, { width: labelWidth, align: 'right' });
   
   // Total amount - right-aligned for consistency
+  const totalText = formatCurrency(invoiceTotal, currency);
+  doc.font(fonts.bold).fontSize(fontSize.md);
+  const totalWidth = doc.widthOfString(totalText);
+  const useSmallerFontTotal = totalWidth > amountWidth;
+  
   doc.fillColor(colors.darkText)
-    .fontSize(fontSize.md)
+    .fontSize(useSmallerFontTotal ? fontSize.base : fontSize.md)
     .font(fonts.bold)
-    .text(formatCurrency(invoiceTotal, currency), amountX, currentY, {
+    .text(totalText, amountX, currentY, {
       width: amountWidth,
-      align: 'right'
+      align: 'right',
+      ellipsis: false,
+      lineGap: 0
     });
   
   currentY += rowSpacing;
@@ -734,12 +844,19 @@ const drawTotalsBlock = (doc, startY, invoice, currency, receivableAmount) => {
     .text('Balance Due:', labelX, currentY, { width: labelWidth, align: 'right' });
   
   // Balance Due amount - right-aligned for consistency
+  const balanceDueText = formatCurrency(receivableAmount, currency);
+  doc.font(fonts.bold).fontSize(fontSize.md);
+  const balanceDueWidth = doc.widthOfString(balanceDueText);
+  const useSmallerFontBalance = balanceDueWidth > amountWidth;
+  
   doc.fillColor(colors.darkText)
-    .fontSize(fontSize.md)
+    .fontSize(useSmallerFontBalance ? fontSize.base : fontSize.md)
     .font(fonts.bold)
-    .text(formatCurrency(receivableAmount, currency), amountX, currentY, {
+    .text(balanceDueText, amountX, currentY, {
       width: amountWidth,
-      align: 'right'
+      align: 'right',
+      ellipsis: false,
+      lineGap: 0
     });
   
   return Math.max(totalsStartY + totalsBoxHeight, currentY + spacing.md);
@@ -929,6 +1046,31 @@ const drawFooter = (doc, startY, invoice, currency, bankDetails, customTerms) =>
   const receivableAmount =
     invoice.amountDetails?.receivableAmount || invoice.grandTotal || 0;
 
+  // ---------------- NOTES ----------------
+  if (invoice.notes && invoice.notes.trim()) {
+    doc.y = currentY;
+    ensureSpace(doc, 100);
+    currentY = doc.y;
+    
+    doc.fillColor(colors.darkText)
+      .font(fonts.bold)
+      .fontSize(fontSize.lg)
+      .text('Notes', layout.leftMargin, currentY);
+    
+    currentY += spacing.md;
+    
+    doc.fillColor(colors.textGray)
+      .font(fonts.regular)
+      .fontSize(fontSize.base)
+      .text(invoice.notes.trim(), layout.leftMargin, currentY, {
+        width: layout.contentWidth,
+      });
+    
+    // Update currentY based on where the text ended
+    // PDFKit's text() method moves doc.y, so we can use that
+    currentY = doc.y + spacing.lg;
+  }
+
   // ---------------- BANK DETAILS ----------------
   if (bankDetails) {
     doc.y = currentY;
@@ -940,13 +1082,13 @@ const drawFooter = (doc, startY, invoice, currency, bankDetails, customTerms) =>
       .fontSize(fontSize.md)
       .text('Bank Details', layout.leftMargin, currentY);
 
-    currentY += 16;
+    currentY += spacing.md;
     doc.font(fonts.regular).fontSize(fontSize.base);
 
     const row = (label, value) => {
       doc.fillColor(colors.textGray).text(label, layout.leftMargin, currentY);
       doc.fillColor(colors.darkText).text(value, layout.leftMargin + 110, currentY);
-      currentY += 14;
+      currentY += spacing.sm;
     };
 
     if (bankDetails.companyName) row('Company Name:', bankDetails.companyName);
@@ -967,7 +1109,7 @@ const drawFooter = (doc, startY, invoice, currency, bankDetails, customTerms) =>
     .fontSize(fontSize.md)
     .text('Indian Currency Equivalent', layout.leftMargin, currentY);
 
-  currentY += 14;
+    currentY += spacing.sm * 1.5
   
   // Convert to INR if currency is not INR
   let inrAmount;
@@ -992,11 +1134,17 @@ const drawFooter = (doc, startY, invoice, currency, bankDetails, customTerms) =>
     }
   }
   
+  // Format amount without currency symbol (remove Rs.)
+  const inrAmountFormatted = inrAmount.toLocaleString('en-IN', { 
+    minimumFractionDigits: 2, 
+    maximumFractionDigits: 2 
+  });
+  
   doc.fillColor(colors.textGray)
     .font(fonts.regular)
     .fontSize(fontSize.base)
     .text(
-      `Amount in INR: ${formatCurrency(inrAmount, 'INR')}`,
+      `Amount in INR: ${inrAmountFormatted}`,
       layout.leftMargin,
       currentY
     );
@@ -1010,7 +1158,6 @@ const drawFooter = (doc, startY, invoice, currency, bankDetails, customTerms) =>
     'Payments are non-refundable unless agreed.',
     'Only agreed services are covered.',
     'Jurisdiction: Ahmedabad.',
-    'Contact: mihir@kology.in',
   ];
 
   doc.y = currentY;
@@ -1030,17 +1177,17 @@ const drawFooter = (doc, startY, invoice, currency, bankDetails, customTerms) =>
 
   terms.forEach((t, i) => {
     doc.y = currentY;
-    ensureSpace(doc, 14);
+    ensureSpace(doc, spacing.sm);
     currentY = doc.y;
     doc.text(`${i + 1}. ${t}`, layout.leftMargin, currentY, {
       width: layout.contentWidth,
     });
-    currentY += 14;
+    currentY += spacing.sm;
   });
 
   // ---------------- FOOTER LINE ----------------
   doc.y = currentY;
-  ensureSpace(doc, 40);
+  ensureSpace(doc, spacing.xl);
   currentY = doc.y;
   doc.strokeColor(colors.primaryBlue)
     .lineWidth(2)
@@ -1048,7 +1195,7 @@ const drawFooter = (doc, startY, invoice, currency, bankDetails, customTerms) =>
     .lineTo(layout.leftMargin + layout.contentWidth, currentY)
     .stroke();
 
-  currentY += 16;
+  currentY += spacing.md;
   
 
   return currentY;
@@ -1208,31 +1355,63 @@ export const generateInvoicePDF = async (invoice, outputPath, userId = null) => 
       const currency = invoice.currencyDetails?.invoiceCurrency || invoice.currency || 'INR'
       const receivableAmount = invoice.amountDetails?.receivableAmount || invoice.grandTotal || 0
 
+      // Fetch items from Item master to lookup HSN/SAC codes for existing invoices
+      let itemsLookup = new Map()
+      if (userId && invoice.items) {
+        try {
+          const items = await Item.find({ user: userId }).select('name hsnSac').lean()
+          // Create a lookup map: item name (lowercase) -> hsnSac
+          items.forEach(item => {
+            if (item.name && item.hsnSac && item.hsnSac.trim()) {
+              itemsLookup.set(item.name.toLowerCase().trim(), item.hsnSac.trim())
+            }
+          })
+          console.log(`📚 Loaded ${itemsLookup.size} items for HSN/SAC lookup`)
+        } catch (error) {
+          console.error('Error fetching items for HSN/SAC lookup:', error)
+        }
+      }
+
+      // Enhance invoice items with HSN/SAC from Item master if missing
+      if (invoice.items && itemsLookup.size > 0) {
+        invoice.items = invoice.items.map(item => {
+          // If hsnSac is missing or empty, try to find it from Item master
+          if (!item.hsnSac || !item.hsnSac.trim()) {
+            const itemName = (item.description || '').toLowerCase().trim()
+            const matchedHsnSac = itemsLookup.get(itemName)
+            if (matchedHsnSac) {
+              console.log(`✅ Found HSN/SAC for "${item.description}": ${matchedHsnSac}`)
+              return { ...item, hsnSac: matchedHsnSac }
+            }
+          }
+          return item
+        })
+      }
+
       let currentY = 0
       currentY = drawHeader(doc, currentY)
 
       // Draw company block at top left
       const topSectionStartY = 20
-      currentY = await drawCompanyBlock(doc, topSectionStartY)
+      const logoStartY = topSectionStartY + BLOCK_GAP // Logo starts here
       
-      // Store the Y position where "Bill To:" will be written
-      const billToStartY = currentY
-      
-      // Draw client block below company block on left
-      currentY = drawClientBlock(doc, currentY, invoice)
-      
-      // Position invoice meta block on the right side, starting at the same Y as "Bill To:"
-      const invoiceMetaEndY = drawInvoiceMeta(
+      // Position invoice meta block on the right side, aligned horizontally with the logo
+      drawInvoiceMeta(
         doc,
-        billToStartY,
+        logoStartY,
         invoice,
         currency,
         receivableAmount,
         paymentTerms
       )
+      
+      // Draw company block on left side (logo and company details)
+      currentY = await drawCompanyBlock(doc, topSectionStartY)
+      
+      // Draw client block below company block on left
+      currentY = drawClientBlock(doc, currentY, invoice)
 
-      // Table starts right after invoice meta block (exactly above table as requested)
-      currentY = invoiceMetaEndY + 10 // Small spacing between meta and table
+      // Table starts after client block
       currentY = drawItemsTable(doc, currentY, invoice, currency)
       currentY = drawTotalsBlock(doc, currentY, invoice, currency, receivableAmount)
       currentY = drawFooter(doc, currentY, invoice, currency, bankDetails, customTerms)

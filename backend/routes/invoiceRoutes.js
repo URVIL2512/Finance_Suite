@@ -7,6 +7,8 @@ import {
   createInvoice,
   updateInvoice,
   deleteInvoice,
+  deleteMultipleInvoices,
+  voidInvoice,
   generateInvoicePDFController,
   importInvoicesFromExcel,
 } from '../controllers/invoiceController.js';
@@ -40,8 +42,10 @@ const upload = multer({
 
 router.get('/available-revenue', getAvailableRevenue);
 router.route('/import').post(upload.single('file'), importInvoicesFromExcel);
+router.route('/bulk').delete(deleteMultipleInvoices);
 router.route('/').get(getInvoices).post(createInvoice);
 router.route('/:id').get(getInvoice).put(updateInvoice).delete(deleteInvoice);
+router.route('/:id/void').put(voidInvoice);
 router.route('/:id/pdf').get(generateInvoicePDFController);
 
 export default router;

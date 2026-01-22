@@ -1,6 +1,7 @@
 import Invoice from '../models/Invoice.js';
 import Revenue from '../models/Revenue.js';
 import Customer from '../models/Customer.js';
+import Item from '../models/Item.js';
 import { calculateGST, calculateTDS, calculateTCS, calculateInvoiceAmounts } from '../utils/taxCalculations.js';
 import { generateInvoicePDF } from '../utils/pdfGenerator.js';
 import { sendInvoiceEmail } from '../utils/emailService.js';
@@ -481,13 +482,23 @@ export const createInvoice = async (req, res) => {
     let invoiceItems = [];
     if (itemsInput && Array.isArray(itemsInput) && itemsInput.length > 0) {
       // Use provided items array
-      invoiceItems = itemsInput.map(item => ({
-        description: item.description || serviceDescription,
-        hsnSac: item.hsnSac || hsnSac || '',
-        quantity: parseFloat(item.quantity) || 1,
-        rate: parseFloat(item.rate) || 0,
-        amount: parseFloat(item.amount) || 0,
-      }));
+      invoiceItems = itemsInput.map(item => {
+        // Get hsnSac from item first, then fallback to global hsnSac, then empty string
+        let hsnSacValue = '';
+        if (item.hsnSac && typeof item.hsnSac === 'string' && item.hsnSac.trim()) {
+          hsnSacValue = item.hsnSac.trim();
+        } else if (hsnSac && typeof hsnSac === 'string' && hsnSac.trim()) {
+          hsnSacValue = hsnSac.trim();
+        }
+        
+        return {
+          description: item.description || serviceDescription,
+          hsnSac: hsnSacValue,
+          quantity: parseFloat(item.quantity) || 1,
+          rate: parseFloat(item.rate) || 0,
+          amount: parseFloat(item.amount) || 0,
+        };
+      });
       // Recalculate baseAmount from items if provided
       const itemsBaseAmount = invoiceItems.reduce((sum, item) => sum + (item.amount || 0), 0);
       if (itemsBaseAmount > 0) {
@@ -878,6 +889,7 @@ export const updateInvoice = async (req, res) => {
       clientName,
       clientCountry,
       hsnSac,
+      sendEmail, // Flag to control whether to send email
     } = req.body;
 
     // CRITICAL: Invoice status can ONLY be "Paid" if payment is actually received
@@ -894,10 +906,29 @@ export const updateInvoice = async (req, res) => {
       }
     }
 
-    // Validate status changes: If invoice is already "Paid", it cannot be changed
-    if (originalStatus === 'Paid' && status !== undefined && status !== 'Paid') {
+    // Check if amounts are being changed (this will trigger recalculation)
+    const isAmountChanging = baseAmount !== undefined || 
+                             gstPercentage !== undefined || 
+                             tdsPercentage !== undefined || 
+                             tcsPercentage !== undefined || 
+                             remittanceCharges !== undefined ||
+                             (itemsInput && Array.isArray(itemsInput) && itemsInput.length > 0);
+    
+    // If invoice is "Paid" and amounts are being changed, automatically set status to "Unpaid"
+    // This allows editing paid invoices - when amount changes, it becomes unpaid until payment is recorded again
+    if (originalStatus === 'Paid' && isAmountChanging && status === undefined) {
+      console.log('💰 Paid invoice amount is being edited - automatically changing status to Unpaid');
+      // Don't set status here, we'll handle it in the finalStatus calculation below
+      // But we need to reset received amounts since the receivable amount will change
+      finalReceivedAmount = 0;
+      finalPaidAmount = 0;
+    }
+    
+    // Validate status changes: If invoice is already "Paid" and status is explicitly provided, it cannot be changed
+    // UNLESS amounts are being changed (handled above) or status is explicitly set to Unpaid
+    if (originalStatus === 'Paid' && status !== undefined && status !== 'Paid' && !isAmountChanging) {
       return res.status(400).json({ 
-        message: 'Invoice status cannot be changed once it is set to "Paid". Status is frozen.' 
+        message: 'Invoice status cannot be changed once it is set to "Paid". Status is frozen. To edit amounts, the status will automatically change to Unpaid.' 
       });
     }
 
@@ -906,6 +937,12 @@ export const updateInvoice = async (req, res) => {
       return res.status(400).json({ 
         message: 'Invoice status can only be changed from "Partial" to "Paid" when full payment is received.' 
       });
+    }
+    
+    // Allow changing Void status to Unpaid
+    if (originalStatus === 'Void' && status !== undefined && status === 'Unpaid') {
+      console.log('✅ Allowing status change from Void to Unpaid');
+      // This is allowed, continue with the update
     }
 
     // Update status based on payment (only if status is not explicitly provided)
@@ -982,18 +1019,30 @@ export const updateInvoice = async (req, res) => {
     }
 
     // Determine final status - CRITICAL: Status can only be "Paid" if payment is actually received
-    const receivableAmount = invoice.amountDetails?.receivableAmount || invoice.grandTotal || 0;
+    // Get current receivable amount (will be updated if amounts are recalculated)
+    let currentReceivableAmount = invoice.amountDetails?.receivableAmount || invoice.grandTotal || 0;
     let finalReceivedAmount = receivedAmount !== undefined ? receivedAmount : invoice.receivedAmount;
     let finalPaidAmount = paidAmount !== undefined ? paidAmount : invoice.paidAmount;
+    
+    // If Paid invoice amounts are being edited, reset payment amounts and set status to Unpaid
+    if (originalStatus === 'Paid' && isAmountChanging && status === undefined) {
+      console.log('💰 Paid invoice amount is being edited - resetting payment amounts and changing status to Unpaid');
+      finalReceivedAmount = 0;
+      finalPaidAmount = 0;
+      // Note: currentReceivableAmount will be updated after recalculation
+      // We'll set finalStatus to Unpaid below
+    }
     
     let finalStatus;
     if (status !== undefined) {
       // If status is explicitly provided, validate it
       if (status === 'Paid') {
         // CRITICAL: Can only be "Paid" if received amount equals or exceeds receivable amount
-        if (finalReceivedAmount < receivableAmount) {
+        // Use currentReceivableAmount (may be updated after recalculation)
+        const receivableForCheck = currentReceivableAmount > 0 ? currentReceivableAmount : (invoice.amountDetails?.receivableAmount || invoice.grandTotal || 0);
+        if (finalReceivedAmount < receivableForCheck) {
           return res.status(400).json({ 
-            message: `Cannot set status to "Paid" without full payment. Current received: ${finalReceivedAmount}, Required: ${receivableAmount}. Please record payment first.` 
+            message: `Cannot set status to "Paid" without full payment. Current received: ${finalReceivedAmount}, Required: ${receivableForCheck}. Please record payment first.` 
           });
         }
         finalStatus = 'Paid';
@@ -1004,18 +1053,30 @@ export const updateInvoice = async (req, res) => {
             message: 'Cannot set status to "Partial" without any payment received.' 
           });
         }
-        if (finalReceivedAmount >= receivableAmount) {
+        const receivableForPartialCheck = currentReceivableAmount > 0 ? currentReceivableAmount : (invoice.amountDetails?.receivableAmount || invoice.grandTotal || 0);
+        if (finalReceivedAmount >= receivableForPartialCheck) {
           return res.status(400).json({ 
             message: 'Cannot set status to "Partial" when full payment is received. Status should be "Paid".' 
           });
         }
         finalStatus = 'Partial';
+      } else if (status === 'Unpaid') {
+        finalStatus = 'Unpaid';
+        // If changing to Unpaid (from Void or any other status), reset payment amounts
+        if (receivedAmount === undefined && paidAmount === undefined) {
+          finalReceivedAmount = 0;
+          finalPaidAmount = 0;
+        }
       } else {
-        finalStatus = status; // Unpaid or other valid status
+        finalStatus = status; // Other valid status (Void, etc.)
       }
     } else {
       // Auto-calculate status based on received amount
-      if (finalReceivedAmount >= receivableAmount && receivableAmount > 0) {
+      // If Paid invoice amounts were edited, force status to Unpaid
+      if (originalStatus === 'Paid' && isAmountChanging) {
+        console.log('💰 Paid invoice edited - setting status to Unpaid');
+        finalStatus = 'Unpaid';
+      } else if (finalReceivedAmount >= currentReceivableAmount && currentReceivableAmount > 0) {
         finalStatus = 'Paid';
       } else if (finalReceivedAmount > 0) {
         finalStatus = 'Partial';
@@ -1029,12 +1090,13 @@ export const updateInvoice = async (req, res) => {
     if (status !== undefined && status !== originalStatus) {
       // Only update amounts if status is being changed AND payment amounts are not explicitly provided
       if (receivedAmount === undefined && paidAmount === undefined) {
+        const receivableForAmountUpdate = currentReceivableAmount > 0 ? currentReceivableAmount : (invoice.amountDetails?.receivableAmount || invoice.grandTotal || 0);
         if (finalStatus === 'Paid') {
-          finalReceivedAmount = receivableAmount;
-          finalPaidAmount = receivableAmount;
+          finalReceivedAmount = receivableForAmountUpdate;
+          finalPaidAmount = receivableForAmountUpdate;
         } else if (finalStatus === 'Partial') {
           // Keep existing received amount if it's between 0 and receivable
-          finalReceivedAmount = Math.min(finalReceivedAmount, receivableAmount * 0.99);
+          finalReceivedAmount = Math.min(finalReceivedAmount, receivableForAmountUpdate * 0.99);
           finalPaidAmount = finalReceivedAmount;
         } else if (finalStatus === 'Unpaid') {
           finalReceivedAmount = 0;
@@ -1099,6 +1161,17 @@ export const updateInvoice = async (req, res) => {
         invoiceTotal,
         receivableAmount,
       };
+      
+      // Update currentReceivableAmount for status calculation
+      currentReceivableAmount = receivableAmount;
+      
+      // If this was a Paid invoice and amounts were recalculated, ensure status is Unpaid
+      if (originalStatus === 'Paid' && isAmountChanging && finalStatus !== 'Unpaid') {
+        console.log('💰 Paid invoice amounts recalculated - forcing status to Unpaid');
+        finalStatus = 'Unpaid';
+        finalReceivedAmount = 0;
+        finalPaidAmount = 0;
+      }
       
       // Update INR equivalent for foreign currency invoices
       if (currentCurrency !== 'INR') {
@@ -1201,13 +1274,23 @@ export const updateInvoice = async (req, res) => {
       }
     } else if (itemsInput && Array.isArray(itemsInput) && itemsInput.length > 0) {
       // Update items even if amounts weren't recalculated
-      invoice.items = itemsInput.map(item => ({
-        description: item.description || '',
-        hsnSac: item.hsnSac || '',
-        quantity: parseFloat(item.quantity) || 1,
-        rate: parseFloat(item.rate) || 0,
-        amount: parseFloat(item.amount) || 0,
-      }));
+      invoice.items = itemsInput.map((item, index) => {
+        // Preserve existing hsnSac if new one is not provided or is empty
+        const existingItem = invoice.items && invoice.items[index];
+        const hsnSacValue = (item.hsnSac && item.hsnSac.trim()) 
+          ? item.hsnSac.trim() 
+          : (existingItem?.hsnSac && existingItem.hsnSac.trim() 
+              ? existingItem.hsnSac.trim() 
+              : '');
+        
+        return {
+          description: item.description || '',
+          hsnSac: hsnSacValue,
+          quantity: parseFloat(item.quantity) || 1,
+          rate: parseFloat(item.rate) || 0,
+          amount: parseFloat(item.amount) || 0,
+        };
+      });
       // Recalculate baseAmount from items
       const itemsBaseAmount = invoice.items.reduce((sum, item) => sum + (item.amount || 0), 0);
       if (itemsBaseAmount > 0) {
@@ -1276,6 +1359,14 @@ export const updateInvoice = async (req, res) => {
         invoice.grandTotal = invoiceTotal;
         invoice.amountDetails.invoiceTotal = invoiceTotal;
         invoice.amountDetails.receivableAmount = receivableAmount;
+        
+        // If this was a Paid invoice and amounts were recalculated from items, ensure status is Unpaid
+        if (originalStatus === 'Paid' && isAmountChanging && finalStatus !== 'Unpaid') {
+          console.log('💰 Paid invoice amounts recalculated from items - forcing status to Unpaid');
+          finalStatus = 'Unpaid';
+          finalReceivedAmount = 0;
+          finalPaidAmount = 0;
+        }
       }
     }
 
@@ -1766,10 +1857,12 @@ export const updateInvoice = async (req, res) => {
     
     res.json(responseData);
 
-    // Send email in background (fire and forget - don't block response)
+    // Send email in background only if sendEmail flag is true (fire and forget - don't block response)
     const clientEmailToUse = clientEmail !== undefined ? clientEmail : updatedInvoice.clientEmail;
     
-    if (clientEmailToUse && clientEmailToUse.trim() !== '') {
+    // Only send email if explicitly requested via sendEmail flag
+    if (sendEmail === true && clientEmailToUse && clientEmailToUse.trim() !== '') {
+      console.log(`📧 Email sending requested for invoice ${updatedInvoice.invoiceNumber} to ${clientEmailToUse}`);
       setImmediate(async () => {
         try {
           // Reload invoice to get fresh data
@@ -1826,6 +1919,15 @@ export const updateInvoice = async (req, res) => {
           // Log error but don't fail the update
         }
       });
+    } else {
+      // Email not requested or no email address
+      if (sendEmail === false) {
+        console.log(`📧 Email sending skipped for invoice ${updatedInvoice.invoiceNumber} - user chose not to send email`);
+      } else if (!clientEmailToUse || clientEmailToUse.trim() === '') {
+        console.log(`📧 Email sending skipped for invoice ${updatedInvoice.invoiceNumber} - no client email address`);
+      } else {
+        console.log(`📧 Email sending skipped for invoice ${updatedInvoice.invoiceNumber} - sendEmail flag not set`);
+      }
     }
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -1867,6 +1969,98 @@ export const deleteInvoice = async (req, res) => {
   }
 };
 
+// @desc    Delete multiple invoices
+// @route   DELETE /api/invoices/bulk
+// @access  Private
+export const deleteMultipleInvoices = async (req, res) => {
+  try {
+    const { invoiceIds } = req.body;
+
+    if (!invoiceIds || !Array.isArray(invoiceIds) || invoiceIds.length === 0) {
+      return res.status(400).json({ message: 'Please provide an array of invoice IDs to delete' });
+    }
+
+    // Find all invoices that belong to the user
+    const invoices = await Invoice.find({
+      _id: { $in: invoiceIds },
+      user: req.user._id,
+    });
+
+    if (invoices.length === 0) {
+      return res.status(404).json({ message: 'No invoices found to delete' });
+    }
+
+    // Get the actual IDs that were found (in case some don't exist or don't belong to user)
+    const foundInvoiceIds = invoices.map(inv => inv._id.toString());
+    const revenueIds = invoices.filter(inv => inv.revenueId).map(inv => inv.revenueId);
+
+    // Update revenue entries to allow re-invoicing
+    if (revenueIds.length > 0) {
+      await Revenue.updateMany(
+        { _id: { $in: revenueIds } },
+        {
+          invoiceGenerated: false,
+          invoiceId: null,
+        }
+      );
+    }
+
+    // Delete all related payments for these invoices
+    const Payment = (await import('../models/Payment.js')).default;
+    await Payment.deleteMany({ invoice: { $in: foundInvoiceIds } });
+
+    // Delete the invoices
+    await Invoice.deleteMany({ _id: { $in: foundInvoiceIds } });
+
+    res.json({
+      message: `Successfully deleted ${foundInvoiceIds.length} invoice(s)`,
+      deletedCount: foundInvoiceIds.length,
+      deletedIds: foundInvoiceIds,
+    });
+  } catch (error) {
+    console.error('Error deleting multiple invoices:', error);
+    res.status(500).json({ message: error.message || 'Failed to delete invoices' });
+  }
+};
+
+// @desc    Void invoice
+// @route   PUT /api/invoices/:id/void
+// @access  Private
+export const voidInvoice = async (req, res) => {
+  try {
+    const invoice = await Invoice.findOne({
+      _id: req.params.id,
+      user: req.user._id,
+    });
+
+    if (!invoice) {
+      return res.status(404).json({ message: 'Invoice not found' });
+    }
+
+    // Check if invoice is already voided
+    if (invoice.status === 'Void') {
+      return res.status(400).json({ message: 'Invoice is already voided' });
+    }
+
+    // Check if invoice is already paid
+    if (invoice.status === 'Paid') {
+      return res.status(400).json({ message: 'Cannot void a paid invoice' });
+    }
+
+    // Update invoice status to Void
+    invoice.status = 'Void';
+    await invoice.save();
+
+    res.json({ 
+      message: 'Invoice voided successfully',
+      invoice 
+    });
+  } catch (error) {
+    console.error('Error voiding invoice:', error);
+    res.status(500).json({ message: error.message || 'Failed to void invoice' });
+  }
+};
+
 // @desc    Generate invoice PDF
 // @route   GET /api/invoices/:id/pdf
 // @access  Private
@@ -1895,6 +2089,21 @@ export const generateInvoicePDFController = async (req, res) => {
       hasClientDetails: !!invoice.clientDetails,
       hasAmountDetails: !!invoice.amountDetails
     });
+    
+    // Debug: Log invoice items structure to check hsnSac field
+    if (invoice.items && invoice.items.length > 0) {
+      console.log('📦 Invoice Items Debug:', {
+        itemsCount: invoice.items.length,
+        firstItem: invoice.items[0],
+        allItems: invoice.items.map((item, idx) => ({
+          index: idx,
+          description: item.description,
+          hsnSac: item.hsnSac,
+          hsnSacType: typeof item.hsnSac,
+          itemKeys: Object.keys(item)
+        }))
+      });
+    }
 
     const outputPath = path.join(__dirname, '../temp', `invoice-${invoice._id}.pdf`);
     
@@ -2006,6 +2215,158 @@ export const importInvoicesFromExcel = async (req, res) => {
       }
       return null;
     };
+
+    // Step 1: Collect all unique master values from Excel data
+    const uniqueCustomers = new Set();
+    const uniqueItems = new Set();
+
+    // First pass: collect all unique master values
+    for (let i = 0; i < data.length; i++) {
+      const row = data[i];
+      const client = String(getColumnValue(row, columnMapping.client) || '').trim();
+      const service = String(getColumnValue(row, columnMapping.service) || '').trim();
+
+      if (client) {
+        uniqueCustomers.add(client);
+      }
+      if (service) {
+        uniqueItems.add(service);
+      }
+    }
+
+    // Step 2: Create missing masters automatically
+    const userId = req.user._id;
+    const createdMasters = {
+      customers: 0,
+      items: 0,
+    };
+
+    try {
+      // Create missing Customers
+      if (uniqueCustomers.size > 0) {
+        const existingCustomers = await Customer.find({
+          user: userId,
+        }).select('displayName clientName companyName email').lean();
+
+        const existingCustomerNames = new Set();
+        const existingEmails = new Set();
+        existingCustomers.forEach((cust) => {
+          if (cust.displayName) existingCustomerNames.add(cust.displayName.toLowerCase());
+          if (cust.clientName) existingCustomerNames.add(cust.clientName.toLowerCase());
+          if (cust.companyName) existingCustomerNames.add(cust.companyName.toLowerCase());
+          if (cust.email) existingEmails.add(cust.email.toLowerCase());
+        });
+
+        let customerCounter = 1;
+        for (const customerName of uniqueCustomers) {
+          if (!existingCustomerNames.has(customerName.toLowerCase())) {
+            try {
+              // Generate a unique placeholder email since it's required
+              // Use customer name + counter to ensure uniqueness within this import
+              const emailBase = customerName
+                .toLowerCase()
+                .replace(/[^a-z0-9]/g, '')
+                .substring(0, 40) || 'customer';
+              let finalEmail = `${emailBase}@imported.local`;
+              
+              // Check if email already exists and append counter if needed
+              while (existingEmails.has(finalEmail.toLowerCase())) {
+                finalEmail = `${emailBase}${customerCounter}@imported.local`;
+                customerCounter++;
+              }
+              
+              // Add to set to avoid duplicates in same import
+              existingEmails.add(finalEmail.toLowerCase());
+
+              await Customer.create({
+                displayName: customerName,
+                clientName: customerName,
+                companyName: customerName,
+                email: finalEmail,
+                salutation: '',
+                firstName: '',
+                lastName: '',
+                workPhone: { countryCode: '+91', number: '' },
+                mobile: { countryCode: '+91', number: '' },
+                customerLanguage: 'English',
+                billingAddress: {},
+                shippingAddress: {},
+                contactPersons: [],
+                pan: '',
+                placeOfSupply: '',
+                gstNo: '',
+                currency: 'INR',
+                accountsReceivable: '',
+                openingBalance: 0,
+                paymentTerms: 'Due on Receipt',
+                documents: [],
+                gstin: '',
+                state: '',
+                country: 'India',
+                hsnOrSac: '',
+                gstPercentage: 0,
+                tdsPercentage: 0,
+                isActive: true,
+                user: userId,
+              });
+              createdMasters.customers++;
+              // Add to existing set to avoid duplicates in same import
+              existingCustomerNames.add(customerName.toLowerCase());
+            } catch (error) {
+              // Ignore duplicate key errors (race condition or case-insensitive duplicate)
+              if (error.code !== 11000 && error.name !== 'ValidationError') {
+                console.error(`Error creating customer "${customerName}":`, error.message);
+              }
+            }
+          }
+        }
+      }
+
+      // Create missing Items (Services)
+      if (uniqueItems.size > 0) {
+        const existingItems = await Item.find({
+          user: userId,
+        }).select('name').lean();
+
+        const existingItemNames = new Set(
+          existingItems.map((item) => item.name.toLowerCase())
+        );
+
+        for (const itemName of uniqueItems) {
+          if (!existingItemNames.has(itemName.toLowerCase())) {
+            try {
+              await Item.create({
+                type: 'Service', // Invoices are typically for services
+                name: itemName,
+                unit: '',
+                sellable: true,
+                sellingPrice: 0,
+                salesAccount: 'Sales',
+                salesDescription: itemName,
+                purchasable: false,
+                costPrice: 0,
+                purchaseAccount: 'Cost of Goods Sold',
+                purchaseDescription: '',
+                preferredVendor: '',
+                hsnSac: '',
+                user: userId,
+              });
+              createdMasters.items++;
+              // Add to existing set to avoid duplicates in same import
+              existingItemNames.add(itemName.toLowerCase());
+            } catch (error) {
+              // Ignore duplicate key errors (race condition or case-insensitive duplicate)
+              if (error.code !== 11000 && error.name !== 'ValidationError') {
+                console.error(`Error creating item "${itemName}":`, error.message);
+              }
+            }
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Error creating masters:', error);
+      // Continue with invoice import even if master creation fails
+    }
 
     const errors = [];
     const parsedRows = [];
@@ -2219,9 +2580,14 @@ export const importInvoicesFromExcel = async (req, res) => {
       const key = String(name || '').trim().toLowerCase();
       if (!key) return null;
       if (customerCache.has(key)) return customerCache.get(key);
+      // Use case-insensitive regex matching to find customers
       const customer = await Customer.findOne({
         user: req.user._id,
-        $or: [{ displayName: name }, { clientName: name }, { companyName: name }],
+        $or: [
+          { displayName: { $regex: new RegExp(`^${name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i') } },
+          { clientName: { $regex: new RegExp(`^${name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i') } },
+          { companyName: { $regex: new RegExp(`^${name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i') } }
+        ],
         isActive: { $ne: false },
       })
         .select('_id email mobile phoneNumber')
@@ -2384,14 +2750,61 @@ export const importInvoicesFromExcel = async (req, res) => {
       imported += 1;
     }
 
-    res.json({
-      message: `Imported ${imported} invoice(s). Skipped ${skipped} row(s).`,
+    // Build success message with master creation info
+    const masterCreationSummary = [];
+    if (createdMasters.customers > 0) {
+      masterCreationSummary.push(`${createdMasters.customers} customer${createdMasters.customers === 1 ? '' : 's'}`);
+    }
+    if (createdMasters.items > 0) {
+      masterCreationSummary.push(`${createdMasters.items} item${createdMasters.items === 1 ? '' : 's'}`);
+    }
+
+    let message = `Imported ${imported} invoice(s). Skipped ${skipped} row(s).`;
+    if (masterCreationSummary.length > 0) {
+      message += ` Automatically created ${masterCreationSummary.join(', ')}.`;
+    }
+
+    // Return detailed response
+    const response = {
+      message,
       imported,
       skipped,
+      mastersCreated: createdMasters,
       errors: [...errors, ...rowSkips].slice(0, 200),
-    });
+    };
+
+    // If there are errors but some invoices were imported, return 200 with warnings
+    // If no invoices were imported and there are errors, return 400
+    if (imported === 0 && response.errors.length > 0) {
+      return res.status(400).json({
+        ...response,
+        message: `Import failed: No invoices were imported. ${response.errors.length} error(s) found.`,
+      });
+    }
+
+    res.json(response);
   } catch (error) {
     console.error('Error importing invoices from Excel:', error);
-    res.status(500).json({ message: error.message || 'Failed to import invoices from Excel' });
+    console.error('Error stack:', error.stack);
+    
+    // Provide more detailed error information
+    let errorMessage = 'Failed to import invoices from Excel';
+    if (error.message) {
+      errorMessage = error.message;
+    }
+    
+    // Check for specific error types
+    if (error.code === 'LIMIT_FILE_SIZE') {
+      errorMessage = 'File size exceeds the maximum allowed limit (10MB)';
+    } else if (error.message?.includes('file type')) {
+      errorMessage = 'Invalid file type. Please upload an Excel file (.xlsx or .xls)';
+    } else if (error.message?.includes('buffer')) {
+      errorMessage = 'Failed to read Excel file. Please ensure the file is not corrupted.';
+    }
+    
+    res.status(500).json({ 
+      message: errorMessage,
+      error: process.env.NODE_ENV === 'development' ? error.stack : undefined,
+    });
   }
 };

@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { departmentAPI } from '../services/api';
 import { useToast } from '../contexts/ToastContext';
 import ConfirmationModal from '../components/ConfirmationModal';
+import ActionDropdown from '../components/ActionDropdown';
 
 const DepartmentMaster = ({ returnPath, returnState }) => {
   const { showToast } = useToast();
@@ -238,21 +239,11 @@ const DepartmentMaster = ({ returnPath, returnState }) => {
                     <td className="px-6 py-4 text-sm font-semibold text-gray-900">{r.name}</td>
                     <td className="px-6 py-4 text-sm text-gray-700">{r.isActive === false ? 'Inactive' : 'Active'}</td>
                     <td className="px-6 py-4 text-sm text-right">
-                      <div className="inline-flex items-center gap-2">
-                        <button
-                          type="button"
-                          onClick={() => handleEdit(r)}
-                          className="px-3 py-2 rounded-lg border border-gray-300 hover:bg-gray-50 text-sm font-semibold"
-                        >
-                          Edit
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => handleDelete(r._id)}
-                          className="px-3 py-2 rounded-lg border border-red-300 text-red-700 hover:bg-red-50 text-sm font-semibold"
-                        >
-                          Delete
-                        </button>
+                      <div className="flex items-center justify-end">
+                        <ActionDropdown
+                          onEdit={() => handleEdit(r)}
+                          onDelete={() => handleDelete(r._id)}
+                        />
                       </div>
                     </td>
                   </tr>

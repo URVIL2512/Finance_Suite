@@ -65,6 +65,8 @@ const Expenses = () => {
   const [historyModal, setHistoryModal] = useState({ isOpen: false, filterType: null, filterValue: null });
   const [deleteConfirm, setDeleteConfirm] = useState({ show: false, id: null });
   const [bulkDeleteConfirm, setBulkDeleteConfirm] = useState({ show: false, ids: [] });
+  const [removeDuplicatesConfirm, setRemoveDuplicatesConfirm] = useState({ show: false });
+  const [removingDuplicates, setRemovingDuplicates] = useState(false);
   const fileInputRef = useRef(null);
   const vendorDropdownRef = useRef(null);
   const [departments, setDepartments] = useState(DEFAULT_DEPARTMENTS);
@@ -595,6 +597,34 @@ const Expenses = () => {
     }
   };
 
+  const handleRemoveDuplicates = () => {
+    setRemoveDuplicatesConfirm({ show: true });
+  };
+
+  const handleRemoveDuplicatesConfirm = async () => {
+    try {
+      setRemovingDuplicates(true);
+      setRemoveDuplicatesConfirm({ show: false });
+      
+      const response = await expenseAPI.removeDuplicates();
+      const removedCount = response.data.removed || 0;
+      
+      if (removedCount > 0) {
+        showToast(`Successfully removed ${removedCount} duplicate expense(s)`, 'success');
+        // Refresh expenses list
+        fetchExpenses();
+      } else {
+        showToast('No duplicate expenses found', 'info');
+      }
+    } catch (error) {
+      console.error('Error removing duplicate expenses:', error);
+      const errorMessage = error.response?.data?.message || 'Failed to remove duplicate expenses';
+      showToast(errorMessage, 'error');
+    } finally {
+      setRemovingDuplicates(false);
+    }
+  };
+
   const handleClearFilters = () => {
     const clearedFilters = {
       month: '',
@@ -642,15 +672,32 @@ const Expenses = () => {
       
       const message = response.data.message || `Successfully imported ${response.data.imported || 0} expense(s)`;
       
+      // Check if there are duplicates
+      const hasDuplicates = response.data.duplicates && response.data.duplicates > 0;
+      
       if (response.data.errors && response.data.errors.length > 0) {
         const errorCount = response.data.errors.length;
-        const errorMessage = response.data.errors.slice(0, 3).join('\n');
+        // Filter duplicate messages from other errors for better display
+        const duplicateErrors = response.data.errors.filter(err => err.includes('Duplicate expense detected'));
+        const otherErrors = response.data.errors.filter(err => !err.includes('Duplicate expense detected'));
+        
+        let errorMessage = '';
+        if (duplicateErrors.length > 0) {
+          errorMessage += `${duplicateErrors.length} duplicate expense(s) were skipped.\n`;
+        }
+        if (otherErrors.length > 0) {
+          const otherErrorPreview = otherErrors.slice(0, 3).join('\n');
+          errorMessage += `${otherErrors.length} error(s) encountered:\n${otherErrorPreview}${otherErrors.length > 3 ? `\n... and ${otherErrors.length - 3} more` : ''}`;
+        }
+        
+        // Show warning if there are duplicates or other errors, success if only duplicates
+        const toastType = otherErrors.length > 0 ? 'warning' : (hasDuplicates ? 'warning' : 'error');
         showToast(
-          `${message}\n\n${errorCount} error(s) encountered:\n${errorMessage}${errorCount > 3 ? `\n... and ${errorCount - 3} more` : ''}`,
-          'warning'
+          `${message}${errorMessage ? `\n\n${errorMessage}` : ''}`,
+          toastType
         );
       } else {
-        showToast(message, 'success');
+        showToast(message, hasDuplicates ? 'warning' : 'success');
       }
 
       // Reset file input
@@ -1305,6 +1352,33 @@ const Expenses = () => {
                           onClick={(e) => {
                             e.preventDefault();
                             e.stopPropagation();
+                            handleRemoveDuplicates();
+                          }}
+                          disabled={removingDuplicates}
+                          className="px-5 py-2.5 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-all text-sm font-semibold shadow-md hover:shadow-lg flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                          type="button"
+                        >
+                          {removingDuplicates ? (
+                            <>
+                              <svg className="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647A7.962 7.962 0 0112 20c0-4.418-3.582-8-8-8z"></path>
+                              </svg>
+                              Removing...
+                            </>
+                          ) : (
+                            <>
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                              </svg>
+                              Remove Duplicacy
+                            </>
+                          )}
+                        </button>
+                        <button
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
                             handleBulkDelete(selectedExpenses);
                           }}
                           disabled={deleting}
@@ -1571,6 +1645,18 @@ const Expenses = () => {
         cancelText="Cancel"
         confirmButtonColor="red"
         loading={deleting}
+      />
+
+      <ConfirmationModal
+        isOpen={removeDuplicatesConfirm.show}
+        onClose={() => setRemoveDuplicatesConfirm({ show: false })}
+        onConfirm={handleRemoveDuplicatesConfirm}
+        title="Remove Duplicate Expenses"
+        message="This will scan all your expenses and remove duplicates based on vendor, category, department, date, and total amount. The oldest expense in each duplicate group will be kept. This action cannot be undone."
+        confirmText="Remove Duplicates"
+        cancelText="Cancel"
+        confirmButtonColor="orange"
+        loading={removingDuplicates}
       />
     </div>
   );
