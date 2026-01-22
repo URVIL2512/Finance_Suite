@@ -184,11 +184,11 @@ const drawCompanyBlock = async (doc, startY) => {
     .fillColor(colors.textGray);
   
   doc.text('Gandhinagar, Gujarat 382421, India', layout.leftMargin, currentY);
-  currentY += spacing.sm;
+  currentY += spacing.sm * 1.25;
   doc.text('GSTIN: 24AALCK3637K1Z9', layout.leftMargin, currentY);
-  currentY += spacing.sm;
+  currentY += spacing.sm * 1.25;
   doc.text('Phone: +91 9328850777 | Email: mihir@kology.in', layout.leftMargin, currentY);
-  currentY += spacing.sm;
+  currentY += spacing.sm * 1.25;
   doc.text('Website: www.kology.co', layout.leftMargin, currentY);
   
   return currentY + SECTION_GAP;
@@ -224,7 +224,7 @@ const drawInvoiceMeta = (
       width: invoiceBoxWidth
     });
 
-  currentY += spacing.md; // Spacing after title
+  currentY += spacing.md*1.25; // Spacing after title
 
   // Invoice number
   doc.fontSize(12)
@@ -244,7 +244,7 @@ const drawInvoiceMeta = (
       width: invoiceBoxWidth
     });
 
-  currentY += spacing.sm;
+  currentY += spacing.sm* 1.25;
 
   doc.fillColor(colors.darkText)
     .fontSize(14) // reduced from 22
@@ -1086,16 +1086,20 @@ const drawFooter = (doc, startY, invoice, currency, bankDetails, customTerms) =>
     doc.font(fonts.regular).fontSize(fontSize.base);
 
     const row = (label, value) => {
-      doc.fillColor(colors.textGray).text(label, layout.leftMargin, currentY);
-      doc.fillColor(colors.darkText).text(value, layout.leftMargin + 110, currentY);
-      currentY += spacing.sm;
+      if (value && typeof value === 'string' && value.trim().length > 0) {
+        doc.fillColor(colors.textGray).text(label, layout.leftMargin, currentY);
+        doc.fillColor(colors.darkText).text(value.trim(), layout.leftMargin + 110, currentY);
+        currentY += spacing.sm * 1.25;
+      }
     };
 
-    if (bankDetails.companyName) row('Company Name:', bankDetails.companyName);
-    if (bankDetails.bankName) row('Bank Name:', bankDetails.bankName);
-    if (bankDetails.accountNumber) row('Account No:', bankDetails.accountNumber);
-    if (bankDetails.ifscCode) row('IFSC Code:', bankDetails.ifscCode);
-    if (bankDetails.branch) row('Branch:', bankDetails.branch);
+    // Display all bank detail fields if they have values
+    row('Company Name:', bankDetails.companyName);
+    row('Bank Name:', bankDetails.bankName);
+    row('Account No:', bankDetails.accountNumber);
+    row('IFSC Code:', bankDetails.ifscCode);
+    row('SWIFT Code:', bankDetails.swiftCode);
+    row('Branch:', bankDetails.branch);
 
     currentY += spacing.md;
   }
@@ -1182,7 +1186,7 @@ const drawFooter = (doc, startY, invoice, currency, bankDetails, customTerms) =>
     doc.text(`${i + 1}. ${t}`, layout.leftMargin, currentY, {
       width: layout.contentWidth,
     });
-    currentY += spacing.sm;
+    currentY += spacing.sm * 1.25;
   });
 
   // ---------------- FOOTER LINE ----------------
@@ -1309,18 +1313,59 @@ export const generateInvoicePDF = async (invoice, outputPath, userId = null) => 
       let customTerms = null
       let bankDetails = null
 
-      if (userId) {
+      // Get userId from parameter or from invoice.user field
+      const effectiveUserId = userId || invoice.user || (invoice.user && invoice.user._id ? invoice.user._id : invoice.user)
+      
+      if (effectiveUserId) {
         try {
-          const settings = await Settings.findOne({ user: userId })
+          // Fetch latest settings from database (no caching)
+          const settings = await Settings.findOne({ user: effectiveUserId }).lean()
+          
           if (settings) {
-            if (settings.termsAndConditions?.length) customTerms = settings.termsAndConditions
-            if (settings.bankDetails) bankDetails = settings.bankDetails
+            console.log('📋 PDF Generator - Settings found:', {
+              hasTermsAndConditions: !!settings.termsAndConditions,
+              termsCount: settings.termsAndConditions?.length || 0,
+              hasBankDetails: !!settings.bankDetails,
+              bankDetailsKeys: settings.bankDetails ? Object.keys(settings.bankDetails) : []
+            })
+            
+            // Check if termsAndConditions exists and has items
+            if (settings.termsAndConditions && Array.isArray(settings.termsAndConditions) && settings.termsAndConditions.length > 0) {
+              customTerms = settings.termsAndConditions
+              console.log('✅ Using custom Terms & Conditions from settings:', customTerms.length, 'terms')
+            } else {
+              console.log('⚠️ No custom Terms & Conditions found in settings, using defaults')
+            }
+            
+            // Check if bankDetails exists and has at least one field
+            if (settings.bankDetails && typeof settings.bankDetails === 'object') {
+              // Check if bankDetails has any non-empty values
+              const hasBankData = Object.values(settings.bankDetails).some(value => 
+                value && typeof value === 'string' && value.trim().length > 0
+              )
+              
+              if (hasBankData) {
+                bankDetails = settings.bankDetails
+                console.log('✅ Using Bank Details from settings:', Object.keys(bankDetails))
+              } else {
+                console.log('⚠️ Bank Details found but all fields are empty')
+              }
+            } else {
+              console.log('⚠️ No Bank Details found in settings')
+            }
+          } else {
+            console.log('⚠️ No settings document found for user:', effectiveUserId)
           }
-        } catch {}
+        } catch (error) {
+          console.error('❌ Error fetching settings for PDF generation:', error)
+          // Don't fail PDF generation if settings fetch fails, just use defaults
+        }
+      } else {
+        console.log('⚠️ No userId provided, using default Terms & Conditions and no Bank Details')
       }
 
       let paymentTerms = 'Due on Receipt'
-      if (invoice.clientEmail && userId) {
+      if (invoice.clientEmail && effectiveUserId) {
         try {
           const customer = await Customer.findOne({
             $or: [
@@ -1328,7 +1373,7 @@ export const generateInvoicePDF = async (invoice, outputPath, userId = null) => 
               { clientName: invoice.clientDetails?.name },
               { displayName: invoice.clientDetails?.name }
             ],
-            user: userId,
+            user: effectiveUserId,
             isActive: { $ne: false }
           })
           if (customer?.paymentTerms) paymentTerms = customer.paymentTerms
@@ -1357,9 +1402,9 @@ export const generateInvoicePDF = async (invoice, outputPath, userId = null) => 
 
       // Fetch items from Item master to lookup HSN/SAC codes for existing invoices
       let itemsLookup = new Map()
-      if (userId && invoice.items) {
+      if (effectiveUserId && invoice.items) {
         try {
-          const items = await Item.find({ user: userId }).select('name hsnSac').lean()
+          const items = await Item.find({ user: effectiveUserId }).select('name hsnSac').lean()
           // Create a lookup map: item name (lowercase) -> hsnSac
           items.forEach(item => {
             if (item.name && item.hsnSac && item.hsnSac.trim()) {
@@ -1414,6 +1459,15 @@ export const generateInvoicePDF = async (invoice, outputPath, userId = null) => 
       // Table starts after client block
       currentY = drawItemsTable(doc, currentY, invoice, currency)
       currentY = drawTotalsBlock(doc, currentY, invoice, currency, receivableAmount)
+      
+      // Log what we're passing to footer for debugging
+      console.log('📄 PDF Generator - Footer data:', {
+        hasBankDetails: !!bankDetails,
+        bankDetailsFields: bankDetails ? Object.keys(bankDetails).filter(k => bankDetails[k]) : [],
+        hasCustomTerms: !!customTerms,
+        termsCount: customTerms ? customTerms.length : 0
+      })
+      
       currentY = drawFooter(doc, currentY, invoice, currency, bankDetails, customTerms)
 
       doc.end()
