@@ -2,6 +2,10 @@ import mongoose from 'mongoose';
 
 const settingsSchema = new mongoose.Schema(
   {
+    declaration: {
+      type: String,
+      default: '',
+    },
     termsAndConditions: {
       type: [String],
       default: [

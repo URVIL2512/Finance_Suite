@@ -8,6 +8,7 @@ const Settings = () => {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [showProfileModal, setShowProfileModal] = useState(false);
+  const [declaration, setDeclaration] = useState('');
   const [terms, setTerms] = useState(['']);
   const [bankDetails, setBankDetails] = useState({
     companyName: '',
@@ -19,6 +20,7 @@ const Settings = () => {
   });
   const [message, setMessage] = useState({ type: '', text: '' });
   const [showToast, setShowToast] = useState(false);
+  const [initialDeclaration, setInitialDeclaration] = useState('');
   const [initialTerms, setInitialTerms] = useState([]);
   const [initialBankDetails, setInitialBankDetails] = useState({});
 
@@ -31,6 +33,10 @@ const Settings = () => {
       setLoading(true);
       const response = await settingsAPI.get();
       const settings = response.data;
+      if (settings.declaration !== undefined) {
+        setDeclaration(settings.declaration || '');
+        setInitialDeclaration(settings.declaration || '');
+      }
       if (settings.termsAndConditions && settings.termsAndConditions.length > 0) {
         setTerms(settings.termsAndConditions);
         setInitialTerms(settings.termsAndConditions);
@@ -98,6 +104,7 @@ const Settings = () => {
       const validTerms = terms.filter(term => term.trim() !== '');
       
       // Check which section was modified
+      const declarationChanged = declaration !== initialDeclaration;
       const termsChanged = JSON.stringify(validTerms) !== JSON.stringify(initialTerms);
       const bankDetailsChanged = JSON.stringify(bankDetails) !== JSON.stringify(initialBankDetails);
       
@@ -110,6 +117,9 @@ const Settings = () => {
       
       // Build update payload with only changed sections
       const updatePayload = {};
+      if (declarationChanged) {
+        updatePayload.declaration = declaration;
+      }
       if (termsChanged) {
         updatePayload.termsAndConditions = validTerms;
       }
@@ -118,7 +128,7 @@ const Settings = () => {
       }
       
       // If nothing changed, show message and return
-      if (!termsChanged && !bankDetailsChanged) {
+      if (!declarationChanged && !termsChanged && !bankDetailsChanged) {
         showMessage('success', 'No changes to save.');
         setSaving(false);
         return;
@@ -127,6 +137,9 @@ const Settings = () => {
       await settingsAPI.update(updatePayload);
       
       // Update initial values after successful save
+      if (declarationChanged) {
+        setInitialDeclaration(declaration);
+      }
       if (termsChanged) {
         setInitialTerms(validTerms);
       }
@@ -135,12 +148,13 @@ const Settings = () => {
       }
       
       // Show appropriate message based on what was changed
-      if (termsChanged && bankDetailsChanged) {
-        showMessage('success', 'Settings saved successfully! Terms and conditions and bank details have been updated.');
-      } else if (termsChanged) {
-        showMessage('success', 'Settings saved successfully! Terms and conditions have been updated.');
-      } else if (bankDetailsChanged) {
-        showMessage('success', 'Settings saved successfully! New invoices will use updated bank details.');
+      const changedSections = [];
+      if (declarationChanged) changedSections.push('declaration');
+      if (termsChanged) changedSections.push('terms and conditions');
+      if (bankDetailsChanged) changedSections.push('bank details');
+      
+      if (changedSections.length > 0) {
+        showMessage('success', `Settings saved successfully! ${changedSections.join(', ')} ${changedSections.length === 1 ? 'has' : 'have'} been updated.`);
       }
     } catch (error) {
       console.error('Error saving settings:', error);
@@ -239,6 +253,27 @@ const Settings = () => {
           </div>
         </div>
       )}
+
+      {/* Declaration Section */}
+      <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-5 mb-4">
+        <div className="flex items-center gap-3 mb-4">
+          <div className="w-9 h-9 rounded-lg bg-orange-100 flex items-center justify-center">
+            <svg className="w-5 h-5 text-orange-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+            </svg>
+          </div>
+          <div>
+            <h2 className="text-lg font-semibold text-slate-900">Declaration</h2>
+          </div>
+        </div>
+        <textarea
+          value={declaration}
+          onChange={(e) => setDeclaration(e.target.value)}
+          placeholder="Enter declaration text (e.g., 'We declare that this invoice shows the actual price of the goods described and that all particulars are true and correct.')"
+          rows="4"
+          className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 resize-none bg-white transition-all placeholder:text-slate-400"
+        />
+      </div>
 
       {/* Two Column Layout - Terms and Bank Details Side by Side */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-4">

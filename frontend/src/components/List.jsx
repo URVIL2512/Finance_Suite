@@ -42,6 +42,7 @@ const InvoiceForm = ({ invoice, customers = [], onSubmit, onCancel, onCustomerAd
   const tdsDropdownRef = useRef(null);
   const tcsDropdownRef = useRef(null);
   const autoCreateTimeoutRef = useRef({});
+  const lastLoadedInvoiceIdRef = useRef(null); // Track last loaded invoice ID to prevent resetting items
   const [deleteAllItemsConfirm, setDeleteAllItemsConfirm] = useState(false);
   const [deleteItemConfirm, setDeleteItemConfirm] = useState({ show: false, itemId: null });
   const [newCustomerData, setNewCustomerData] = useState({
@@ -93,6 +94,10 @@ const InvoiceForm = ({ invoice, customers = [], onSubmit, onCancel, onCustomerAd
   // Load invoice data if editing
   useEffect(() => {
     if (invoice && invoice._id) {
+      // Check if this is the same invoice we already loaded
+      // If so, preserve existing items to prevent losing user's additions
+      const isSameInvoice = lastLoadedInvoiceIdRef.current === invoice._id;
+      
       try {
         console.log('📝 Loading invoice data for editing:', invoice);
         console.log('📝 Full invoice object:', JSON.stringify(invoice, null, 2));
@@ -227,27 +232,35 @@ const InvoiceForm = ({ invoice, customers = [], onSubmit, onCancel, onCustomerAd
           return formDataToSet;
         });
         
-        // Load items from invoice
-        if (invoice.items && invoice.items.length > 0) {
-          setItems(invoice.items.map((item, index) => ({
-            id: Date.now() + index,
-            description: item.description || '',
-            hsnSac: item.hsnSac || '',
-            quantity: item.quantity || 1,
-            rate: item.rate || 0,
-            discount: 0, // Discount not in current schema, default to 0
-            amount: item.amount || 0,
-          })));
+        // Only load items from invoice if this is a different invoice or items haven't been loaded yet
+        // This prevents resetting items when returning from items page
+        if (!isSameInvoice) {
+          console.log('🔄 Loading items from invoice (new invoice or first load)');
+          if (invoice.items && invoice.items.length > 0) {
+            setItems(invoice.items.map((item, index) => ({
+              id: Date.now() + index,
+              description: item.description || '',
+              hsnSac: item.hsnSac || '',
+              quantity: item.quantity || 1,
+              rate: item.rate || 0,
+              discount: 0, // Discount not in current schema, default to 0
+              amount: item.amount || 0,
+            })));
+          } else {
+            setItems([{
+              id: Date.now(),
+              description: '',
+              hsnSac: '',
+              quantity: 1,
+              rate: 0,
+              discount: 0,
+              amount: 0,
+            }]);
+          }
+          // Update the ref to track this invoice
+          lastLoadedInvoiceIdRef.current = invoice._id;
         } else {
-          setItems([{
-            id: Date.now(),
-            description: '',
-            hsnSac: '',
-            quantity: 1,
-            rate: 0,
-            discount: 0,
-            amount: 0,
-          }]);
+          console.log('✅ Preserving existing items (same invoice, user may have added items)');
         }
         
         // Don't try to match customer here - that will be done in a separate useEffect
@@ -258,6 +271,7 @@ const InvoiceForm = ({ invoice, customers = [], onSubmit, onCancel, onCustomerAd
       }
     } else {
       // Reset form for new invoice
+      lastLoadedInvoiceIdRef.current = null; // Clear the ref for new invoice
       setFormData({
         invoiceDate: format(new Date(), 'yyyy-MM-dd'),
         dueDate: format(new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), 'yyyy-MM-dd'),

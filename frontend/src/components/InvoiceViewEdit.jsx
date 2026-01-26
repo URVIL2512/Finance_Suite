@@ -291,9 +291,34 @@ const InvoiceViewEdit = ({ invoice, onClose, onUpdate, customers = [] }) => {
                     {invoiceData.currencyDetails?.invoiceCurrency || invoiceData.currency || 'INR'} {(invoiceData.receivedAmount || invoiceData.paidAmount || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
                   </div>
                 </div>
-                <div>
-                  <div className="text-xs font-semibold text-slate-500 mb-1">Balance Due</div>
-                  <div className="text-sm font-semibold text-red-600">
+                <div 
+                  className="rounded-[10px] text-center mb-3"
+                  style={{
+                    border: '1.5px solid #2563EB',
+                    backgroundColor: '#F0F7FF',
+                    padding: '12px 18px',
+                    boxShadow: '0 4px 10px rgba(37, 99, 235, 0.12)'
+                  }}
+                >
+                  <div 
+                    className="text-xs font-semibold mb-2"
+                    style={{ 
+                      color: '#1E3A8A',
+                      fontSize: '12px',
+                      fontWeight: 600,
+                      letterSpacing: '0.5px'
+                    }}
+                  >
+                    Balance Due
+                  </div>
+                  <div 
+                    className="font-extrabold"
+                    style={{
+                      color: '#0F172A',
+                      fontSize: '22px',
+                      fontWeight: 800
+                    }}
+                  >
                     {invoiceData.currencyDetails?.invoiceCurrency || invoiceData.currency || 'INR'} {(() => {
                       const receivable = invoiceData.amountDetails?.receivableAmount || 0;
                       const received = invoiceData.receivedAmount || invoiceData.paidAmount || 0;

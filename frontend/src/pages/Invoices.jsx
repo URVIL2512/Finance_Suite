@@ -50,14 +50,38 @@ const Invoices = () => {
   // Check if returning from items/customers page and should show invoice form
   useEffect(() => {
     const returnState = location.state?.showInvoiceForm;
+    const invoiceId = location.state?.invoiceId;
     
     if (returnState) {
       console.log('🔄 Detected return from items/customers - restoring invoice form in Invoices page');
       console.log('Location state:', location.state);
+      console.log('Invoice ID from return state:', invoiceId);
       
       // Set form state immediately
       setShowForm(true);
-      setEditingInvoice(null);
+      
+      // If there's an invoiceId, reload the invoice to preserve editing state
+      if (invoiceId) {
+        console.log('📥 Reloading invoice with ID:', invoiceId);
+        invoiceAPI.getById(invoiceId)
+          .then((response) => {
+            if (response.data) {
+              console.log('✅ Invoice reloaded successfully:', response.data);
+              setEditingInvoice(response.data);
+            } else {
+              console.warn('⚠️ No invoice data in response');
+              setEditingInvoice(null);
+            }
+          })
+          .catch((error) => {
+            console.error('❌ Error reloading invoice:', error);
+            showToast('Failed to reload invoice data', 'warning');
+            setEditingInvoice(null);
+          });
+      } else {
+        // No invoiceId means it's a new invoice
+        setEditingInvoice(null);
+      }
       
       // Clear the state after a delay to prevent re-triggering on refresh
       const clearTimer = setTimeout(() => {

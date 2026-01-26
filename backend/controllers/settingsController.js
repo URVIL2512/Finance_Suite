@@ -40,7 +40,7 @@ export const getSettings = async (req, res) => {
 // @access  Private
 export const updateSettings = async (req, res) => {
   try {
-    const { termsAndConditions, bankDetails, gstRates, tdsRates, tcsRates } = req.body;
+    const { declaration, termsAndConditions, bankDetails, gstRates, tdsRates, tcsRates } = req.body;
 
     let settings = await Settings.findOne({ user: req.user._id });
 
@@ -48,6 +48,7 @@ export const updateSettings = async (req, res) => {
       // Create new settings if they don't exist
       settings = await Settings.create({
         user: req.user._id,
+        declaration: declaration || '',
         termsAndConditions: termsAndConditions || [],
         bankDetails: bankDetails || {},
         gstRates: gstRates || [],
@@ -56,6 +57,9 @@ export const updateSettings = async (req, res) => {
       });
     } else {
       // Update existing settings
+      if (declaration !== undefined) {
+        settings.declaration = typeof declaration === 'string' ? declaration : '';
+      }
       if (termsAndConditions !== undefined) {
         settings.termsAndConditions = Array.isArray(termsAndConditions) 
           ? termsAndConditions 
