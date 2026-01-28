@@ -5,6 +5,8 @@ import { paymentModeAPI } from '../services/api';
 import ActionDropdown from '../components/ActionDropdown';
 import { useToast } from '../contexts/ToastContext';
 import ConfirmationModal from '../components/ConfirmationModal';
+import SearchBar from '../components/SearchBar';
+import { filterBySearchQuery, moduleSearchConfig } from '../utils/searchUtils';
 
 const PaymentModeMaster = ({ returnPath, returnState }) => {
   const { showToast } = useToast();
@@ -16,6 +18,7 @@ const PaymentModeMaster = ({ returnPath, returnState }) => {
   const [formData, setFormData] = useState({ name: '', description: '' });
   const [deleteConfirm, setDeleteConfirm] = useState({ show: false, id: null });
   const [deleting, setDeleting] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
 
   useEffect(() => {
     fetchPaymentModes();
@@ -121,6 +124,12 @@ const PaymentModeMaster = ({ returnPath, returnState }) => {
     }
   };
 
+  const filteredPaymentModes = filterBySearchQuery(
+    paymentModes,
+    searchQuery,
+    moduleSearchConfig.paymentModes
+  );
+
   if (loading && paymentModes.length === 0) {
     return (
       <div className="text-center py-12">
@@ -132,20 +141,29 @@ const PaymentModeMaster = ({ returnPath, returnState }) => {
 
   return (
     <div className="animate-fade-in">
-      <div className="mb-8 flex justify-between items-start">
+      <div className="mb-8 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
         <div>
           <h1 className="text-3xl font-bold text-gray-900 mb-2 tracking-tight">Payment Mode Master</h1>
           <p className="text-gray-600 text-sm">Manage payment modes for your expense transactions</p>
         </div>
-        <button 
-          onClick={handleCreate} 
-          className="bg-blue-600 hover:bg-blue-700 text-white font-semibold px-6 py-3 rounded-lg shadow-md hover:shadow-lg transition-all duration-200 flex items-center gap-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
-        >
-          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-          </svg>
-          Add Payment Mode
-        </button>
+        <div className="flex items-center gap-3">
+          {paymentModes.length > 0 && (
+            <SearchBar
+              value={searchQuery}
+              onChange={setSearchQuery}
+              placeholder="Search payment modes..."
+            />
+          )}
+          <button 
+            onClick={handleCreate} 
+            className="bg-blue-600 hover:bg-blue-700 text-white font-semibold px-6 py-3 rounded-lg shadow-md hover:shadow-lg transition-all duration-200 flex items-center gap-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+            </svg>
+            Add Payment Mode
+          </button>
+        </div>
       </div>
 
       {showForm && (
@@ -245,7 +263,7 @@ const PaymentModeMaster = ({ returnPath, returnState }) => {
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-100">
-                {paymentModes.map((mode) => (
+                {filteredPaymentModes.map((mode) => (
                   <tr key={mode._id} className="hover:bg-gray-50 transition-colors duration-150">
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                       {mode.createdAt ? format(new Date(mode.createdAt), 'dd/MM/yyyy') : '-'}

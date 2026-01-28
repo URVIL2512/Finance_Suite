@@ -1,13 +1,19 @@
 import { useState, useEffect } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { revenueAPI } from '../services/api';
 import { useToast } from '../contexts/ToastContext';
 import RevenueForm from '../components/RevenueForm';
 import RevenueTable from '../components/RevenueTable';
 import ConfirmationModal from '../components/ConfirmationModal';
 import MobileSelect from '../components/MobileSelect';
+import SearchBar from '../components/SearchBar';
+import { filterBySearchQuery, moduleSearchConfig } from '../utils/searchUtils';
 
 const Revenue = () => {
   const { showToast } = useToast();
+  const location = useLocation();
+  const navigate = useNavigate();
+
   const [revenue, setRevenue] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
@@ -19,13 +25,50 @@ const Revenue = () => {
     service: '',
   });
   const [showFilters, setShowFilters] = useState(false);
-  const [deleteConfirm, setDeleteConfirm] = useState({ show: false, id: null, skipConfirmation: false });
-  const [bulkDeleteConfirm, setBulkDeleteConfirm] = useState({ show: false, ids: [] });
+  const [deleteConfirm, setDeleteConfirm] = useState({
+    show: false,
+    id: null,
+    skipConfirmation: false,
+  });
+  const [bulkDeleteConfirm, setBulkDeleteConfirm] = useState({
+    show: false,
+    ids: [],
+  });
   const [deleting, setDeleting] = useState(false);
+  const initialSearch =
+    typeof window !== 'undefined'
+      ? new URLSearchParams(location.search).get('search') || ''
+      : '';
+  const [searchQuery, setSearchQuery] = useState(initialSearch);
 
   useEffect(() => {
     fetchRevenue();
   }, [filters]);
+
+  // Keep search state in sync with URL query param (?search=...)
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const urlSearch = params.get('search') || '';
+    if (urlSearch !== searchQuery) {
+      setSearchQuery(urlSearch);
+    }
+  }, [location.search]);
+
+  const updateSearchInUrl = (value) => {
+    const params = new URLSearchParams(location.search);
+    if (value && value.trim()) {
+      params.set('search', value.trim());
+    } else {
+      params.delete('search');
+    }
+    navigate(
+      {
+        pathname: location.pathname,
+        search: params.toString() ? `?${params.toString()}` : '',
+      },
+      { replace: true }
+    );
+  };
 
   const fetchRevenue = async () => {
     try {
@@ -37,7 +80,12 @@ const Revenue = () => {
       if (filters.service) params.service = filters.service;
 
       const response = await revenueAPI.getAll(params);
-      setRevenue(response.data);
+      const list = filterBySearchQuery(
+        response.data || [],
+        searchQuery,
+        moduleSearchConfig.revenue
+      );
+      setRevenue(list);
     } catch (error) {
       console.error('Error fetching revenue:', error);
     } finally {
@@ -114,6 +162,8 @@ const Revenue = () => {
       country: '',
       service: '',
     });
+    setSearchQuery('');
+    updateSearchInUrl('');
   };
 
   const handleFormSubmit = async (data) => {
@@ -197,23 +247,43 @@ const Revenue = () => {
 
   return (
     <div className="animate-fade-in">
-      <div className="mb-4 flex justify-between items-center">
+      <div className="mb-4 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
         <div>
-          <h1 className="page-header">
-            Revenue
-          </h1>
-          <p className="page-subtitle">Revenue entries are automatically created when you create invoices</p>
+          <h1 className="page-header">Revenue</h1>
+          <p className="page-subtitle">
+            Revenue entries are automatically created when you create invoices
+          </p>
         </div>
         {!showForm && (
-          <button
-            onClick={() => setShowFilters(!showFilters)}
-            className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 transition-colors flex items-center gap-2"
-          >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
-            </svg>
-            <span>Filters</span>
-          </button>
+          <div className="flex items-center gap-3">
+            <SearchBar
+              value={searchQuery}
+              onChange={(val) => {
+                setSearchQuery(val);
+                updateSearchInUrl(val);
+              }}
+              placeholder="Search revenue..."
+            />
+            <button
+              onClick={() => setShowFilters(!showFilters)}
+              className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 transition-colors flex items-center gap-2"
+            >
+              <svg
+                className="w-5 h-5"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z"
+                />
+              </svg>
+              <span>Filters</span>
+            </button>
+          </div>
         )}
       </div>
 

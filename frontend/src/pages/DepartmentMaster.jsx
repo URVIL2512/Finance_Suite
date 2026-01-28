@@ -4,6 +4,8 @@ import { departmentAPI } from '../services/api';
 import { useToast } from '../contexts/ToastContext';
 import ConfirmationModal from '../components/ConfirmationModal';
 import ActionDropdown from '../components/ActionDropdown';
+import SearchBar from '../components/SearchBar';
+import { filterBySearchQuery, moduleSearchConfig } from '../utils/searchUtils';
 
 const DepartmentMaster = ({ returnPath, returnState }) => {
   const { showToast } = useToast();
@@ -15,6 +17,7 @@ const DepartmentMaster = ({ returnPath, returnState }) => {
   const [form, setForm] = useState({ name: '', isActive: true });
   const [deleteConfirm, setDeleteConfirm] = useState({ show: false, id: null });
   const [deleting, setDeleting] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
 
   useEffect(() => {
     fetchRows();
@@ -118,6 +121,12 @@ const DepartmentMaster = ({ returnPath, returnState }) => {
     }
   };
 
+  const filteredRows = filterBySearchQuery(
+    rows,
+    searchQuery,
+    moduleSearchConfig.departments
+  );
+
   if (loading && rows.length === 0) {
     return (
       <div className="text-center py-12">
@@ -129,20 +138,29 @@ const DepartmentMaster = ({ returnPath, returnState }) => {
 
   return (
     <div className="animate-fade-in">
-      <div className="mb-8 flex justify-between items-start">
+      <div className="mb-8 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
         <div>
           <h1 className="text-3xl font-bold text-gray-900 mb-2 tracking-tight">Department Master</h1>
           <p className="text-gray-600 text-sm">Manage departments used in expenses</p>
         </div>
-        <button
-          onClick={handleCreate}
-          className="bg-blue-600 hover:bg-blue-700 text-white font-semibold px-6 py-3 rounded-lg shadow-md hover:shadow-lg transition-all duration-200 flex items-center gap-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
-        >
-          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-          </svg>
-          Add Department
-        </button>
+        <div className="flex items-center gap-3">
+          {rows.length > 0 && (
+            <SearchBar
+              value={searchQuery}
+              onChange={setSearchQuery}
+              placeholder="Search departments..."
+            />
+          )}
+          <button
+            onClick={handleCreate}
+            className="bg-blue-600 hover:bg-blue-700 text-white font-semibold px-6 py-3 rounded-lg shadow-md hover:shadow-lg transition-all duration-200 flex items-center gap-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+            </svg>
+            Add Department
+          </button>
+        </div>
       </div>
 
       {showForm && (
@@ -234,7 +252,7 @@ const DepartmentMaster = ({ returnPath, returnState }) => {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200">
-                {rows.map((r) => (
+                {filteredRows.map((r) => (
                   <tr key={r._id} className="hover:bg-gray-50">
                     <td className="px-6 py-4 text-sm font-semibold text-gray-900">{r.name}</td>
                     <td className="px-6 py-4 text-sm text-gray-700">{r.isActive === false ? 'Inactive' : 'Active'}</td>

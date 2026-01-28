@@ -1,14 +1,24 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { authAPI } from '../services/api';
 
 const Login = ({ onLogin }) => {
   const [formData, setFormData] = useState({
-    email: '',
+    emailOrUsername: '',
     password: '',
   });
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    try {
+      const msg = sessionStorage.getItem('loginMessage');
+      if (msg) {
+        setError(msg);
+        sessionStorage.removeItem('loginMessage');
+      }
+    } catch (_) {}
+  }, []);
 
   const handleChange = (e) => {
     setFormData({
@@ -53,18 +63,18 @@ const Login = ({ onLogin }) => {
             )}
             <div className="space-y-4">
               <div>
-                <label htmlFor="email" className="block text-sm font-semibold text-gray-700 mb-2">
-                  Email address
+                <label htmlFor="emailOrUsername" className="block text-sm font-semibold text-gray-700 mb-2">
+                  Email or username
                 </label>
                 <input
-                  id="email"
-                  name="email"
-                  type="email"
-                  autoComplete="email"
+                  id="emailOrUsername"
+                  name="emailOrUsername"
+                  type="text"
+                  autoComplete="username"
                   required
                   className="input-field"
-                  placeholder="Enter your email"
-                  value={formData.email}
+                  placeholder="Enter your email or username"
+                  value={formData.emailOrUsername}
                   onChange={handleChange}
                 />
               </div>

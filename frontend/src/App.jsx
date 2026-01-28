@@ -21,27 +21,52 @@ import VendorMaster from './pages/VendorMaster';
 import BankAccountMaster from './pages/BankAccountMaster';
 import ExpenseMasters from './pages/ExpenseMasters';
 import Reports from './pages/Reports';
+import Users from './pages/Users';
 import Layout from './components/Layout';
-import { getAuthToken, removeAuthToken } from './utils/auth';
+import { getAuthToken, removeAuthToken, setAuthToken } from './utils/auth';
 import { ToastProvider } from './contexts/ToastContext';
+import { FilterProvider } from './contexts/FilterContext';
+import FilterDrawer from './components/FilterDrawer';
+import { authAPI } from './services/api';
 
 function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const token = getAuthToken();
-    setIsAuthenticated(!!token);
-    setLoading(false);
+    if (!token) {
+      setLoading(false);
+      return;
+    }
+    authAPI
+      .getMe()
+      .then((r) => {
+        setUser(r.data);
+        setIsAuthenticated(true);
+      })
+      .catch(() => {
+        removeAuthToken();
+        setIsAuthenticated(false);
+      })
+      .finally(() => setLoading(false));
   }, []);
 
-  const handleLogin = (token) => {
-    localStorage.setItem('token', token);
-    setIsAuthenticated(true);
+  const handleLogin = async (token) => {
+    setAuthToken(token);
+    try {
+      const r = await authAPI.getMe();
+      setUser(r.data);
+      setIsAuthenticated(true);
+    } catch {
+      removeAuthToken();
+    }
   };
 
   const handleLogout = () => {
     removeAuthToken();
+    setUser(null);
     setIsAuthenticated(false);
   };
 
@@ -55,8 +80,10 @@ function App() {
 
   return (
     <ToastProvider>
-      <Router>
-        <Routes>
+      <FilterProvider>
+        <Router>
+          <FilterDrawer />
+          <Routes>
         <Route
           path="/login"
           element={
@@ -81,7 +108,7 @@ function App() {
           path="/"
           element={
             isAuthenticated ? (
-              <Layout onLogout={handleLogout} />
+              <Layout user={user} onLogout={handleLogout} />
             ) : (
               <Navigate to="/login" replace />
             )
@@ -89,6 +116,16 @@ function App() {
         >
           <Route index element={<Navigate to="/dashboard" replace />} />
           <Route path="dashboard" element={<Dashboard />} />
+          <Route
+            path="users"
+            element={
+              user?.role === 'admin' ? (
+                <Users />
+              ) : (
+                <Navigate to="/dashboard" replace />
+              )
+            }
+          />
           <Route path="expenses" element={<Expenses />} />
           <Route path="revenue" element={<Revenue />} />
           <Route path="invoices" element={<Invoices />} />
@@ -108,8 +145,9 @@ function App() {
           <Route path="reports" element={<Reports />} />
           <Route path="settings" element={<Settings />} />
         </Route>
-      </Routes>
-    </Router>
+          </Routes>
+        </Router>
+      </FilterProvider>
     </ToastProvider>
   );
 }

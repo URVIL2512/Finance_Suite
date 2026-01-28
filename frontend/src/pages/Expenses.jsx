@@ -13,6 +13,8 @@ import { exportExpensesToExcel, exportExpensesToPDF } from '../utils/expenseExpo
 import { getAuthToken } from '../utils/auth';
 import MobileSelect from '../components/MobileSelect';
 import BankAccountPicker from '../components/BankAccountPicker';
+import SearchBar from '../components/SearchBar';
+import { filterBySearchQuery, moduleSearchConfig } from '../utils/searchUtils';
 
 const Expenses = () => {
   const { showToast } = useToast();
@@ -29,7 +31,11 @@ const Expenses = () => {
   const [showRecurringModal, setShowRecurringModal] = useState(false);
   const [viewingExpense, setViewingExpense] = useState(null);
   const [viewingPaymentHistory, setViewingPaymentHistory] = useState(null);
-  const [searchQuery, setSearchQuery] = useState('');
+  const initialSearch =
+    typeof window !== 'undefined'
+      ? new URLSearchParams(location.search).get('search') || ''
+      : '';
+  const [searchQuery, setSearchQuery] = useState(initialSearch);
   const [filters, setFilters] = useState({
     month: '',
     category: '',
@@ -70,6 +76,31 @@ const Expenses = () => {
   const fileInputRef = useRef(null);
   const vendorDropdownRef = useRef(null);
   const [departments, setDepartments] = useState(DEFAULT_DEPARTMENTS);
+
+  // Keep search state in sync with URL query param (?search=...)
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const urlSearch = params.get('search') || '';
+    if (urlSearch !== searchQuery) {
+      setSearchQuery(urlSearch);
+    }
+  }, [location.search]);
+
+  const updateSearchInUrl = (value) => {
+    const params = new URLSearchParams(location.search);
+    if (value && value.trim()) {
+      params.set('search', value.trim());
+    } else {
+      params.delete('search');
+    }
+    navigate(
+      {
+        pathname: location.pathname,
+        search: params.toString() ? `?${params.toString()}` : '',
+      },
+      { replace: true }
+    );
+  };
 
   // If we came back from Bank Account Master, restore the Mark-as-Paid context.
   useEffect(() => {
@@ -195,37 +226,12 @@ const Expenses = () => {
         }
       }
 
-      // Client-side search filtering - search across multiple fields
-      if (searchQuery.trim()) {
-        const query = searchQuery.toLowerCase().trim();
-        filteredExpenses = filteredExpenses.filter(expense => {
-          // Search in vendor
-          const vendorMatch = expense.vendor && expense.vendor.toLowerCase().includes(query);
-          
-          // Search in category
-          const categoryMatch = expense.category && expense.category.toLowerCase().includes(query);
-          
-          // Search in department
-          const departmentMatch = expense.department && expense.department.toLowerCase().includes(query);
-          
-          // Search in description
-          const descriptionMatch = expense.description && expense.description.toLowerCase().includes(query);
-          
-          // Search in payment mode
-          const paymentModeMatch = expense.paymentMode && expense.paymentMode.toLowerCase().includes(query);
-          
-          // Search in date (format: DD/MM/YYYY)
-          const expenseDate = new Date(expense.date);
-          const dateStr = `${String(expenseDate.getDate()).padStart(2, '0')}/${String(expenseDate.getMonth() + 1).padStart(2, '0')}/${expenseDate.getFullYear()}`;
-          const dateMatch = dateStr.includes(query);
-          
-          // Search in amount
-          const amountStr = (expense.totalAmount || 0).toString();
-          const amountMatch = amountStr.includes(query);
-
-          return vendorMatch || categoryMatch || departmentMatch || descriptionMatch || paymentModeMatch || dateMatch || amountMatch;
-        });
-      }
+      // Client-side search filtering using shared fuzzy matcher
+      filteredExpenses = filterBySearchQuery(
+        filteredExpenses,
+        searchQuery,
+        moduleSearchConfig.expenses
+      );
 
       // Remove duplicates - first by _id, then by key fields
       const seenIds = new Set();
@@ -638,6 +644,7 @@ const Expenses = () => {
     setFilters(clearedFilters);
     setAppliedFilters(clearedFilters);
     setSearchQuery('');
+    updateSearchInUrl('');
   };
 
   const handleImportClick = () => {
@@ -938,6 +945,15 @@ const Expenses = () => {
         <div className="w-full sm:w-auto grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:items-center sm:justify-end sm:gap-3 lg:gap-4">
           {!showForm && (
             <>
+              <SearchBar
+                value={searchQuery}
+                onChange={(val) => {
+                  setSearchQuery(val);
+                  updateSearchInUrl(val);
+                }}
+                placeholder="Search expenses..."
+                widthClass="col-span-2 sm:w-64"
+              />
               <button
                 onClick={() => setShowFilters(!showFilters)}
                 className="w-full sm:w-auto px-3 sm:px-4 py-2 text-xs sm:text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 transition-colors flex items-center justify-center gap-2"
@@ -1302,18 +1318,15 @@ const Expenses = () => {
           </div>
           <div className="space-y-2">
             <label className="block text-sm font-semibold text-gray-700 mb-2">Search</label>
-            <div className="relative">
-              <input
-                type="text"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Search by date, vendor, category, department, description, payment mode, or amount..."
-                className="select-field w-full pl-10 pr-4"
-              />
-              <svg className="w-5 h-5 absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-              </svg>
-            </div>
+            <SearchBar
+              value={searchQuery}
+              onChange={(val) => {
+                setSearchQuery(val);
+                updateSearchInUrl(val);
+              }}
+              placeholder="Search by date, vendor, category, department, description, payment mode, or amount..."
+              widthClass="w-full"
+            />
           </div>
         </div>
       )}

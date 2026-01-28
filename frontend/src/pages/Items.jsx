@@ -6,6 +6,8 @@ import ItemForm from '../components/ItemForm';
 import ActionDropdown from '../components/ActionDropdown';
 import ConfirmationModal from '../components/ConfirmationModal';
 import { useToast } from '../contexts/ToastContext';
+import SearchBar from '../components/SearchBar';
+import { filterBySearchQuery, moduleSearchConfig } from '../utils/searchUtils';
 
 const Items = () => {
   const { showToast } = useToast();
@@ -21,6 +23,11 @@ const Items = () => {
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [deleteConfirm, setDeleteConfirm] = useState({ show: false, id: null });
+  const initialSearch =
+    typeof window !== 'undefined'
+      ? new URLSearchParams(location.search).get('search') || ''
+      : '';
+  const [searchQuery, setSearchQuery] = useState(initialSearch);
 
   useEffect(() => {
     fetchItems();
@@ -46,6 +53,31 @@ const Items = () => {
       window.removeEventListener('refreshMasters', handleStorageChange);
     };
   }, []);
+
+  // Keep search state in sync with URL query param (?search=...)
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const urlSearch = params.get('search') || '';
+    if (urlSearch !== searchQuery) {
+      setSearchQuery(urlSearch);
+    }
+  }, [location.search]);
+
+  const updateSearchInUrl = (value) => {
+    const params = new URLSearchParams(location.search);
+    if (value && value.trim()) {
+      params.set('search', value.trim());
+    } else {
+      params.delete('search');
+    }
+    navigate(
+      {
+        pathname: location.pathname,
+        search: params.toString() ? `?${params.toString()}` : '',
+      },
+      { replace: true }
+    );
+  };
 
   // Auto-show form if coming from invoice page
   useEffect(() => {
@@ -161,6 +193,12 @@ const Items = () => {
     }
   };
 
+  const filteredItems = filterBySearchQuery(
+    items,
+    searchQuery,
+    moduleSearchConfig.items
+  );
+
   return (
     <div className="animate-fade-in">
       <div className="mb-6 flex justify-between items-center">
@@ -171,13 +209,23 @@ const Items = () => {
           <p className="page-subtitle">Manage products and services for invoices</p>
         </div>
         {!showForm && (
-          <button
-            onClick={() => setShowForm(true)}
-            className="btn-primary flex items-center space-x-2"
-          >
-            <span>+</span>
-            <span>New Item</span>
-          </button>
+          <div className="flex items-center gap-3">
+            <SearchBar
+              value={searchQuery}
+              onChange={(val) => {
+                setSearchQuery(val);
+                updateSearchInUrl(val);
+              }}
+              placeholder="Search items..."
+            />
+            <button
+              onClick={() => setShowForm(true)}
+              className="btn-primary flex items-center space-x-2"
+            >
+              <span>+</span>
+              <span>New Item</span>
+            </button>
+          </div>
         )}
       </div>
 
@@ -199,7 +247,18 @@ const Items = () => {
           ) : items.length === 0 ? (
             <div className="card-gradient p-8 text-center">
               <h2 className="text-2xl font-bold text-gray-800 mb-4">Items</h2>
-              <p className="text-gray-600 mb-6">No items created yet. Click "New Item" to get started.</p>
+              <p className="text-gray-600 mb-6">
+                No items created yet. Click &quot;New Item&quot; to get started.
+              </p>
+            </div>
+          ) : filteredItems.length === 0 ? (
+            <div className="card-gradient p-8 text-center">
+              <h2 className="text-2xl font-bold text-gray-800 mb-2">
+                No results found
+              </h2>
+              <p className="text-gray-600">
+                Try adjusting your search keywords or clearing the search.
+              </p>
             </div>
           ) : (
             <div className="card-gradient overflow-hidden">
@@ -207,55 +266,93 @@ const Items = () => {
                 <table className="min-w-full divide-y divide-gray-200">
                   <thead className="bg-gray-50">
                     <tr>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Type</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Unit</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">HSN/SAC Code</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Selling Price</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Cost Price</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Sellable</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Purchasable</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Created At</th>
-                      <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Type
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Name
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Unit
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        HSN/SAC Code
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Selling Price
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Cost Price
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Sellable
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Purchasable
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Created At
+                      </th>
+                      <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Actions
+                      </th>
                     </tr>
                   </thead>
                   <tbody className="bg-white divide-y divide-gray-200">
-                    {items.map((item) => (
+                    {filteredItems.map((item) => (
                       <tr key={item._id} className="hover:bg-gray-50">
                         <td className="px-6 py-4 whitespace-nowrap">
-                          <span className={`px-2 py-1 text-xs font-semibold rounded-full ${
-                            item.type === 'Service' 
-                              ? 'bg-blue-100 text-blue-800' 
-                              : 'bg-green-100 text-green-800'
-                          }`}>
+                          <span
+                            className={`px-2 py-1 text-xs font-semibold rounded-full ${
+                              item.type === 'Service'
+                                ? 'bg-blue-100 text-blue-800'
+                                : 'bg-green-100 text-green-800'
+                            }`}
+                          >
                             {item.type}
                           </span>
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{item.name}</td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{item.unit || '-'}</td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{item.hsnSac || '-'}</td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                          {item.sellable ? `INR ${item.sellingPrice?.toFixed(2) || '0.00'}` : '-'}
+                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                          {item.name}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                          {item.purchasable ? `INR ${item.costPrice?.toFixed(2) || '0.00'}` : '-'}
+                          {item.unit || '-'}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                          {item.hsnSac || '-'}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                          {item.sellable
+                            ? `INR ${item.sellingPrice?.toFixed(2) || '0.00'}`
+                            : '-'}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                          {item.purchasable
+                            ? `INR ${item.costPrice?.toFixed(2) || '0.00'}`
+                            : '-'}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
                           {item.sellable ? (
-                            <span className="text-green-600 font-semibold">Yes</span>
+                            <span className="text-green-600 font-semibold">
+                              Yes
+                            </span>
                           ) : (
                             <span className="text-gray-400">No</span>
                           )}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
                           {item.purchasable ? (
-                            <span className="text-green-600 font-semibold">Yes</span>
+                            <span className="text-green-600 font-semibold">
+                              Yes
+                            </span>
                           ) : (
                             <span className="text-gray-400">No</span>
                           )}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                          {item.createdAt ? format(new Date(item.createdAt), 'dd/MM/yyyy') : '-'}
+                          {item.createdAt
+                            ? format(new Date(item.createdAt), 'dd/MM/yyyy')
+                            : '-'}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                           <div className="flex justify-end">

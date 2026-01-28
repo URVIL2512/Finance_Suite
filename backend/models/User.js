@@ -7,12 +7,21 @@ const userSchema = new mongoose.Schema(
       type: String,
       required: [true, 'Please add a name'],
     },
+    username: {
+      type: String,
+      required: false,
+      unique: true,
+      lowercase: true,
+      sparse: true,
+      trim: true,
+    },
     email: {
       type: String,
       required: false,
-      unique: false,
+      unique: true,
       lowercase: true,
       sparse: true,
+      trim: true,
     },
     phone: {
       type: String,
@@ -21,13 +30,24 @@ const userSchema = new mongoose.Schema(
     password: {
       type: String,
       required: [true, 'Please add a password'],
-      minlength: 6,
+      minlength: 8,
     },
     role: {
       type: String,
       enum: ['admin', 'user'],
       default: 'user',
     },
+    status: {
+      type: String,
+      enum: ['active', 'inactive'],
+      default: 'active',
+    },
+    tokenVersion: {
+      type: Number,
+      default: 0,
+    },
+    createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
+    updatedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
   },
   {
     timestamps: true,

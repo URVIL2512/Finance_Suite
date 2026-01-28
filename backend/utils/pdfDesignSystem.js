@@ -82,6 +82,7 @@ export const getCurrencySymbol = (currency = 'INR') => {
     'USD': '$',
     'CAD': 'C$',
     'AUD': 'A$',
+    'AED': 'AED',  // UAE Dirham
   };
   return symbols[currency] || currency;
 };

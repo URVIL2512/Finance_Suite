@@ -5,6 +5,8 @@ import { bankAccountAPI } from '../services/api';
 import ActionDropdown from '../components/ActionDropdown';
 import { useToast } from '../contexts/ToastContext';
 import ConfirmationModal from '../components/ConfirmationModal';
+import SearchBar from '../components/SearchBar';
+import { filterBySearchQuery, moduleSearchConfig } from '../utils/searchUtils';
 
 const BankAccountMaster = ({ returnPath, returnState }) => {
   const { showToast } = useToast();
@@ -26,6 +28,7 @@ const BankAccountMaster = ({ returnPath, returnState }) => {
   });
   const [deleteConfirm, setDeleteConfirm] = useState({ show: false, id: null });
   const [deleting, setDeleting] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
 
   useEffect(() => {
     fetchBankAccounts();
@@ -156,6 +159,12 @@ const BankAccountMaster = ({ returnPath, returnState }) => {
     }
   };
 
+  const filteredBankAccounts = filterBySearchQuery(
+    bankAccounts,
+    searchQuery,
+    moduleSearchConfig.bankAccounts
+  );
+
   if (loading && bankAccounts.length === 0) {
     return (
       <div className="text-center py-12">
@@ -167,15 +176,24 @@ const BankAccountMaster = ({ returnPath, returnState }) => {
 
   return (
     <div className="animate-fade-in">
-      <div className="mb-6 flex justify-between items-center">
+      <div className="mb-6 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
         <div>
           <h1 className="text-3xl lg:text-4xl xl:text-5xl font-bold text-gray-900 mb-2">Bank Account Master</h1>
           <p className="text-slate-600">Manage bank accounts (account name, bank name, IFSC, account number, etc.)</p>
         </div>
-        <button onClick={handleCreate} className="btn-primary flex items-center space-x-2">
-          <span>+</span>
-          <span>Add Bank Account</span>
-        </button>
+        <div className="flex items-center gap-3">
+          {bankAccounts.length > 0 && (
+            <SearchBar
+              value={searchQuery}
+              onChange={setSearchQuery}
+              placeholder="Search bank accounts..."
+            />
+          )}
+          <button onClick={handleCreate} className="btn-primary flex items-center space-x-2">
+            <span>+</span>
+            <span>Add Bank Account</span>
+          </button>
+        </div>
       </div>
 
       {showForm && (
@@ -309,7 +327,7 @@ const BankAccountMaster = ({ returnPath, returnState }) => {
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
-                {bankAccounts.map((account) => (
+                {filteredBankAccounts.map((account) => (
                   <tr key={account._id} className="hover:bg-gradient-to-r hover:from-blue-50 hover:to-indigo-50 transition-all duration-200 border-b border-gray-100">
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-gray-900">{account.accountName}</td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">{account.bankName}</td>

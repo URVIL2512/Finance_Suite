@@ -5,6 +5,8 @@ import { vendorAPI } from '../services/api';
 import ActionDropdown from '../components/ActionDropdown';
 import { useToast } from '../contexts/ToastContext';
 import ConfirmationModal from '../components/ConfirmationModal';
+import SearchBar from '../components/SearchBar';
+import { filterBySearchQuery, moduleSearchConfig } from '../utils/searchUtils';
 
 const VendorMaster = ({ returnPath, returnState }) => {
   const { showToast } = useToast();
@@ -23,6 +25,7 @@ const VendorMaster = ({ returnPath, returnState }) => {
   });
   const [deleteConfirm, setDeleteConfirm] = useState({ show: false, id: null });
   const [deleting, setDeleting] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
 
   useEffect(() => {
     fetchVendors();
@@ -135,6 +138,12 @@ const VendorMaster = ({ returnPath, returnState }) => {
     }
   };
 
+  const filteredVendors = filterBySearchQuery(
+    vendors,
+    searchQuery,
+    moduleSearchConfig.vendors
+  );
+
   if (loading && vendors.length === 0) {
     return (
       <div className="text-center py-12">
@@ -146,20 +155,29 @@ const VendorMaster = ({ returnPath, returnState }) => {
 
   return (
     <div className="animate-fade-in">
-      <div className="mb-8 flex justify-between items-start">
+      <div className="mb-8 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
         <div>
           <h1 className="text-3xl font-bold text-gray-900 mb-2 tracking-tight">Vendor Master</h1>
           <p className="text-gray-600 text-sm">Manage vendor information and contact details</p>
         </div>
-        <button 
-          onClick={handleCreate} 
-          className="bg-blue-600 hover:bg-blue-700 text-white font-semibold px-6 py-3 rounded-lg shadow-md hover:shadow-lg transition-all duration-200 flex items-center gap-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
-        >
-          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-          </svg>
-          Add Vendor
-        </button>
+        <div className="flex items-center gap-3">
+          {vendors.length > 0 && (
+            <SearchBar
+              value={searchQuery}
+              onChange={setSearchQuery}
+              placeholder="Search vendors..."
+            />
+          )}
+          <button 
+            onClick={handleCreate} 
+            className="bg-blue-600 hover:bg-blue-700 text-white font-semibold px-6 py-3 rounded-lg shadow-md hover:shadow-lg transition-all duration-200 flex items-center gap-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+            </svg>
+            Add Vendor
+          </button>
+        </div>
       </div>
 
       {showForm && (
@@ -299,7 +317,7 @@ const VendorMaster = ({ returnPath, returnState }) => {
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-100">
-                {vendors.map((vendor) => (
+                {filteredVendors.map((vendor) => (
                   <tr key={vendor._id} className="hover:bg-gray-50 transition-colors duration-150">
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{vendor.name}</td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">{vendor.gstin || '-'}</td>

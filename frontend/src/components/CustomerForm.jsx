@@ -1,4 +1,5 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
+import ReactDOM from 'react-dom';
 import { customerAPI } from '../services/api';
 import { useToast } from '../contexts/ToastContext';
 import MobileSelect from './MobileSelect';
@@ -49,22 +50,53 @@ const CustomerForm = ({ customer, onSubmit, onCancel }) => {
     { code: 'USD', name: 'US Dollar' },
     { code: 'CAD', name: 'Canadian Dollar' },
     { code: 'AUD', name: 'Australian Dollar' },
+    { code: 'AED', name: 'UAE Dirham' },
     { code: 'EUR', name: 'Euro' },
     { code: 'GBP', name: 'Pound Sterling' },
     { code: 'CNY', name: 'Yuan Renminbi' },
     { code: 'BND', name: 'Brunei Dollar' },
   ];
   const paymentTermsOptions = ['Due on Receipt', 'Net 15', 'Net 30', 'Net 45', 'Net 60'];
-  const indianStates = [
-    'Andhra Pradesh', 'Arunachal Pradesh', 'Assam', 'Bihar', 'Chhattisgarh',
-    'Goa', 'Gujarat', 'Haryana', 'Himachal Pradesh', 'Jharkhand',
-    'Karnataka', 'Kerala', 'Madhya Pradesh', 'Maharashtra', 'Manipur',
-    'Meghalaya', 'Mizoram', 'Nagaland', 'Odisha', 'Punjab',
-    'Rajasthan', 'Sikkim', 'Tamil Nadu', 'Telangana', 'Tripura',
-    'Uttar Pradesh', 'Uttarakhand', 'West Bengal',
-    'Andaman and Nicobar Islands', 'Chandigarh', 'Dadra and Nagar Haveli and Daman and Diu',
-    'Delhi', 'Jammu and Kashmir', 'Ladakh', 'Lakshadweep', 'Puducherry'
-  ];
+  
+  // State lists for each country
+  const statesByCountry = {
+    'India': [
+      'Andhra Pradesh', 'Arunachal Pradesh', 'Assam', 'Bihar', 'Chhattisgarh',
+      'Goa', 'Gujarat', 'Haryana', 'Himachal Pradesh', 'Jharkhand',
+      'Karnataka', 'Kerala', 'Madhya Pradesh', 'Maharashtra', 'Manipur',
+      'Meghalaya', 'Mizoram', 'Nagaland', 'Odisha', 'Punjab',
+      'Rajasthan', 'Sikkim', 'Tamil Nadu', 'Telangana', 'Tripura',
+      'Uttar Pradesh', 'Uttarakhand', 'West Bengal',
+      'Andaman and Nicobar Islands', 'Chandigarh', 'Dadra and Nagar Haveli and Daman and Diu',
+      'Delhi', 'Jammu and Kashmir', 'Ladakh', 'Lakshadweep', 'Puducherry'
+    ],
+    'USA': [
+      'Alabama', 'Alaska', 'Arizona', 'Arkansas', 'California', 'Colorado', 'Connecticut',
+      'Delaware', 'Florida', 'Georgia', 'Hawaii', 'Idaho', 'Illinois', 'Indiana', 'Iowa',
+      'Kansas', 'Kentucky', 'Louisiana', 'Maine', 'Maryland', 'Massachusetts', 'Michigan',
+      'Minnesota', 'Mississippi', 'Missouri', 'Montana', 'Nebraska', 'Nevada', 'New Hampshire',
+      'New Jersey', 'New Mexico', 'New York', 'North Carolina', 'North Dakota', 'Ohio',
+      'Oklahoma', 'Oregon', 'Pennsylvania', 'Rhode Island', 'South Carolina', 'South Dakota',
+      'Tennessee', 'Texas', 'Utah', 'Vermont', 'Virginia', 'Washington', 'West Virginia',
+      'Wisconsin', 'Wyoming'
+    ],
+    'Canada': [
+      'Alberta', 'British Columbia', 'Manitoba', 'New Brunswick', 'Newfoundland and Labrador',
+      'Northwest Territories', 'Nova Scotia', 'Nunavut', 'Ontario', 'Prince Edward Island',
+      'Quebec', 'Saskatchewan', 'Yukon'
+    ],
+    'Australia': [
+      'Australian Capital Territory', 'New South Wales', 'Northern Territory', 'Queensland',
+      'South Australia', 'Tasmania', 'Victoria', 'Western Australia'
+    ],
+    'UAE': [
+      'Abu Dhabi', 'Ajman', 'Dubai', 'Fujairah', 'Ras Al Khaimah', 'Sharjah', 'Umm Al Quwain'
+    ]
+  };
+  
+  // Keep indianStates for backward compatibility
+  const indianStates = statesByCountry['India'];
+  
   const countryCodes = [
     { code: '+91', country: 'India' },
     { code: '+1', country: 'USA/Canada' },
@@ -74,6 +106,25 @@ const CustomerForm = ({ customer, onSubmit, onCancel }) => {
     { code: '+81', country: 'Japan' },
     { code: '+971', country: 'UAE' },
   ];
+
+  // State for search functionality
+  const [stateSearch, setStateSearch] = useState('');
+  const [placeOfSupplySearch, setPlaceOfSupplySearch] = useState('');
+  const [availableStates, setAvailableStates] = useState([]);
+  const [filteredStates, setFilteredStates] = useState([]);
+  const [filteredPlaceOfSupply, setFilteredPlaceOfSupply] = useState([]);
+  
+  // Dropdown visibility states
+  const [isStateDropdownOpen, setIsStateDropdownOpen] = useState(false);
+  const [isPlaceOfSupplyDropdownOpen, setIsPlaceOfSupplyDropdownOpen] = useState(false);
+  const [isClientStateDropdownOpen, setIsClientStateDropdownOpen] = useState(false);
+  const [isClientPlaceOfSupplyDropdownOpen, setIsClientPlaceOfSupplyDropdownOpen] = useState(false);
+  
+  // Refs for outside click detection
+  const stateDropdownRef = useRef(null);
+  const placeOfSupplyDropdownRef = useRef(null);
+  const clientStateDropdownRef = useRef(null);
+  const clientPlaceOfSupplyDropdownRef = useRef(null);
 
   useEffect(() => {
     if (customer) {
@@ -152,6 +203,134 @@ const CustomerForm = ({ customer, onSubmit, onCancel }) => {
       }
     }
   }, [formData.salutation, formData.firstName, formData.lastName, isDisplayNameManuallyEdited]);
+
+  // Update available states when country changes
+  useEffect(() => {
+    const selectedCountry = formData.billingAddress?.country;
+    if (selectedCountry && statesByCountry[selectedCountry]) {
+      const states = statesByCountry[selectedCountry];
+      setAvailableStates(states);
+      setFilteredStates(states);
+      setFilteredPlaceOfSupply(states);
+      
+      // Clear state selection if current state is not in new country's state list
+      if (formData.billingAddress?.state && !states.includes(formData.billingAddress.state)) {
+        setFormData(prev => ({
+          ...prev,
+          billingAddress: {
+            ...prev.billingAddress,
+            state: ''
+          }
+        }));
+      }
+      
+      // Clear place of supply if not in new state list
+      if (formData.placeOfSupply && !states.includes(formData.placeOfSupply)) {
+        setFormData(prev => ({
+          ...prev,
+          placeOfSupply: ''
+        }));
+      }
+    } else {
+      setAvailableStates([]);
+      setFilteredStates([]);
+      setFilteredPlaceOfSupply([]);
+    }
+    
+    // Reset search and close dropdowns
+    setStateSearch('');
+    setPlaceOfSupplySearch('');
+    setIsStateDropdownOpen(false);
+    setIsPlaceOfSupplyDropdownOpen(false);
+    setIsClientStateDropdownOpen(false);
+    setIsClientPlaceOfSupplyDropdownOpen(false);
+  }, [formData.billingAddress?.country]);
+
+  // Auto-sync Place of Supply with State when state changes (optional feature)
+  useEffect(() => {
+    // Only auto-sync if Place of Supply is empty
+    if (formData.billingAddress?.state && !formData.placeOfSupply) {
+      setFormData(prev => ({
+        ...prev,
+        placeOfSupply: formData.billingAddress.state
+      }));
+    }
+  }, [formData.billingAddress?.state]);
+
+  // Filter states based on search
+  useEffect(() => {
+    if (stateSearch.trim() === '') {
+      setFilteredStates(availableStates);
+    } else {
+      const filtered = availableStates.filter(state =>
+        state.toLowerCase().includes(stateSearch.toLowerCase())
+      );
+      setFilteredStates(filtered);
+    }
+  }, [stateSearch, availableStates]);
+
+  // Filter place of supply based on search
+  useEffect(() => {
+    if (placeOfSupplySearch.trim() === '') {
+      setFilteredPlaceOfSupply(availableStates);
+    } else {
+      const filtered = availableStates.filter(state =>
+        state.toLowerCase().includes(placeOfSupplySearch.toLowerCase())
+      );
+      setFilteredPlaceOfSupply(filtered);
+    }
+  }, [placeOfSupplySearch, availableStates]);
+
+  // Keyboard navigation for dropdowns
+  const handleKeyDown = (e, dropdownType) => {
+    if (e.key === 'Escape') {
+      // Close all dropdowns on Escape
+      setIsStateDropdownOpen(false);
+      setIsPlaceOfSupplyDropdownOpen(false);
+      setIsClientStateDropdownOpen(false);
+      setIsClientPlaceOfSupplyDropdownOpen(false);
+      setStateSearch('');
+      setPlaceOfSupplySearch('');
+    } else if (e.key === 'Enter') {
+      // Select first filtered option on Enter
+      e.preventDefault();
+      if (dropdownType === 'state' && filteredStates.length > 0) {
+        handleNestedChange('billingAddress', 'state', filteredStates[0]);
+        setStateSearch('');
+        setIsStateDropdownOpen(false);
+        setIsClientStateDropdownOpen(false);
+      } else if (dropdownType === 'placeOfSupply' && filteredPlaceOfSupply.length > 0) {
+        setFormData(prev => ({ ...prev, placeOfSupply: filteredPlaceOfSupply[0] }));
+        setPlaceOfSupplySearch('');
+        setIsPlaceOfSupplyDropdownOpen(false);
+        setIsClientPlaceOfSupplyDropdownOpen(false);
+      }
+    }
+  };
+
+  // Close dropdowns when clicking outside (portaled lists use data-dropdown-list so we treat them as inside)
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      const inPortal = (id) => event.target.closest(`[data-dropdown-list="${id}"]`);
+      if (stateDropdownRef.current && !stateDropdownRef.current.contains(event.target) && !inPortal('state')) {
+        setIsStateDropdownOpen(false);
+      }
+      if (placeOfSupplyDropdownRef.current && !placeOfSupplyDropdownRef.current.contains(event.target) && !inPortal('placeOfSupply')) {
+        setIsPlaceOfSupplyDropdownOpen(false);
+      }
+      if (clientStateDropdownRef.current && !clientStateDropdownRef.current.contains(event.target) && !inPortal('clientState')) {
+        setIsClientStateDropdownOpen(false);
+      }
+      if (clientPlaceOfSupplyDropdownRef.current && !clientPlaceOfSupplyDropdownRef.current.contains(event.target) && !inPortal('clientPlaceOfSupply')) {
+        setIsClientPlaceOfSupplyDropdownOpen(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, []);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -534,35 +713,153 @@ const CustomerForm = ({ customer, onSubmit, onCancel }) => {
                           placeholder="Enter mobile"
                         />
                       </div>
-                      {(formData.billingAddress?.country === 'India' || !formData.billingAddress?.country) && (
+                      {availableStates.length > 0 && (
                         <>
                           <div>
                             <label className="form-label text-xs font-medium text-gray-700 mb-1.5 block">Client State</label>
-                            <MobileSelect
-                              value={formData.billingAddress?.state || ''}
-                              onChange={(e) => handleNestedChange('billingAddress', 'state', e.target.value)}
-                              className="select-field w-full text-sm py-2"
-                            >
-                              <option value="">Select State</option>
-                              {indianStates.map((state) => (
-                                <option key={state} value={state}>{state}</option>
-                              ))}
-                            </MobileSelect>
+                            <div className="relative" ref={clientStateDropdownRef}>
+                              <input
+                                type="text"
+                                value={isClientStateDropdownOpen ? stateSearch : (formData.billingAddress?.state || '')}
+                                onChange={(e) => {
+                                  setStateSearch(e.target.value);
+                                  setIsClientStateDropdownOpen(true);
+                                }}
+                                onFocus={() => {
+                                  setIsClientStateDropdownOpen(true);
+                                  setStateSearch('');
+                                }}
+                                onKeyDown={(e) => handleKeyDown(e, 'state')}
+                                placeholder={formData.billingAddress?.state || "Search state..."}
+                                className="input-field w-full text-sm py-2 pr-8 cursor-pointer transition-all duration-200 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                style={{ cursor: 'pointer' }}
+                              />
+                              <div className="absolute right-3 top-1/2 transform -translate-y-1/2 pointer-events-none">
+                                <svg className={`w-4 h-4 text-gray-400 transition-transform duration-200 ${isClientStateDropdownOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                                </svg>
+                              </div>
+                              {isClientStateDropdownOpen && filteredStates.length > 0 && (
+                                <div className="absolute z-50 w-full mt-2 bg-white border border-gray-200 rounded-lg shadow-2xl" style={{ maxHeight: '240px', overflowY: 'auto' }}>
+                                  {filteredStates.map((state, index) => (
+                                    <div
+                                      key={state}
+                                      onClick={() => {
+                                        handleNestedChange('billingAddress', 'state', state);
+                                        setStateSearch('');
+                                        setIsClientStateDropdownOpen(false);
+                                      }}
+                                      className={`px-4 py-2.5 hover:bg-blue-50 cursor-pointer text-sm transition-colors duration-150 ${
+                                        formData.billingAddress?.state === state ? 'bg-blue-100 text-blue-700 font-medium' : 'text-gray-700'
+                                      } ${index === 0 ? 'rounded-t-lg' : ''} ${index === filteredStates.length - 1 ? 'rounded-b-lg' : ''}`}
+                                      style={{ cursor: 'pointer' }}
+                                    >
+                                      <div className="flex items-center justify-between">
+                                        <span>{state}</span>
+                                        {formData.billingAddress?.state === state && (
+                                          <svg className="w-4 h-4 text-blue-600" fill="currentColor" viewBox="0 0 20 20">
+                                            <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                                          </svg>
+                                        )}
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                              {isClientStateDropdownOpen && filteredStates.length === 0 && stateSearch && (
+                                <div className="absolute z-50 w-full mt-2 bg-white border border-gray-200 rounded-lg shadow-2xl p-4 text-center text-sm text-gray-500">
+                                  No states found for "{stateSearch}"
+                                </div>
+                              )}
+                            </div>
                           </div>
                           <div>
                             <label className="form-label text-xs font-medium text-gray-700 mb-1.5 block">Place of Supply</label>
-                            <MobileSelect
-                              name="placeOfSupply"
-                              value={formData.placeOfSupply}
-                              onChange={handleChange}
-                              className="select-field w-full text-sm py-2"
-                            >
-                              <option value="">Select State</option>
-                              {indianStates.map((state) => (
-                                <option key={state} value={state}>{state}</option>
-                              ))}
-                            </MobileSelect>
+                            <div className="relative" ref={clientPlaceOfSupplyDropdownRef}>
+                              <input
+                                type="text"
+                                value={isClientPlaceOfSupplyDropdownOpen ? placeOfSupplySearch : (formData.placeOfSupply || '')}
+                                onChange={(e) => {
+                                  setPlaceOfSupplySearch(e.target.value);
+                                  setIsClientPlaceOfSupplyDropdownOpen(true);
+                                }}
+                                onFocus={() => {
+                                  setIsClientPlaceOfSupplyDropdownOpen(true);
+                                  setPlaceOfSupplySearch('');
+                                }}
+                                onKeyDown={(e) => handleKeyDown(e, 'placeOfSupply')}
+                                placeholder={formData.placeOfSupply || "Search state..."}
+                                className="input-field w-full text-sm py-2 pr-8 cursor-pointer transition-all duration-200 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                style={{ cursor: 'pointer' }}
+                              />
+                              <div className="absolute right-3 top-1/2 transform -translate-y-1/2 pointer-events-none">
+                                <svg className={`w-4 h-4 text-gray-400 transition-transform duration-200 ${isClientPlaceOfSupplyDropdownOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                                </svg>
+                              </div>
+                              {isClientPlaceOfSupplyDropdownOpen && clientPlaceOfSupplyDropdownRef.current && (() => {
+                                const rect = clientPlaceOfSupplyDropdownRef.current.getBoundingClientRect();
+                                const list = filteredPlaceOfSupply.length > 0 ? (
+                                  <div
+                                    data-dropdown-list="clientPlaceOfSupply"
+                                    className="bg-white border border-gray-200 rounded-lg shadow-2xl"
+                                    style={{
+                                      position: 'fixed',
+                                      top: rect.bottom + 8,
+                                      left: rect.left,
+                                      width: rect.width,
+                                      maxHeight: 240,
+                                      overflowY: 'auto',
+                                      zIndex: 9999,
+                                    }}
+                                  >
+                                    {filteredPlaceOfSupply.map((state, index) => (
+                                      <div
+                                        key={state}
+                                        role="option"
+                                        onClick={() => {
+                                          setFormData(prev => ({ ...prev, placeOfSupply: state }));
+                                          setPlaceOfSupplySearch('');
+                                          setIsClientPlaceOfSupplyDropdownOpen(false);
+                                        }}
+                                        className={`px-4 py-2.5 hover:bg-blue-50 cursor-pointer text-sm transition-colors duration-150 ${
+                                          formData.placeOfSupply === state ? 'bg-blue-100 text-blue-700 font-medium' : 'text-gray-700'
+                                        } ${index === 0 ? 'rounded-t-lg' : ''} ${index === filteredPlaceOfSupply.length - 1 ? 'rounded-b-lg' : ''}`}
+                                      >
+                                        <div className="flex items-center justify-between">
+                                          <span>{state}</span>
+                                          {formData.placeOfSupply === state && (
+                                            <svg className="w-4 h-4 text-blue-600 shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                                              <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                                            </svg>
+                                          )}
+                                        </div>
+                                      </div>
+                                    ))}
+                                  </div>
+                                ) : placeOfSupplySearch ? (
+                                  <div
+                                    data-dropdown-list="clientPlaceOfSupply"
+                                    className="bg-white border border-gray-200 rounded-lg shadow-2xl p-4 text-center text-sm text-gray-500"
+                                    style={{
+                                      position: 'fixed',
+                                      top: rect.bottom + 8,
+                                      left: rect.left,
+                                      width: rect.width,
+                                      zIndex: 9999,
+                                    }}
+                                  >
+                                    No states found for "{placeOfSupplySearch}"
+                                  </div>
+                                ) : null;
+                                return list ? ReactDOM.createPortal(list, document.body) : null;
+                              })()}
+                            </div>
                           </div>
+                        </>
+                      )}
+                      {(formData.billingAddress?.country === 'India' || !formData.billingAddress?.country) && (
+                        <>
                           <div>
                             <label className="form-label text-xs font-medium text-gray-700 mb-1.5 block">Client GSTIN</label>
                             <input
@@ -685,6 +982,7 @@ const CustomerForm = ({ customer, onSubmit, onCancel }) => {
                       <option value="USA">USA</option>
                       <option value="Canada">Canada</option>
                       <option value="Australia">Australia</option>
+                      <option value="UAE">UAE</option>
                     </MobileSelect>
                   </div>
                 </div>
@@ -722,17 +1020,97 @@ const CustomerForm = ({ customer, onSubmit, onCancel }) => {
                   </div>
                   <div>
                     <label className="form-label text-xs font-medium text-gray-700 mb-1.5 block">State</label>
-                    <MobileSelect
-                      value={formData.billingAddress.state || ''}
-                      onChange={(e) => handleNestedChange('billingAddress', 'state', e.target.value)}
-                      className="select-field w-full text-sm py-2"
-                    >
-                      <option value="">Select or type to add</option>
-                      <option value="Maharashtra">Maharashtra</option>
-                      <option value="Gujarat">Gujarat</option>
-                      <option value="Karnataka">Karnataka</option>
-                      <option value="Delhi">Delhi</option>
-                    </MobileSelect>
+                    {availableStates.length > 0 ? (
+                      <div className="relative" ref={stateDropdownRef}>
+                        <input
+                          type="text"
+                          value={isStateDropdownOpen ? stateSearch : (formData.billingAddress.state || '')}
+                          onChange={(e) => {
+                            setStateSearch(e.target.value);
+                            setIsStateDropdownOpen(true);
+                          }}
+                          onFocus={() => {
+                            setIsStateDropdownOpen(true);
+                            setStateSearch('');
+                          }}
+                          onKeyDown={(e) => handleKeyDown(e, 'state')}
+                          placeholder={formData.billingAddress.state || "Search state..."}
+                          className="input-field w-full text-sm py-2 pr-8 cursor-pointer transition-all duration-200 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                          style={{ cursor: 'pointer' }}
+                        />
+                        <div className="absolute right-3 top-1/2 transform -translate-y-1/2 pointer-events-none">
+                          <svg className={`w-4 h-4 text-gray-400 transition-transform duration-200 ${isStateDropdownOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                          </svg>
+                        </div>
+                        {isStateDropdownOpen && stateDropdownRef.current && (() => {
+                          const rect = stateDropdownRef.current.getBoundingClientRect();
+                          const list = filteredStates.length > 0 ? (
+                            <div
+                              data-dropdown-list="state"
+                              className="bg-white border border-gray-200 rounded-lg shadow-2xl animate-slideDown"
+                              style={{
+                                position: 'fixed',
+                                top: rect.bottom + 8,
+                                left: rect.left,
+                                width: rect.width,
+                                maxHeight: 240,
+                                overflowY: 'auto',
+                                zIndex: 9999,
+                              }}
+                            >
+                              {filteredStates.map((state, index) => (
+                                <div
+                                  key={state}
+                                  role="option"
+                                  onClick={() => {
+                                    handleNestedChange('billingAddress', 'state', state);
+                                    setStateSearch('');
+                                    setIsStateDropdownOpen(false);
+                                  }}
+                                  className={`px-4 py-2.5 hover:bg-blue-50 cursor-pointer text-sm transition-colors duration-150 ${
+                                    formData.billingAddress.state === state ? 'bg-blue-100 text-blue-700 font-medium' : 'text-gray-700'
+                                  } ${index === 0 ? 'rounded-t-lg' : ''} ${index === filteredStates.length - 1 ? 'rounded-b-lg' : ''}`}
+                                >
+                                  <div className="flex items-center justify-between">
+                                    <span>{state}</span>
+                                    {formData.billingAddress.state === state && (
+                                      <svg className="w-4 h-4 text-blue-600 shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                                        <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                                      </svg>
+                                    )}
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          ) : stateSearch ? (
+                            <div
+                              data-dropdown-list="state"
+                              className="bg-white border border-gray-200 rounded-lg shadow-2xl p-4 text-center text-sm text-gray-500"
+                              style={{
+                                position: 'fixed',
+                                top: rect.bottom + 8,
+                                left: rect.left,
+                                width: rect.width,
+                                zIndex: 9999,
+                              }}
+                            >
+                              No states found for "{stateSearch}"
+                            </div>
+                          ) : null;
+                          return list ? ReactDOM.createPortal(list, document.body) : null;
+                        })()}
+                      </div>
+                    ) : (
+                      <input
+                        type="text"
+                        value={formData.billingAddress.state || ''}
+                        onChange={(e) => handleNestedChange('billingAddress', 'state', e.target.value)}
+                        placeholder="Select country first"
+                        className="input-field w-full text-sm py-2 bg-gray-50 cursor-not-allowed"
+                        disabled
+                      />
+                    )}
                   </div>
                   <div>
                     <label className="form-label text-xs font-medium text-gray-700 mb-1.5 block">Pin Code</label>
@@ -792,17 +1170,97 @@ const CustomerForm = ({ customer, onSubmit, onCancel }) => {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
                     <label className="form-label text-xs font-medium text-gray-700 mb-1.5 block">Place of Supply</label>
-                    <MobileSelect
-                      name="placeOfSupply"
-                      value={formData.placeOfSupply}
-                      onChange={handleChange}
-                      className="select-field w-full text-sm py-2"
-                    >
-                      <option value="">Select State</option>
-                      {indianStates.map((state) => (
-                        <option key={state} value={state}>{state}</option>
-                      ))}
-                    </MobileSelect>
+                    {availableStates.length > 0 ? (
+                      <div className="relative" ref={placeOfSupplyDropdownRef}>
+                        <input
+                          type="text"
+                          value={isPlaceOfSupplyDropdownOpen ? placeOfSupplySearch : (formData.placeOfSupply || '')}
+                          onChange={(e) => {
+                            setPlaceOfSupplySearch(e.target.value);
+                            setIsPlaceOfSupplyDropdownOpen(true);
+                          }}
+                          onFocus={() => {
+                            setIsPlaceOfSupplyDropdownOpen(true);
+                            setPlaceOfSupplySearch('');
+                          }}
+                          onKeyDown={(e) => handleKeyDown(e, 'placeOfSupply')}
+                          placeholder={formData.placeOfSupply || "Search state..."}
+                          className="input-field w-full text-sm py-2 pr-8 cursor-pointer transition-all duration-200 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                          style={{ cursor: 'pointer' }}
+                        />
+                        <div className="absolute right-3 top-1/2 transform -translate-y-1/2 pointer-events-none">
+                          <svg className={`w-4 h-4 text-gray-400 transition-transform duration-200 ${isPlaceOfSupplyDropdownOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                          </svg>
+                        </div>
+                        {isPlaceOfSupplyDropdownOpen && placeOfSupplyDropdownRef.current && (() => {
+                          const rect = placeOfSupplyDropdownRef.current.getBoundingClientRect();
+                          const list = filteredPlaceOfSupply.length > 0 ? (
+                            <div
+                              data-dropdown-list="placeOfSupply"
+                              className="bg-white border border-gray-200 rounded-lg shadow-2xl animate-slideDown"
+                              style={{
+                                position: 'fixed',
+                                top: rect.bottom + 8,
+                                left: rect.left,
+                                width: rect.width,
+                                maxHeight: 240,
+                                overflowY: 'auto',
+                                zIndex: 9999,
+                              }}
+                            >
+                              {filteredPlaceOfSupply.map((state, index) => (
+                                <div
+                                  key={state}
+                                  role="option"
+                                  onClick={() => {
+                                    setFormData(prev => ({ ...prev, placeOfSupply: state }));
+                                    setPlaceOfSupplySearch('');
+                                    setIsPlaceOfSupplyDropdownOpen(false);
+                                  }}
+                                  className={`px-4 py-2.5 hover:bg-blue-50 cursor-pointer text-sm transition-colors duration-150 ${
+                                    formData.placeOfSupply === state ? 'bg-blue-100 text-blue-700 font-medium' : 'text-gray-700'
+                                  } ${index === 0 ? 'rounded-t-lg' : ''} ${index === filteredPlaceOfSupply.length - 1 ? 'rounded-b-lg' : ''}`}
+                                >
+                                  <div className="flex items-center justify-between">
+                                    <span>{state}</span>
+                                    {formData.placeOfSupply === state && (
+                                      <svg className="w-4 h-4 text-blue-600 shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                                        <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                                      </svg>
+                                    )}
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          ) : placeOfSupplySearch ? (
+                            <div
+                              data-dropdown-list="placeOfSupply"
+                              className="bg-white border border-gray-200 rounded-lg shadow-2xl p-4 text-center text-sm text-gray-500"
+                              style={{
+                                position: 'fixed',
+                                top: rect.bottom + 8,
+                                left: rect.left,
+                                width: rect.width,
+                                zIndex: 9999,
+                              }}
+                            >
+                              No states found for "{placeOfSupplySearch}"
+                            </div>
+                          ) : null;
+                          return list ? ReactDOM.createPortal(list, document.body) : null;
+                        })()}
+                      </div>
+                    ) : (
+                      <input
+                        type="text"
+                        value={formData.placeOfSupply || ''}
+                        onChange={(e) => setFormData(prev => ({ ...prev, placeOfSupply: e.target.value }))}
+                        placeholder="Select country in Address tab first"
+                        className="input-field w-full text-sm py-2 bg-gray-50 cursor-not-allowed"
+                        disabled
+                      />
+                    )}
                   </div>
                   <div>
                     <label className="form-label text-xs font-medium text-gray-700 mb-1.5 block">GST No</label>

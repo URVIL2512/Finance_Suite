@@ -12,6 +12,8 @@ import EmailConfirmationModal from '../components/EmailConfirmationModal';
 import { getAuthToken } from '../utils/auth';
 import { useToast } from '../contexts/ToastContext';
 import MobileSelect from '../components/MobileSelect';
+import SearchBar from '../components/SearchBar';
+import { filterBySearchQuery, moduleSearchConfig } from '../utils/searchUtils';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
@@ -27,7 +29,11 @@ const Invoices = () => {
   const [editingInvoice, setEditingInvoice] = useState(null);
   const [viewingInvoice, setViewingInvoice] = useState(null);
   const [pendingCustomerSelect, setPendingCustomerSelect] = useState(null);
-  const [searchQuery, setSearchQuery] = useState('');
+  const searchParam =
+    typeof window !== 'undefined'
+      ? new URLSearchParams(location.search).get('search') || ''
+      : '';
+  const [searchQuery, setSearchQuery] = useState(searchParam);
   const [filters, setFilters] = useState({
     year: '',
     status: '',
@@ -46,6 +52,31 @@ const Invoices = () => {
   const [emailConfirm, setEmailConfirm] = useState({ show: false, invoiceData: null, clientEmail: '' });
   const [importing, setImporting] = useState(false);
   const invoiceImportInputRef = useRef(null);
+
+  // Keep search state in sync with URL query param (?search=...)
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const urlSearch = params.get('search') || '';
+    if (urlSearch !== searchQuery) {
+      setSearchQuery(urlSearch);
+    }
+  }, [location.search]);
+
+  const updateSearchInUrl = (value) => {
+    const params = new URLSearchParams(location.search);
+    if (value && value.trim()) {
+      params.set('search', value.trim());
+    } else {
+      params.delete('search');
+    }
+    navigate(
+      {
+        pathname: location.pathname,
+        search: params.toString() ? `?${params.toString()}` : '',
+      },
+      { replace: true }
+    );
+  };
 
   // Check if returning from items/customers page and should show invoice form
   useEffect(() => {
@@ -142,64 +173,12 @@ const Invoices = () => {
         );
       }
       
-      // Client-side search filtering - search across multiple fields
-      if (searchQuery.trim()) {
-        const query = searchQuery.toLowerCase().trim();
-        filteredInvoices = filteredInvoices.filter(invoice => {
-          // Search in invoice number
-          const invoiceNumberMatch = invoice.invoiceNumber && 
-            invoice.invoiceNumber.toLowerCase().includes(query);
-          
-          // Search in client name
-          const clientNameMatch = invoice.clientDetails?.name && 
-            invoice.clientDetails.name.toLowerCase().includes(query);
-          
-          // Search in client email
-          const clientEmailMatch = invoice.clientEmail && 
-            invoice.clientEmail.toLowerCase().includes(query);
-          
-          // Search in service/description
-          const serviceMatch = invoice.service && 
-            invoice.service.toLowerCase().includes(query);
-          
-          // Search in items description
-          const itemsMatch = invoice.items && invoice.items.some(item => 
-            item.description && item.description.toLowerCase().includes(query)
-          );
-          
-          // Search in invoice date (format: DD/MM/YYYY)
-          const invoiceDate = invoice.invoiceDate ? new Date(invoice.invoiceDate) : null;
-          let dateMatch = false;
-          if (invoiceDate && !isNaN(invoiceDate.getTime())) {
-            const dateStr = `${String(invoiceDate.getDate()).padStart(2, '0')}/${String(invoiceDate.getMonth() + 1).padStart(2, '0')}/${invoiceDate.getFullYear()}`;
-            dateMatch = dateStr.includes(query);
-          }
-          
-          // Search in due date
-          const dueDate = invoice.dueDate ? new Date(invoice.dueDate) : null;
-          let dueDateMatch = false;
-          if (dueDate && !isNaN(dueDate.getTime())) {
-            const dueDateStr = `${String(dueDate.getDate()).padStart(2, '0')}/${String(dueDate.getMonth() + 1).padStart(2, '0')}/${dueDate.getFullYear()}`;
-            dueDateMatch = dueDateStr.includes(query);
-          }
-          
-          // Search in amount (grand total, subtotal, receivable)
-          const grandTotal = (invoice.grandTotal || invoice.amountDetails?.invoiceTotal || 0).toString();
-          const subtotal = (invoice.subTotal || invoice.amountDetails?.baseAmount || 0).toString();
-          const receivable = (invoice.amountDetails?.receivableAmount || 0).toString();
-          const amountMatch = grandTotal.includes(query) || 
-                             subtotal.includes(query) || 
-                             receivable.includes(query);
-          
-          // Search in status
-          const statusMatch = invoice.status && 
-            invoice.status.toLowerCase().includes(query);
-          
-          return invoiceNumberMatch || clientNameMatch || clientEmailMatch || 
-                 serviceMatch || itemsMatch || dateMatch || dueDateMatch || 
-                 amountMatch || statusMatch;
-        });
-      }
+      // Client-side search filtering using shared fuzzy matcher
+      filteredInvoices = filterBySearchQuery(
+        filteredInvoices,
+        searchQuery,
+        moduleSearchConfig.invoices
+      );
       
       setInvoices(filteredInvoices);
     } catch (error) {
@@ -653,35 +632,15 @@ const Invoices = () => {
           />
           {!showForm && (
             <>
-              {/* Search Input */}
-              <div className="relative">
-                <input
-                  type="text"
-                  placeholder="Search invoices..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="pl-10 pr-4 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-finance-blue focus:border-transparent w-64"
-                />
-                <svg 
-                  className="absolute left-3 top-2.5 w-5 h-5 text-gray-400" 
-                  fill="none" 
-                  stroke="currentColor" 
-                  viewBox="0 0 24 24"
-                >
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                </svg>
-                {searchQuery && (
-                  <button
-                    onClick={() => setSearchQuery('')}
-                    className="absolute right-2 top-2 text-gray-400 hover:text-gray-600"
-                    title="Clear search"
-                  >
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                    </svg>
-                  </button>
-                )}
-              </div>
+              <SearchBar
+                value={searchQuery}
+                onChange={(val) => {
+                  setSearchQuery(val);
+                  updateSearchInUrl(val);
+                }}
+                placeholder="Search invoices..."
+                widthClass="hidden sm:block w-64"
+              />
               <button
                 onClick={() => setShowFilters(!showFilters)}
                 className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 transition-colors flex items-center gap-2"

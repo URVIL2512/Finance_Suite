@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { format } from 'date-fns';
 import { customerAPI, invoiceAPI } from '../services/api';
@@ -6,6 +6,8 @@ import CustomerForm from '../components/CustomerForm';
 import CustomerTable from '../components/CustomerTable';
 import ConfirmationModal from '../components/ConfirmationModal';
 import { useToast } from '../contexts/ToastContext';
+import SearchBar from '../components/SearchBar';
+import { filterBySearchQuery, moduleSearchConfig } from '../utils/searchUtils';
 
 const Customers = () => {
   const { showToast } = useToast();
@@ -17,8 +19,18 @@ const Customers = () => {
   const [editingCustomer, setEditingCustomer] = useState(null);
   const [viewingCustomer, setViewingCustomer] = useState(null);
   const [customerInvoices, setCustomerInvoices] = useState([]);
-  const [customerSummary, setCustomerSummary] = useState({ totalInvoices: 0, totalAmount: 0, totalPaid: 0, totalDue: 0 });
+  const [customerSummary, setCustomerSummary] = useState({
+    totalInvoices: 0,
+    totalAmount: 0,
+    totalPaid: 0,
+    totalDue: 0,
+  });
   const [deleteConfirm, setDeleteConfirm] = useState({ show: false, id: null });
+  const initialSearch =
+    typeof window !== 'undefined'
+      ? new URLSearchParams(location.search).get('search') || ''
+      : '';
+  const [searchQuery, setSearchQuery] = useState(initialSearch);
   
   // Get return path and state from navigation
   const returnPath = location.state?.returnTo;
@@ -28,24 +40,60 @@ const Customers = () => {
     fetchCustomers();
   }, []);
 
+  // Keep search state in sync with URL query param (?search=...)
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const urlSearch = params.get('search') || '';
+    if (urlSearch !== searchQuery) {
+      setSearchQuery(urlSearch);
+    }
+  }, [location.search]);
+
+  const updateSearchInUrl = useCallback(
+    (value) => {
+      const params = new URLSearchParams(location.search);
+      if (value && value.trim()) {
+        params.set('search', value.trim());
+      } else {
+        params.delete('search');
+      }
+      navigate(
+        {
+          pathname: location.pathname,
+          search: params.toString() ? `?${params.toString()}` : '',
+        },
+        { replace: true }
+      );
+    },
+    [location.pathname, location.search, navigate]
+  );
+
+  const handleSearchChange = useCallback(
+    (val) => {
+      setSearchQuery(val);
+      updateSearchInUrl(val);
+    },
+    [updateSearchInUrl]
+  );
+
   // Listen for refresh events from import (when invoices are imported, customers may be created)
   useEffect(() => {
+    const handleRefreshMasters = () => {
+      fetchCustomers();
+    };
     const handleStorageChange = (e) => {
-      if (e.key === 'refreshMasters' || e.type === 'storage') {
-        // Refresh customers when masters are updated
+      // Only refresh when another tab sets refreshMasters; ignore other storage keys
+      if (e.key === 'refreshMasters') {
         fetchCustomers();
       }
     };
 
-    // Listen for storage events (works across tabs)
     window.addEventListener('storage', handleStorageChange);
-    
-    // Also listen for custom events (works in same tab)
-    window.addEventListener('refreshMasters', handleStorageChange);
+    window.addEventListener('refreshMasters', handleRefreshMasters);
 
     return () => {
       window.removeEventListener('storage', handleStorageChange);
-      window.removeEventListener('refreshMasters', handleStorageChange);
+      window.removeEventListener('refreshMasters', handleRefreshMasters);
     };
   }, []);
 
@@ -61,8 +109,8 @@ const Customers = () => {
     try {
       setLoading(true);
       const response = await customerAPI.getAll();
-      setCustomers(response.data);
-      return response.data;
+      setCustomers(response.data || []);
+      return response.data || [];
     } catch (error) {
       console.error('Error fetching customers:', error);
       return [];
@@ -70,6 +118,13 @@ const Customers = () => {
       setLoading(false);
     }
   };
+
+  // Client-side filter: no refetch on search
+  const filteredCustomers = filterBySearchQuery(
+    customers,
+    searchQuery,
+    moduleSearchConfig.customers
+  );
 
   const handleCreateCustomer = () => {
     setEditingCustomer(null);
@@ -197,18 +252,25 @@ const Customers = () => {
 
   return (
     <div className="animate-fade-in">
-      <div className="mb-6 flex justify-between items-center">
+      <div className="mb-6 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
         <div>
           <h1 className="page-header">Customer Management</h1>
           <p className="page-subtitle">Create and manage your customers</p>
         </div>
-        <button
-          onClick={handleCreateCustomer}
-          className="btn-primary flex items-center space-x-2"
-        >
-          <span>+</span>
-          <span>Add Customer</span>
-        </button>
+        <div className="flex items-center gap-3">
+          <SearchBar
+            value={searchQuery}
+            onChange={handleSearchChange}
+            placeholder="Search customers..."
+          />
+          <button
+            onClick={handleCreateCustomer}
+            className="btn-primary flex items-center space-x-2"
+          >
+            <span>+</span>
+            <span>Add Customer</span>
+          </button>
+        </div>
       </div>
 
       {showForm && (
@@ -575,7 +637,7 @@ const Customers = () => {
             </div>
           ) : (
             <CustomerTable
-              customers={customers}
+              customers={filteredCustomers}
               onEdit={handleEditCustomer}
               onDelete={handleDeleteCustomer}
               onView={handleViewCustomer}

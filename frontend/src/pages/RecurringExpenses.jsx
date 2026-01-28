@@ -1,12 +1,18 @@
 import { useState, useEffect, useRef } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { format } from 'date-fns';
 import { recurringExpenseAPI } from '../services/api';
 import RecurringExpenseModal from '../components/RecurringExpenseModal';
 import ActionDropdown from '../components/ActionDropdown';
 import { useToast } from '../contexts/ToastContext';
+import SearchBar from '../components/SearchBar';
+import { filterBySearchQuery, moduleSearchConfig } from '../utils/searchUtils';
 
 const RecurringExpenses = () => {
   const { showToast } = useToast();
+  const location = useLocation();
+  const navigate = useNavigate();
+
   const [recurringExpenses, setRecurringExpenses] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedExpenses, setSelectedExpenses] = useState([]);
@@ -16,6 +22,11 @@ const RecurringExpenses = () => {
   const [editingRecurringExpense, setEditingRecurringExpense] = useState(null);
   const [showEditModal, setShowEditModal] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState({ show: false, id: null });
+  const initialSearch =
+    typeof window !== 'undefined'
+      ? new URLSearchParams(location.search).get('search') || ''
+      : '';
+  const [searchQuery, setSearchQuery] = useState(initialSearch);
 
   useEffect(() => {
     fetchRecurringExpenses();
@@ -67,7 +78,40 @@ const RecurringExpenses = () => {
     return derivedTotal > 0 ? derivedTotal : 0;
   };
 
-  const activeRecurringExpenses = (recurringExpenses || []).filter((re) => re?.isActive !== false);
+  // Keep search state in sync with URL query param (?search=...)
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const urlSearch = params.get('search') || '';
+    if (urlSearch !== searchQuery) {
+      setSearchQuery(urlSearch);
+    }
+  }, [location.search]);
+
+  const updateSearchInUrl = (value) => {
+    const params = new URLSearchParams(location.search);
+    if (value && value.trim()) {
+      params.set('search', value.trim());
+    } else {
+      params.delete('search');
+    }
+    navigate(
+      {
+        pathname: location.pathname,
+        search: params.toString() ? `?${params.toString()}` : '',
+      },
+      { replace: true }
+    );
+  };
+
+  const filteredRecurringExpenses = filterBySearchQuery(
+    recurringExpenses,
+    searchQuery,
+    moduleSearchConfig.recurringExpenses
+  );
+
+  const activeRecurringExpenses = (filteredRecurringExpenses || []).filter(
+    (re) => re?.isActive !== false
+  );
 
   const handleDeleteClick = (id) => {
     setDeleteConfirm({ show: true, id });
@@ -264,14 +308,26 @@ const RecurringExpenses = () => {
 
   return (
     <div className="animate-fade-in">
-      <div className="mb-6 flex justify-between items-center">
+      <div className="mb-6 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
         <div>
           <h1 className="page-header">Recurring Expenses</h1>
-          <p className="page-subtitle">Manage recurring expense schedules and automation</p>
+          <p className="page-subtitle">
+            Manage recurring expense schedules and automation
+          </p>
         </div>
+        {recurringExpenses.length > 0 && (
+          <SearchBar
+            value={searchQuery}
+            onChange={(val) => {
+              setSearchQuery(val);
+              updateSearchInUrl(val);
+            }}
+            placeholder="Search recurring expenses..."
+          />
+        )}
       </div>
 
-      {recurringExpenses.length === 0 ? (
+      {filteredRecurringExpenses.length === 0 ? (
         <div className="card-gradient p-8 text-center">
           <h2 className="text-2xl font-bold text-gray-800 mb-4">No Recurring Expenses</h2>
           <p className="text-gray-600 mb-6">
@@ -284,7 +340,7 @@ const RecurringExpenses = () => {
       ) : (
         <>
           {/* Recurring Expense Summary Cards */}
-          {recurringExpenses.length > 0 && (
+          {filteredRecurringExpenses.length > 0 && (
             <div className="mb-6 lg:mb-8">
               {/* Top Card - Total Expenses Only */}
               <div className="grid grid-cols-1 gap-4 lg:gap-6 mb-6 lg:mb-8">
@@ -485,7 +541,7 @@ const RecurringExpenses = () => {
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
-                {recurringExpenses.map((recurringExpense) => {
+                {filteredRecurringExpenses.map((recurringExpense) => {
                     const baseExpense = recurringExpense.baseExpense;
                     const category = baseExpense?.category || 'N/A';
                     const vendor = baseExpense?.vendor || 'N/A';

@@ -14,8 +14,8 @@ export const register = async (req, res) => {
     if (!email || String(email).trim() === '') {
       return res.status(400).json({ message: 'Email is required' });
     }
-    if (!password || String(password).length < 6) {
-      return res.status(400).json({ message: 'Password must be at least 6 characters' });
+    if (!password || String(password).length < 8) {
+      return res.status(400).json({ message: 'Password must be at least 8 characters' });
     }
 
     // Check if user exists (email required)
@@ -33,13 +33,14 @@ export const register = async (req, res) => {
     });
 
     if (user) {
+      const tokenVersion = user.tokenVersion ?? 0;
       res.status(201).json({
         _id: user._id,
         name: user.name,
         email: user.email,
         phone: user.phone,
         role: user.role,
-        token: generateToken(user._id),
+        token: generateToken(user._id, tokenVersion),
       });
     } else {
       res.status(400).json({ message: 'Invalid user data' });
@@ -53,28 +54,39 @@ export const register = async (req, res) => {
   }
 };
 
-// @desc    Auth user & get token
+// @desc    Auth user & get token (login by email or username)
 // @route   POST /api/auth/login
 // @access  Public
 export const login = async (req, res) => {
   try {
-    const { email, password } = req.body;
-
-    // Check for user email
-    const user = await User.findOne({ email });
-
-    if (user && (await user.matchPassword(password))) {
-      res.json({
-        _id: user._id,
-        name: user.name,
-        email: user.email,
-        phone: user.phone,
-        role: user.role,
-        token: generateToken(user._id),
-      });
-    } else {
-      res.status(401).json({ message: 'Invalid email or password' });
+    const { email, username, password } = req.body;
+    const loginId = (email || username || '').toString().trim().toLowerCase();
+    if (!loginId || !password) {
+      return res.status(400).json({ message: 'Email or username and password are required' });
     }
+
+    const isEmail = loginId.includes('@');
+    const user = await User.findOne(
+      isEmail ? { email: loginId } : { username: loginId }
+    );
+
+    if (!user || !(await user.matchPassword(password))) {
+      return res.status(401).json({ message: 'Invalid email or password' });
+    }
+    if (user.status !== 'active') {
+      return res.status(401).json({ message: 'Account disabled. Contact admin.' });
+    }
+
+    res.json({
+      _id: user._id,
+      name: user.name,
+      email: user.email,
+      username: user.username,
+      phone: user.phone,
+      role: user.role,
+      status: user.status,
+      token: generateToken(user._id, user.tokenVersion),
+    });
   } catch (error) {
     console.error('Login error:', error);
     res.status(500).json({ 

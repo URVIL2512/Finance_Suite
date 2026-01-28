@@ -1,7 +1,7 @@
 import { Outlet, Link, useLocation } from 'react-router-dom';
 import { useState, useEffect } from 'react';
 
-const Layout = ({ onLogout }) => {
+const Layout = ({ user, onLogout }) => {
   const location = useLocation();
   const [salesExpanded, setSalesExpanded] = useState(false);
   const [revenueExpanded, setRevenueExpanded] = useState(false);
@@ -149,6 +149,29 @@ const Layout = ({ onLogout }) => {
                 )}
               </Link>
             ))}
+
+            {/* Users (Admin only) */}
+            {(user?.role || '').toString().toLowerCase() === 'admin' && (
+              <Link
+                to="/users"
+                className={`${
+                  isActive('/users')
+                    ? 'bg-gradient-to-r from-blue-600 to-blue-700 text-white shadow-lg shadow-blue-500/30 scale-[1.02]'
+                    : 'text-slate-700 hover:bg-gradient-to-r hover:from-slate-50 hover:to-blue-50/30 hover:text-slate-900'
+                } px-4 py-3 text-sm font-semibold flex items-center space-x-3 rounded-xl 
+                transition-all duration-200 group relative`}
+              >
+                <span className={`text-lg transition-transform ${isActive('/users') ? 'scale-110' : 'group-hover:scale-110'}`} aria-hidden="true">
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
+                  </svg>
+                </span>
+                <span className="tracking-tight">Users</span>
+                {isActive('/users') && (
+                  <div className="absolute right-2 w-1.5 h-1.5 bg-white rounded-full"></div>
+                )}
+              </Link>
+            )}
 
             {/* Expenses Menu with Dropdown */}
             <div className="space-y-1">

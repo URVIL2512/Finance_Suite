@@ -31,6 +31,12 @@ api.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response?.status === 401) {
+      const msg = error.response?.data?.message || '';
+      if (msg === 'Account disabled. Contact admin.') {
+        try {
+          sessionStorage.setItem('loginMessage', msg);
+        } catch (_) {}
+      }
       removeAuthToken();
       window.location.href = '/login';
     }
@@ -52,11 +58,22 @@ api.interceptors.response.use(
   }
 );
 
-// Auth APIs
+// Auth APIs (login accepts email or username in the first argument)
 export const authAPI = {
-  login: (email, password) => api.post('/auth/login', { email, password }),
+  login: (emailOrUsername, password) =>
+    api.post('/auth/login', { email: emailOrUsername, username: emailOrUsername, password }),
   register: (name, email, phone, password) => api.post('/auth/register', { name, email, phone, password }),
   getMe: () => api.get('/auth/me'),
+};
+
+// User management APIs (admin only)
+export const userAPI = {
+  create: (data) => api.post('/users/create', data),
+  list: (params) => api.get('/users/list', { params }),
+  update: (id, data) => api.put(`/users/update/${id}`, data),
+  updateStatus: (id, status) => api.put(`/users/status/${id}`, { status }),
+  resetPassword: (id, newPassword) => api.put(`/users/reset-password/${id}`, { newPassword }),
+  delete: (id) => api.delete(`/users/delete/${id}`),
 };
 
 // Expense APIs

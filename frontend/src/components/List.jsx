@@ -553,6 +553,7 @@ const InvoiceForm = ({ invoice, customers = [], onSubmit, onCancel, onCustomerAd
       'USD': 90.13,
       'CAD': 67,
       'AUD': 60,
+      'AED': 24.91,  // 1 AED = 24.91 INR
       'INR': 1
     };
     return exchangeRates[currency] || 1;

@@ -12,11 +12,12 @@ import { DESIGN_SYSTEM, formatCurrency, formatDate, getCurrencySymbol } from './
 // USD: ₹89.85 – ₹90.13 (midpoint: 89.99 ≈ 90)
 // CAD: ₹64.8 – ₹65.9 (midpoint: 65.35)
 // AUD: ₹60.2 – ₹60.4 (midpoint: 60.3)
+// AED: 1 AED = 24.91 INR (UAE Dirham)
 const CURRENT_EXCHANGE_RATES = {
   'USD': 90,      // 1 USD ≈ ₹89.85 – ₹90.13 INR (using 90)
   'CAD': 65.35,   // 1 CAD ≈ ₹64.8 – ₹65.9 INR (midpoint)
   'AUD': 60.3,    // 1 AUD ≈ ₹60.2 – ₹60.4 INR (midpoint)
-  'AED': 24.5,    // 1 AED ≈ ₹24.4 – ₹24.6 INR (approximate)
+  'AED': 24.91,   // 1 AED = 24.91 INR (UAE Dirham)
   'EUR': 98,      // 1 EUR = 98 INR (approximate)
   'GBP': 114,     // 1 GBP = 114 INR (approximate)
   'INR': 1        // Base currency
@@ -37,9 +38,7 @@ const ensureSpace = (doc, requiredHeight) => {
   const bottomLimit = DESIGN_SYSTEM.layout.pageHeight - DESIGN_SYSTEM.layout.margin;
   if (doc.y + requiredHeight > bottomLimit) {
     doc.addPage();
-    // Apply same extra top spacing as first page (2 lines = 20 points)
-    const extraTopSpacing = DESIGN_SYSTEM.spacing.lg; // 20 points = 2 lines
-    doc.y = DESIGN_SYSTEM.layout.margin + extraTopSpacing;
+    doc.y = DESIGN_SYSTEM.layout.margin;
   }
 };
 
@@ -73,7 +72,8 @@ export const numberToWords = (num, currency = 'INR') => {
     'INR': 'Indian Rupee',
     'USD': 'US Dollar',
     'CAD': 'Canadian Dollar',
-    'AUD': 'Australian Dollar'
+    'AUD': 'Australian Dollar',
+    'AED': 'UAE Dirham'
   };
 
   if (num === 0) return 'Zero';
@@ -203,148 +203,88 @@ const drawCompanyBlock = async (doc, startY) => {
  */
 const drawInvoiceMeta = (
   doc,
-  logoStartY,
-  phoneYPosition,
+  startY,
   invoice,
   currency,
   receivableAmount,
   paymentTerms
 ) => {
-  const { colors, fontSize, fonts, spacing, layout } = DESIGN_SYSTEM;
+  const { colors, fontSize, fonts, spacing } = DESIGN_SYSTEM;
 
-  // Right-aligned block - position from right edge
-  // Use a fixed X position that's clearly on the right side
-  const invoiceBoxX = 340; // Fixed X position for right side
-  const invoiceBoxWidth = 215; // Width for right-aligned text
+  // Make the right-side meta block a bit wider so TAX INVOICE stays on one line
+  const invoiceBoxX = 340;
+  const invoiceBoxWidth = 215;
+  const invoiceBoxHeight = currency !== 'INR' ? 160 : 140;
 
-  // TAX INVOICE title - aligned horizontally with logo (no extra space above)
-  let currentY = logoStartY; // Start at same Y as logo
-  
-  // TAX INVOICE title - large and prominent
+  let currentY = startY;
+
+  // Title - larger size for prominence
   doc.fillColor(colors.darkText)
     .font(fonts.bold)
-    .fontSize(18)
+    .fontSize(18) // Increased to 18 for better visibility
     .text('TAX INVOICE', invoiceBoxX, currentY, {
       align: 'right',
       width: invoiceBoxWidth
     });
 
-  currentY += spacing.md * 1.25; // Spacing after title
+  currentY += spacing.md*1.25; // Spacing after title
 
   // Invoice number
   doc.fontSize(12)
-    .font(fonts.regular)
     .text(`# ${invoice.invoiceNumber}`, invoiceBoxX, currentY, {
       align: 'right',
       width: invoiceBoxWidth
     });
 
-  // Balance Due Box - Positioned above invoice meta details (Invoice Date, Terms, Due Date)
-  // Place it right after invoice number with spacing
-  currentY += spacing.md * 1.5; // Spacing after invoice number
-  
-  // Balance Due Box - Professional Accounting Look
-  const boxPadding = 12; // 12px padding
-  const boxPaddingHorizontal = 18; // 18px horizontal padding
-  const boxBorderWidth = 1.5;
-  const boxBorderRadius = 10;
-  const boxBackgroundColor = '#F0F7FF'; // Soft blue background
-  const boxBorderColor = '#2563EB'; // Primary blue border
-  
-  // Calculate box dimensions
-  const labelText = 'Balance Due';
-  const amountText = formatCurrency(receivableAmount, currency);
-  
-  // Measure text width
-  doc.fontSize(12).font(fonts.bold);
-  const labelWidth = doc.widthOfString(labelText);
-  doc.fontSize(22).font(fonts.bold);
-  const amountWidth = doc.widthOfString(amountText);
-  const maxTextWidth = Math.max(labelWidth, amountWidth);
-  
-  const boxWidth = maxTextWidth + (boxPaddingHorizontal * 2);
-  const boxHeight = 12 + 8 + 22 + (boxPadding * 2); // Label height + spacing + amount height + padding
-  
-  // Box X position (right-aligned, aligned with TAX INVOICE)
-  const boxX = invoiceBoxX + invoiceBoxWidth - boxWidth;
-  const boxY = currentY;
-  
-  // Draw rounded rectangle background and border
-  const radius = boxBorderRadius;
-  
-  // Create rounded rectangle path
-  doc.save();
-  doc.moveTo(boxX + radius, boxY)
-    .lineTo(boxX + boxWidth - radius, boxY)
-    .quadraticCurveTo(boxX + boxWidth, boxY, boxX + boxWidth, boxY + radius)
-    .lineTo(boxX + boxWidth, boxY + boxHeight - radius)
-    .quadraticCurveTo(boxX + boxWidth, boxY + boxHeight, boxX + boxWidth - radius, boxY + boxHeight)
-    .lineTo(boxX + radius, boxY + boxHeight)
-    .quadraticCurveTo(boxX, boxY + boxHeight, boxX, boxY + boxHeight - radius)
-    .lineTo(boxX, boxY + radius)
-    .quadraticCurveTo(boxX, boxY, boxX + radius, boxY)
-    .closePath();
-  
-  // Fill background
-  doc.fillColor(boxBackgroundColor)
-    .fill();
-  
-  // Draw border
-  doc.lineWidth(boxBorderWidth)
-    .strokeColor(boxBorderColor)
-    .stroke();
-  
-  doc.restore();
-  
-  // Draw Balance Due label - centered, styled
-  const labelY = boxY + boxPadding;
-  doc.fillColor('#1E3A8A') // Label color
-    .fontSize(12)
-    .font(fonts.bold) // font-weight 600 (using bold as closest)
-    .text(labelText, boxX + boxPaddingHorizontal, labelY, {
-      width: maxTextWidth,
-      align: 'center'
-    });
-  
-  // Draw Balance Due amount - centered, bold, larger
-  const amountY = labelY + 12 + 8; // Label height + spacing
-  doc.fillColor('#0F172A') // Amount color
-    .fontSize(22)
-    .font(fonts.bold) // font-weight 800 (using bold as closest)
-    .text(amountText, boxX + boxPaddingHorizontal, amountY, {
-      width: maxTextWidth,
-      align: 'center'
-    });
-  
-  // Update currentY to position after the box with margin-bottom: 12px
-  currentY = boxY + boxHeight + 12; // Box height + 12px margin-bottom
+  currentY += spacing.lg;
 
-  // Invoice Date - positioned below Balance Due box
+  // Balance Due (label + amount)
+  doc.fillColor(colors.textGray)
+    .fontSize(fontSize.md) // 10
+    .font(fonts.bold)
+    .text('Balance Due', invoiceBoxX, currentY, {
+      align: 'right',
+      width: invoiceBoxWidth
+    });
+
+  currentY += spacing.sm* 1.25;
+
   doc.fillColor(colors.darkText)
+    .fontSize(14) // reduced from 22
+    .font(fonts.bold)
+    .text(formatCurrency(receivableAmount, currency), invoiceBoxX, currentY, {
+      align: 'right',
+      width: invoiceBoxWidth
+    });
+
+  currentY += spacing.lg;
+
+  // Meta details
+  doc.fillColor(colors.textGray)
     .font(fonts.regular)
-    .fontSize(fontSize.base) // 9
+    .fontSize(9)
     .text(`Invoice Date: ${formatDate(invoice.invoiceDate)}`, invoiceBoxX, currentY, {
       align: 'right',
       width: invoiceBoxWidth
     });
 
-  currentY += spacing.sm; // 10 points spacing
+  currentY += spacing.sm;
 
-  // Terms
   doc.text(`Terms: ${paymentTerms}`, invoiceBoxX, currentY, {
     align: 'right',
     width: invoiceBoxWidth
   });
 
-  currentY += spacing.sm; // 10 points spacing
+  currentY += spacing.sm;
 
-  // Due Date
   doc.text(`Due Date: ${formatDate(invoice.dueDate)}`, invoiceBoxX, currentY, {
     align: 'right',
     width: invoiceBoxWidth
   });
 
-  return currentY + spacing.md;
+  // Removed INR Equivalent line as requested
+
+  return Math.max(startY + invoiceBoxHeight, currentY + spacing.md);
 };
 
 
@@ -479,10 +419,10 @@ const drawItemsTable = (doc, startY, invoice, currency) => {
   
   // Table Rows
   invoice.items.forEach((item, index) => {
-    const rowHeight = Math.max(table.rowHeight, Math.ceil(item.description.length / 50) * 15);
-    
-    // Alternate row background
-    const rowBg = index % 2 === 0 ? colors.rowBgEven : colors.rowBgOdd;
+    // Normalize description
+    const descriptionText = (item.description || '').toString();
+
+    // Get HSN/SAC code - check multiple possible field names and handle empty values
     doc.rect(colX.number, currentY, tableWidth, rowHeight)
       .fill(rowBg);
     
@@ -1102,7 +1042,7 @@ const drawTotalsBlock = (doc, startY, invoice, currency, receivableAmount) => {
 //   return currentY + spacing.md;
 // };
 
-const drawFooter = (doc, startY, invoice, currency, bankDetails, customTerms, declaration) => {
+const drawFooter = (doc, startY, invoice, currency, bankDetails, customTerms) => {
   const { colors, fontSize, fonts, spacing, layout } = DESIGN_SYSTEM;
   let currentY = startY;
 
@@ -1171,8 +1111,14 @@ const drawFooter = (doc, startY, invoice, currency, bankDetails, customTerms, de
   doc.y = currentY;
   ensureSpace(doc, 40);
   currentY = doc.y;
+  doc.fillColor(colors.darkText)
+    .font(fonts.bold)
+    .fontSize(fontSize.md)
+    .text('Indian Currency Equivalent', layout.leftMargin, currentY);
+
+    currentY += spacing.sm * 1.5
   
-  // Convert to INR if currency is not INR (USD, CAD, AED, etc.)
+  // Convert to INR if currency is not INR
   let inrAmount;
   if (currency === 'INR') {
     inrAmount = receivableAmount;
@@ -1201,35 +1147,16 @@ const drawFooter = (doc, startY, invoice, currency, bankDetails, customTerms, de
     maximumFractionDigits: 2 
   });
   
-  // Display "Amount in INR :" (removed heading, just show the label with amount)
-  doc.fillColor(colors.darkText)
+  doc.fillColor(colors.textGray)
     .font(fonts.regular)
     .fontSize(fontSize.base)
     .text(
-      `Amount in INR : ${inrAmountFormatted}`,
+      `Amount in INR: ${inrAmountFormatted}`,
       layout.leftMargin,
       currentY
     );
 
   currentY += spacing.lg;
-
-  // ---------------- DECLARATION ----------------
-  if (declaration && declaration.trim()) {
-    doc.y = currentY;
-    ensureSpace(doc, 100);
-    currentY = doc.y;
-    
-    // Declaration heading removed - only show declaration text
-    doc.fillColor(colors.textGray)
-      .font(fonts.regular)
-      .fontSize(fontSize.base)
-      .text(declaration.trim(), layout.leftMargin, currentY, {
-        width: layout.contentWidth,
-      });
-    
-    // Update currentY based on where the text ended
-    currentY = doc.y + spacing.lg;
-  }
 
   // ---------------- TERMS & CONDITIONS ----------------
 
@@ -1264,9 +1191,6 @@ const drawFooter = (doc, startY, invoice, currency, bankDetails, customTerms, de
     });
     currentY += spacing.sm * 1.25;
   });
-
-  // Add 1 line of space between last term and footer line
-  currentY += spacing.sm; // 1 line = 10 points
 
   // ---------------- FOOTER LINE ----------------
   doc.y = currentY;
@@ -1391,7 +1315,6 @@ export const generateInvoicePDF = async (invoice, outputPath, userId = null) => 
     try {
       let customTerms = null
       let bankDetails = null
-      let declaration = null
 
       // Get userId from parameter or from invoice.user field
       const effectiveUserId = userId || invoice.user || (invoice.user && invoice.user._id ? invoice.user._id : invoice.user)
@@ -1403,20 +1326,11 @@ export const generateInvoicePDF = async (invoice, outputPath, userId = null) => 
           
           if (settings) {
             console.log('📋 PDF Generator - Settings found:', {
-              hasDeclaration: !!settings.declaration,
               hasTermsAndConditions: !!settings.termsAndConditions,
               termsCount: settings.termsAndConditions?.length || 0,
               hasBankDetails: !!settings.bankDetails,
               bankDetailsKeys: settings.bankDetails ? Object.keys(settings.bankDetails) : []
             })
-            
-            // Check if declaration exists and has content
-            if (settings.declaration && typeof settings.declaration === 'string' && settings.declaration.trim().length > 0) {
-              declaration = settings.declaration.trim()
-              console.log('✅ Using Declaration from settings')
-            } else {
-              console.log('⚠️ No Declaration found in settings')
-            }
             
             // Check if termsAndConditions exists and has items
             if (settings.termsAndConditions && Array.isArray(settings.termsAndConditions) && settings.termsAndConditions.length > 0) {
@@ -1522,29 +1436,17 @@ export const generateInvoicePDF = async (invoice, outputPath, userId = null) => 
         })
       }
 
-      // Add 2 lines of space at the top (2 lines × 10 points = 20 points)
-      const extraTopSpacing = DESIGN_SYSTEM.spacing.lg; // 20 points = 2 lines
-      let currentY = extraTopSpacing
-      // Removed header line drawing
-      // currentY = drawHeader(doc, currentY)
+      let currentY = 0
+      currentY = drawHeader(doc, currentY)
 
       // Draw company block at top left
-      const topSectionStartY = 20 + extraTopSpacing
+      const topSectionStartY = 20
       const logoStartY = topSectionStartY + BLOCK_GAP // Logo starts here
       
-      // Calculate Y position where phone number is drawn (to align Balance Due section)
-      // Phone is after: logo + spacing + company name + spacing + address + spacing + GSTIN + spacing
-      const logoHeight = 50; // Logo height
-      const phoneYPosition = topSectionStartY + BLOCK_GAP + logoHeight + DESIGN_SYSTEM.spacing.xs + 
-                            DESIGN_SYSTEM.spacing.sm + DESIGN_SYSTEM.spacing.md + 
-                            DESIGN_SYSTEM.spacing.sm * 1.25 + DESIGN_SYSTEM.spacing.sm * 1.25;
-      
-      // Position invoice meta block on the right side
-      // TAX INVOICE aligned horizontally with logo, Balance Due aligned with phone number
+      // Position invoice meta block on the right side, aligned horizontally with the logo
       drawInvoiceMeta(
         doc,
-        logoStartY, // TAX INVOICE starts at same Y as logo (horizontally aligned)
-        phoneYPosition, // Balance Due section aligned with phone number
+        logoStartY,
         invoice,
         currency,
         receivableAmount,
@@ -1563,14 +1465,13 @@ export const generateInvoicePDF = async (invoice, outputPath, userId = null) => 
       
       // Log what we're passing to footer for debugging
       console.log('📄 PDF Generator - Footer data:', {
-        hasDeclaration: !!declaration,
         hasBankDetails: !!bankDetails,
         bankDetailsFields: bankDetails ? Object.keys(bankDetails).filter(k => bankDetails[k]) : [],
         hasCustomTerms: !!customTerms,
         termsCount: customTerms ? customTerms.length : 0
       })
       
-      currentY = drawFooter(doc, currentY, invoice, currency, bankDetails, customTerms, declaration)
+      currentY = drawFooter(doc, currentY, invoice, currency, bankDetails, customTerms)
 
       doc.end()
 

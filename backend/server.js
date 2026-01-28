@@ -24,6 +24,7 @@ import expenseCategoryRoutes from './routes/expenseCategoryRoutes.js';
 import departmentRoutes from './routes/departmentRoutes.js';
 import reportRoutes from './routes/reportRoutes.js';
 import budgetRoutes from './routes/budgetRoutes.js';
+import userRoutes from './routes/userRoutes.js';
 import { startRecurringInvoiceScheduler } from './utils/recurringInvoiceScheduler.js';
 import { startRecurringExpenseScheduler } from './utils/recurringExpenseScheduler.js';
 import { verifyBrevoSMTP } from './utils/emailService.js';
@@ -100,6 +101,7 @@ app.use('/api/expense-categories', expenseCategoryRoutes);
 app.use('/api/departments', departmentRoutes);
 app.use('/api/reports', reportRoutes);
 app.use('/api/budgets', budgetRoutes);
+app.use('/api/users', userRoutes);
 
 // Health check
 app.get('/api/health', (req, res) => {

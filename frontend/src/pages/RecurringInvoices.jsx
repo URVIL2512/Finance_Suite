@@ -1,23 +1,59 @@
 import { useState, useEffect } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { format } from 'date-fns';
 import { recurringInvoiceAPI } from '../services/api';
 import RecurringInvoiceModal from '../components/RecurringInvoiceModal';
 import ActionDropdown from '../components/ActionDropdown';
 import ConfirmationModal from '../components/ConfirmationModal';
 import { useToast } from '../contexts/ToastContext';
+import SearchBar from '../components/SearchBar';
+import { filterBySearchQuery, moduleSearchConfig } from '../utils/searchUtils';
 
 const RecurringInvoices = () => {
   const { showToast } = useToast();
+  const location = useLocation();
+  const navigate = useNavigate();
+
   const [recurringInvoices, setRecurringInvoices] = useState([]);
   const [loading, setLoading] = useState(true);
   const [editingRecurringInvoice, setEditingRecurringInvoice] = useState(null);
   const [showEditModal, setShowEditModal] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState({ show: false, id: null });
   const [deleting, setDeleting] = useState(false);
+  const initialSearch =
+    typeof window !== 'undefined'
+      ? new URLSearchParams(location.search).get('search') || ''
+      : '';
+  const [searchQuery, setSearchQuery] = useState(initialSearch);
 
   useEffect(() => {
     fetchRecurringInvoices();
   }, []);
+
+  // Keep search state in sync with URL query param (?search=...)
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const urlSearch = params.get('search') || '';
+    if (urlSearch !== searchQuery) {
+      setSearchQuery(urlSearch);
+    }
+  }, [location.search]);
+
+  const updateSearchInUrl = (value) => {
+    const params = new URLSearchParams(location.search);
+    if (value && value.trim()) {
+      params.set('search', value.trim());
+    } else {
+      params.delete('search');
+    }
+    navigate(
+      {
+        pathname: location.pathname,
+        search: params.toString() ? `?${params.toString()}` : '',
+      },
+      { replace: true }
+    );
+  };
 
   const fetchRecurringInvoices = async () => {
     try {
@@ -88,6 +124,12 @@ const RecurringInvoices = () => {
     }
   };
 
+  const filteredRecurringInvoices = filterBySearchQuery(
+    recurringInvoices,
+    searchQuery,
+    moduleSearchConfig.recurringInvoices
+  );
+
   if (loading) {
     return (
       <div className="text-center py-12">
@@ -99,14 +141,26 @@ const RecurringInvoices = () => {
 
   return (
     <div className="animate-fade-in">
-      <div className="mb-6 flex justify-between items-center">
+      <div className="mb-6 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
         <div>
           <h1 className="page-header">Recurring Invoices</h1>
-          <p className="page-subtitle">Manage recurring invoice schedules and automation</p>
+          <p className="page-subtitle">
+            Manage recurring invoice schedules and automation
+          </p>
         </div>
+        {recurringInvoices.length > 0 && (
+          <SearchBar
+            value={searchQuery}
+            onChange={(val) => {
+              setSearchQuery(val);
+              updateSearchInUrl(val);
+            }}
+            placeholder="Search recurring invoices..."
+          />
+        )}
       </div>
 
-      {recurringInvoices.length === 0 ? (
+      {filteredRecurringInvoices.length === 0 ? (
         <div className="card-gradient p-8 text-center">
           <h2 className="text-2xl font-bold text-gray-800 mb-4">No Recurring Invoices</h2>
           <p className="text-gray-600 mb-6">
@@ -149,7 +203,7 @@ const RecurringInvoices = () => {
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
-                {recurringInvoices.map((recurringInvoice) => {
+                {filteredRecurringInvoices.map((recurringInvoice) => {
                   const baseInvoice = recurringInvoice.baseInvoice;
                   const clientName = baseInvoice?.clientDetails?.name || 'N/A';
                   const invoiceNumber = baseInvoice?.invoiceNumber || 'N/A';
