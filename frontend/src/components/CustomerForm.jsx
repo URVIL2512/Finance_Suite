@@ -416,7 +416,11 @@ const CustomerForm = ({ customer, onSubmit, onCancel }) => {
       mobile: typeof formData.mobile === 'object' 
         ? formData.mobile.number 
         : formData.mobile || '',
-      gstin: formData.gstin || '', // Include GSTIN field
+      // Include all business fields
+      pan: formData.pan || '',
+      gstNo: formData.gstNo || '',
+      gstin: formData.gstin || formData.gstNo || '', // Legacy compatibility
+      placeOfSupply: formData.placeOfSupply || '',
     };
     
     onSubmit(submitData);
@@ -669,7 +673,7 @@ const CustomerForm = ({ customer, onSubmit, onCancel }) => {
                     <div>
                       <label className="form-label text-xs font-medium text-gray-700 mb-1.5 block flex items-center gap-2">
                         PAN
-                        <span className="text-gray-400 cursor-help" title="PAN number">
+                        <span className="text-gray-400 cursor-help" title="PAN number (optional)">
                           <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20">
                             <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-8-3a1 1 0 00-.867.5 1 1 0 11-1.731-1A3 3 0 0113 8a3.001 3.001 0 01-2 2.829V11a1 1 0 11-2 0v-1a1 1 0 011-1 1 1 0 100-2zm0 8a1 1 0 100-2 1 1 0 000 2z" clipRule="evenodd" />
                           </svg>
@@ -681,7 +685,7 @@ const CustomerForm = ({ customer, onSubmit, onCancel }) => {
                         value={formData.pan}
                         onChange={handleChange}
                         className="input-field w-full text-sm py-2"
-                        placeholder="PAN"
+                        placeholder="PAN (Optional)"
                       />
                     </div>
                     <div>
@@ -929,7 +933,7 @@ const CustomerForm = ({ customer, onSubmit, onCancel }) => {
               <div className="space-y-5">
                 <h3 className="text-sm font-semibold text-gray-800 uppercase tracking-wide">Other Information</h3>
                 
-                {/* Place of Supply and GST No - 2 columns */}
+                {/* Place of Supply and GSTIN - 2 columns */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
                     <label className="form-label text-xs font-medium text-gray-700 mb-1.5 block">Place of Supply</label>
@@ -1026,14 +1030,14 @@ const CustomerForm = ({ customer, onSubmit, onCancel }) => {
                     )}
                   </div>
                   <div>
-                    <label className="form-label text-xs font-medium text-gray-700 mb-1.5 block">GST No</label>
+                    <label className="form-label text-xs font-medium text-gray-700 mb-1.5 block">GSTIN</label>
                     <input
                       type="text"
                       name="gstNo"
                       value={formData.gstNo}
                       onChange={handleChange}
                       className="input-field w-full text-sm py-2"
-                      placeholder="GST Number"
+                      placeholder="GSTIN Number (Optional)"
                     />
                   </div>
                 </div>

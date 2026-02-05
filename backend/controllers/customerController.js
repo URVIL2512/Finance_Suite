@@ -1,4 +1,5 @@
 import Customer from '../models/Customer.js';
+import { autoSyncCustomerData, syncCustomerDataToInvoices } from '../utils/customerSync.js';
 
 // @desc    Get all customers
 // @route   GET /api/customers
@@ -356,12 +357,14 @@ export const updateCustomer = async (req, res) => {
       contactPersons,
       // Business Information
       pan,
+      placeOfSupply,
       currency,
       paymentTerms,
       tdsPercentage,
       // Legacy fields
       clientName,
       gstin,
+      gstNo,
       state,
       country,
       hsnOrSac,
@@ -423,13 +426,15 @@ export const updateCustomer = async (req, res) => {
         // Contact Persons
         contactPersons: contactPersons || customer.contactPersons,
         // Business Information
-        pan: pan || customer.pan,
+        pan: pan !== undefined ? pan : customer.pan,
+        placeOfSupply: placeOfSupply !== undefined ? placeOfSupply : customer.placeOfSupply,
         currency: currency || customer.currency,
         paymentTerms: paymentTerms || customer.paymentTerms,
         tdsPercentage: tdsPercentage || customer.tdsPercentage,
         // Legacy fields (for backward compatibility)
         clientName: finalDisplayName || clientName || customer.clientName,
-        gstin: gstin || customer.gstin,
+        gstin: gstin !== undefined ? gstin : customer.gstin,
+        gstNo: gstNo !== undefined ? gstNo : customer.gstNo,
         state: state || finalBillingAddress?.state || customer.state,
         country: country || finalBillingAddress?.country || customer.country,
         hsnOrSac: hsnOrSac || customer.hsnOrSac,
@@ -444,6 +449,9 @@ export const updateCustomer = async (req, res) => {
     const populatedCustomer = await Customer.findById(updatedCustomer._id)
       .select('-__v')
       .lean();
+
+    // Auto-sync customer data to existing invoices in background
+    autoSyncCustomerData(updatedCustomer._id, req.user._id);
 
     res.json(populatedCustomer);
   } catch (error) {
@@ -811,5 +819,36 @@ const normalizeCountry = (country) => {
   
   // Return original if no match found
   return country.toString();
+};
+
+// @desc    Sync customer data to invoices
+// @route   POST /api/customers/:id/sync
+// @access  Private
+export const syncCustomerToInvoices = async (req, res) => {
+  try {
+    const result = await syncCustomerDataToInvoices(req.params.id, req.user._id);
+    
+    if (result.success) {
+      res.json({
+        success: true,
+        message: result.message,
+        invoicesUpdated: result.invoicesUpdated,
+        customerName: result.customerName
+      });
+    } else {
+      res.status(400).json({
+        success: false,
+        message: result.message,
+        error: result.error
+      });
+    }
+  } catch (error) {
+    console.error('Error in sync endpoint:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to sync customer data',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
 };
 

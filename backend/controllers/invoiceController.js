@@ -515,6 +515,7 @@ export const createInvoice = async (req, res) => {
     let finalClientPincode = clientPincode || '';
     let finalPlaceOfSupply = placeOfSupply || '';
     let finalGstNo = gstNo || '';
+    let clientPan = ''; // Initialize PAN variable
     
     // If city or pincode not provided, try to extract from address
     if ((!finalClientCity || !finalClientPincode) && clientAddress) {
@@ -561,6 +562,11 @@ export const createInvoice = async (req, res) => {
           }
           if (customer.gstNo && !finalGstNo) {
             finalGstNo = customer.gstNo;
+          }
+          // Add PAN field fetching
+          if (customer.pan && !clientPan) {
+            clientPan = customer.pan;
+            console.log(`Auto-fetched client PAN from Customer: ${clientPan} for ${finalClientName}`);
           }
         }
       } catch (customerError) {
@@ -676,6 +682,7 @@ export const createInvoice = async (req, res) => {
         state: clientState || '',
         placeOfSupply: finalPlaceOfSupply || '',
         gstNo: finalGstNo || '',
+        pan: clientPan || '', // Add PAN field
       },
       items: invoiceItems,
       subTotal: subTotal, // Sub Total = Amount - TDS - TCS
@@ -1049,6 +1056,7 @@ export const updateInvoice = async (req, res) => {
       clientMobile,
       clientName,
       clientCountry,
+      clientPan, // Add PAN field
       hsnSac,
       sendEmail, // Flag to control whether to send email
     } = req.body;
@@ -1122,7 +1130,7 @@ export const updateInvoice = async (req, res) => {
     }
 
     // Update client details first (before recalculation) so new values are used in calculations
-    if (clientAddress !== undefined || clientCity !== undefined || clientPincode !== undefined || clientGstin !== undefined || clientState !== undefined || placeOfSupply !== undefined || gstNo !== undefined || clientName !== undefined || clientCountry !== undefined) {
+    if (clientAddress !== undefined || clientCity !== undefined || clientPincode !== undefined || clientGstin !== undefined || clientState !== undefined || placeOfSupply !== undefined || gstNo !== undefined || clientName !== undefined || clientCountry !== undefined || clientPan !== undefined) {
       invoice.clientDetails = invoice.clientDetails || {};
       if (clientName !== undefined) invoice.clientDetails.name = clientName;
       if (clientCountry !== undefined) invoice.clientDetails.country = clientCountry;
@@ -1133,6 +1141,7 @@ export const updateInvoice = async (req, res) => {
       if (clientState !== undefined) invoice.clientDetails.state = clientState;
       if (placeOfSupply !== undefined) invoice.clientDetails.placeOfSupply = placeOfSupply;
       if (gstNo !== undefined) invoice.clientDetails.gstNo = gstNo;
+      if (clientPan !== undefined) invoice.clientDetails.pan = clientPan;
     }
 
     // Recalculate amounts if base amount, percentages, country, or place of supply changed

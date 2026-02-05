@@ -210,7 +210,7 @@ const drawHeader = async (doc, startY = 0) => {
  * SECTION 3: Draw Billing Cards (Billed By and Billed To side by side)
  * Returns: final Y position
  */
-const drawBillingCards = (doc, startY, invoice) => {
+const drawBillingCards = (doc, startY, invoice, latestCustomerData = null) => {
   const { colors, fontSize, fonts, spacing, layout } = DESIGN_SYSTEM;
   
   let currentY = startY;
@@ -243,18 +243,29 @@ const drawBillingCards = (doc, startY, invoice) => {
     { text: 'Website: https://www.kology.co/', style: 'regular', spacing: 0 }
   ];
   
-  // Prepare right card content
-  const clientName = invoice.clientDetails?.name?.trim() || 
-                     invoice.clientName?.trim() || 
+  // Prepare right card content - use latest customer data if available with comprehensive null checks
+  const clientName = (latestCustomerData?.displayName?.trim()) || 
+                     (latestCustomerData?.clientName?.trim()) ||
+                     (invoice?.clientDetails?.name?.trim()) || 
+                     (invoice?.clientName?.trim()) || 
                      'Client Name';
-  const clientState = invoice.clientDetails?.state?.trim() || '';
-  const clientCountry = invoice.clientDetails?.country?.trim() || '';
+  
+  // Use latest customer data for address fields with comprehensive null checks
+  const clientState = (latestCustomerData?.billingAddress?.state?.trim()) || 
+                      (latestCustomerData?.state?.trim()) ||
+                      (invoice?.clientDetails?.state?.trim()) || '';
+  const clientCountry = (latestCustomerData?.billingAddress?.country?.trim()) || 
+                        (latestCustomerData?.country?.trim()) ||
+                        (invoice?.clientDetails?.country?.trim()) || '';
   const stateCountry = [clientState, clientCountry].filter(Boolean).join(', ') || 'State, Country';
   
-  // Format address line properly
-  const clientAddress = invoice.clientDetails?.address?.trim() || '';
-  const clientCity = invoice.clientDetails?.city?.trim() || '';
-  const clientPincode = invoice.clientDetails?.pincode?.trim() || '';
+  // Format address line properly - use latest customer data with comprehensive null checks
+  const clientAddress = (latestCustomerData?.billingAddress?.street1?.trim()) || 
+                        (invoice?.clientDetails?.address?.trim()) || '';
+  const clientCity = (latestCustomerData?.billingAddress?.city?.trim()) || 
+                     (invoice?.clientDetails?.city?.trim()) || '';
+  const clientPincode = (latestCustomerData?.billingAddress?.pinCode?.trim()) || 
+                        (invoice?.clientDetails?.pincode?.trim()) || '';
   
   let addressLine = '';
   if (clientAddress) {
@@ -266,9 +277,16 @@ const drawBillingCards = (doc, startY, invoice) => {
     addressLine = 'Address Line';
   }
   
-  const clientPhone = invoice.clientMobile?.trim() || '';
-  const clientEmail = invoice.clientEmail?.trim() || '';
-  const clientGstin = invoice.clientDetails?.gstNo || invoice.clientDetails?.gstin || '';
+  const clientPhone = (invoice?.clientMobile?.trim()) || '';
+  const clientEmail = (invoice?.clientEmail?.trim()) || '';
+  
+  // Use latest customer data for PAN and GSTIN - prioritize fresh data with comprehensive null checks
+  const clientGstin = (latestCustomerData?.gstNo?.trim()) || 
+                      (latestCustomerData?.gstin?.trim()) ||
+                      (invoice?.clientDetails?.gstNo?.trim()) || 
+                      (invoice?.clientDetails?.gstin?.trim()) || '';
+  const clientPan = (latestCustomerData?.pan?.trim()) || 
+                    (invoice?.clientDetails?.pan?.trim()) || '';
   
   const rightCardContent = [
     { text: 'Billed To', style: 'title', spacing: titleSpacing },
@@ -276,10 +294,18 @@ const drawBillingCards = (doc, startY, invoice) => {
     { text: stateCountry, style: 'regular', spacing: addressSpacing },
     { text: addressLine, style: 'regular', spacing: fieldSpacing },
     { text: clientPhone ? `Phone: ${clientPhone}` : 'Phone: -', style: 'regular', spacing: fieldSpacing },
-    { text: clientEmail ? `Email: ${clientEmail}` : 'Email: -', style: 'regular', spacing: fieldSpacing },
-    { text: clientGstin ? `GSTIN: ${clientGstin}` : 'GSTIN: -', style: 'regular', spacing: fieldSpacing },
-    { text: 'PAN: -', style: 'regular', spacing: 0 }
+    { text: clientEmail ? `Email: ${clientEmail}` : 'Email: -', style: 'regular', spacing: fieldSpacing }
   ];
+  
+  // Add GSTIN if it exists
+  if (clientGstin) {
+    rightCardContent.push({ text: `GSTIN: ${clientGstin}`, style: 'regular', spacing: clientPan ? fieldSpacing : 0 });
+  }
+  
+  // Add PAN if it exists
+  if (clientPan) {
+    rightCardContent.push({ text: `PAN: ${clientPan}`, style: 'regular', spacing: 0 });
+  }
   
   // Calculate heights for both cards with optimized spacing
   const calculateCardHeight = (content, cardWidth, cardPadding) => {
@@ -435,7 +461,7 @@ const drawInvoiceMeta = (doc, startY, invoice, paymentTerms) => {
  * SECTION 4: Draw Supply Details (Only Place of Supply above table)
  * Returns: final Y position
  */
-const drawSupplyDetails = (doc, startY, invoice) => {
+const drawSupplyDetails = (doc, startY, invoice, latestCustomerData = null) => {
   const { colors, fontSize, fonts, spacing, layout } = DESIGN_SYSTEM;
   
   let currentY = startY;
@@ -448,8 +474,10 @@ const drawSupplyDetails = (doc, startY, invoice) => {
     .font(fonts.regular)
     .fontSize(fontSize.md);
   
-  // Place of Supply (right side, above table)
-  const placeOfSupply = invoice.clientDetails?.placeOfSupply || 'Gujarat';
+  // Place of Supply (right side, above table) - use latest customer data with comprehensive null checks
+  const placeOfSupply = (latestCustomerData?.placeOfSupply?.trim()) || 
+                        (invoice?.clientDetails?.placeOfSupply?.trim()) || 
+                        'Gujarat';
   doc.text(`Place of Supply: ${placeOfSupply}`, rightSideX, currentY);
   currentY += spacing.md;
   
@@ -1866,6 +1894,9 @@ const drawFooter = (doc, startY, invoice, currency, bankDetails, customTerms, li
 export const generateInvoicePDF = async (invoice, outputPath, userId = null) => {
   return new Promise(async (resolve, reject) => {
     try {
+      // Initialize customer data variable at the beginning with safe defaults
+      let latestCustomerData = null;
+      
       // Fetch live exchange rates at the beginning
       console.log('🌍 PDF Generator: Fetching live exchange rates...');
       const exchangeRateResult = await getExchangeRates();
@@ -1953,6 +1984,71 @@ export const generateInvoicePDF = async (invoice, outputPath, userId = null) => 
         } catch {}
       }
 
+      // Fetch latest customer data for PDF generation
+      if (effectiveUserId) {
+        try {
+          console.log('🔍 PDF Generator: Fetching latest customer data...');
+          
+          // Ensure we have some identifier to search for customer
+          const searchCriteria = [];
+          if (invoice?.clientEmail) {
+            searchCriteria.push({ email: invoice.clientEmail });
+          }
+          if (invoice?.clientDetails?.name) {
+            searchCriteria.push({ clientName: invoice.clientDetails.name });
+            searchCriteria.push({ displayName: invoice.clientDetails.name });
+          }
+          
+          if (searchCriteria.length === 0) {
+            console.log('⚠️ PDF Generator: No search criteria available for customer lookup');
+          } else {
+            const customer = await Customer.findOne({
+              $or: searchCriteria,
+              user: effectiveUserId,
+              isActive: { $ne: false }
+            }).lean();
+            
+            if (customer) {
+              latestCustomerData = customer;
+              console.log('✅ PDF Generator: Latest customer data found:', {
+                name: customer.displayName || customer.clientName || 'Unknown',
+                pan: customer.pan ? 'Present' : 'Not set',
+                gstNo: customer.gstNo ? 'Present' : 'Not set',
+                placeOfSupply: customer.placeOfSupply || 'Not set'
+              });
+              
+              // Sync latest customer data back to invoice for future consistency
+              try {
+                const Invoice = (await import('../models/Invoice.js')).default;
+                await Invoice.findByIdAndUpdate(invoice._id, {
+                  'clientDetails.pan': customer.pan || '',
+                  'clientDetails.gstNo': customer.gstNo || '',
+                  'clientDetails.gstin': customer.gstin || customer.gstNo || '',
+                  'clientDetails.placeOfSupply': customer.placeOfSupply || '',
+                  'clientDetails.state': customer.billingAddress?.state || customer.state || '',
+                  'clientDetails.country': customer.billingAddress?.country || customer.country || '',
+                  'clientDetails.address': customer.billingAddress?.street1 || '',
+                  'clientDetails.city': customer.billingAddress?.city || '',
+                  'clientDetails.pincode': customer.billingAddress?.pinCode || ''
+                });
+                console.log('✅ PDF Generator: Invoice clientDetails synced with latest customer data');
+              } catch (syncError) {
+                console.error('⚠️ PDF Generator: Failed to sync customer data to invoice:', syncError);
+                // Don't fail PDF generation if sync fails
+              }
+            } else {
+              console.log('⚠️ PDF Generator: Customer not found, using invoice data');
+            }
+          }
+        } catch (error) {
+          console.error('❌ PDF Generator: Error fetching customer data:', error);
+          console.log('⚠️ PDF Generator: Falling back to invoice data');
+          // latestCustomerData remains null, functions will use invoice data
+        }
+      } else {
+        console.log('⚠️ PDF Generator: No userId provided, using invoice data only');
+      }
+
       const doc = new PDFDocument({
         size: 'A4',
         margin: DESIGN_SYSTEM.layout.margin,
@@ -2020,8 +2116,8 @@ export const generateInvoicePDF = async (invoice, outputPath, userId = null) => 
       // New layout structure
       currentY = await drawHeader(doc, currentY)
       currentY = drawInvoiceMeta(doc, currentY, invoice, paymentTerms)
-      currentY = drawBillingCards(doc, currentY, invoice)
-      currentY = drawSupplyDetails(doc, currentY, invoice)
+      currentY = drawBillingCards(doc, currentY, invoice, latestCustomerData)
+      currentY = drawSupplyDetails(doc, currentY, invoice, latestCustomerData)
       currentY = drawItemsTable(doc, currentY, invoice, currency, liveExchangeRates)
       const totalsResult = drawTotalsBlock(doc, currentY, invoice, currency, totalAmount, liveExchangeRates)
       currentY = totalsResult.finalY
@@ -2049,7 +2145,15 @@ export const generateInvoicePDF = async (invoice, outputPath, userId = null) => 
       stream.on('finish', () => resolve(outputPath))
       stream.on('error', reject)
     } catch (error) {
-      reject(error)
+      console.error('❌ PDF Generator: Critical error during PDF generation:', error);
+      console.error('❌ PDF Generator: Error stack:', error.stack);
+      console.error('❌ PDF Generator: Invoice data:', {
+        invoiceId: invoice?._id,
+        invoiceNumber: invoice?.invoiceNumber,
+        clientName: invoice?.clientDetails?.name || invoice?.clientName,
+        hasLatestCustomerData: !!latestCustomerData
+      });
+      reject(new Error(`PDF generation failed: ${error.message}`));
     }
   })
 }

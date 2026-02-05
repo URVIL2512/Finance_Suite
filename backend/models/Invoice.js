@@ -72,6 +72,10 @@ const clientDetailsSchema = new mongoose.Schema({
     type: String,
     default: '',
   },
+  pan: {
+    type: String,
+    default: '',
+  },
 });
 
 const invoiceSchema = new mongoose.Schema(

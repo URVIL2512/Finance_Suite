@@ -8,6 +8,7 @@ import {
   deleteCustomer,
   exportCustomers,
   importCustomers,
+  syncCustomerToInvoices,
 } from '../controllers/customerController.js';
 import { protect, requireModuleAccess } from '../middleware/auth.js';
 
@@ -41,6 +42,7 @@ router.route('/').get(getCustomers).post(createCustomer);
 router.route('/export').get(exportCustomers);
 router.route('/import').post(upload.single('file'), importCustomers);
 router.route('/:id').get(getCustomer).put(updateCustomer).delete(deleteCustomer);
+router.route('/:id/sync').post(syncCustomerToInvoices);
 
 export default router;
 
