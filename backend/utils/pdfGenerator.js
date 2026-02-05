@@ -277,8 +277,25 @@ const drawBillingCards = (doc, startY, invoice, latestCustomerData = null) => {
     addressLine = 'Address Line';
   }
   
-  const clientPhone = (invoice?.clientMobile?.trim()) || '';
-  const clientEmail = (invoice?.clientEmail?.trim()) || '';
+  // Extract phone number from latest customer data or invoice data with comprehensive null checks
+  const customerMobile = (latestCustomerData?.mobile?.number?.trim?.()) || 
+                         (latestCustomerData?.mobile?.trim?.()) || '';
+  const customerWorkPhone = (latestCustomerData?.workPhone?.number?.trim?.()) || 
+                            (latestCustomerData?.workPhone?.trim?.()) || '';
+  const invoicePhone = (invoice?.clientMobile?.trim?.()) || '';
+  
+  // Prioritize customer data over invoice data, and mobile over work phone
+  const clientPhone = customerMobile || customerWorkPhone || invoicePhone;
+  const clientEmail = (invoice?.clientEmail?.trim?.()) || '';
+  
+  // Validate phone number - ensure it's not just empty, whitespace, or placeholder
+  const hasValidPhone = clientPhone && 
+                        typeof clientPhone === 'string' &&
+                        clientPhone.length > 0 && 
+                        clientPhone !== '-' && 
+                        clientPhone !== 'N/A' && 
+                        clientPhone !== 'Not provided' &&
+                        /\d/.test(clientPhone); // Contains at least one digit
   
   // Use latest customer data for PAN and GSTIN - prioritize fresh data with comprehensive null checks
   const clientGstin = (latestCustomerData?.gstNo?.trim()) || 
@@ -292,10 +309,16 @@ const drawBillingCards = (doc, startY, invoice, latestCustomerData = null) => {
     { text: 'Billed To', style: 'title', spacing: titleSpacing },
     { text: clientName, style: 'bold', spacing: fieldSpacing },
     { text: stateCountry, style: 'regular', spacing: addressSpacing },
-    { text: addressLine, style: 'regular', spacing: fieldSpacing },
-    { text: clientPhone ? `Phone: ${clientPhone}` : 'Phone: -', style: 'regular', spacing: fieldSpacing },
-    { text: clientEmail ? `Email: ${clientEmail}` : 'Email: -', style: 'regular', spacing: fieldSpacing }
+    { text: addressLine, style: 'regular', spacing: fieldSpacing }
   ];
+  
+  // Add Phone if it exists and is valid
+  if (hasValidPhone) {
+    rightCardContent.push({ text: `Phone: ${clientPhone}`, style: 'regular', spacing: fieldSpacing });
+  }
+  
+  // Add Email (always show, even if empty with dash)
+  rightCardContent.push({ text: clientEmail ? `Email: ${clientEmail}` : 'Email: -', style: 'regular', spacing: fieldSpacing });
   
   // Add GSTIN if it exists
   if (clientGstin) {

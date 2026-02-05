@@ -131,7 +131,15 @@ const CustomerForm = ({ customer, onSubmit, onCancel }) => {
         displayName: customer.displayName || customer.clientName || '',
         email: customer.email || '',
         workPhone: customer.workPhone || { countryCode: '+91', number: '' },
-        mobile: customer.mobile || { countryCode: '+91', number: customer.mobile || '' },
+        mobile: (() => {
+          if (customer.mobile && typeof customer.mobile === 'object' && customer.mobile.countryCode && customer.mobile.number !== undefined) {
+            return customer.mobile;
+          } else if (customer.mobile && typeof customer.mobile === 'string') {
+            return { countryCode: '+91', number: customer.mobile };
+          } else {
+            return { countryCode: '+91', number: '' };
+          }
+        })(),
         customerLanguage: customer.customerLanguage || 'English',
         billingAddress: customer.billingAddress || {
           attention: '',
@@ -413,9 +421,8 @@ const CustomerForm = ({ customer, onSubmit, onCancel }) => {
       state: formData.billingAddress?.state || formData.state || '',
       // Send the complete billingAddress object, not just street1
       billingAddress: formData.billingAddress,
-      mobile: typeof formData.mobile === 'object' 
-        ? formData.mobile.number 
-        : formData.mobile || '',
+      // Send mobile as complete object with countryCode and number
+      mobile: formData.mobile || { countryCode: '+91', number: '' },
       // Include all business fields
       pan: formData.pan || '',
       gstNo: formData.gstNo || '',

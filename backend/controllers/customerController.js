@@ -396,6 +396,16 @@ export const updateCustomer = async (req, res) => {
       finalBillingAddress = { street1: billingAddress };
     }
 
+    // Handle mobile properly - support both object and string formats
+    let finalMobile = customer.mobile || { countryCode: '+91', number: '' };
+    if (mobile !== undefined) {
+      if (typeof mobile === 'object' && mobile !== null) {
+        finalMobile = mobile;
+      } else if (typeof mobile === 'string') {
+        finalMobile = { countryCode: '+91', number: mobile };
+      }
+    }
+
     // Generate display name if not provided
     let finalDisplayName = displayName;
     if (!finalDisplayName && (salutation || firstName || lastName)) {
@@ -418,7 +428,7 @@ export const updateCustomer = async (req, res) => {
         displayName: finalDisplayName || customer.displayName,
         email: email ? email.toLowerCase() : customer.email,
         workPhone: workPhone || customer.workPhone,
-        mobile: mobile || customer.mobile,
+        mobile: finalMobile,
         customerLanguage: customerLanguage || customer.customerLanguage,
         // Address
         billingAddress: finalBillingAddress,
